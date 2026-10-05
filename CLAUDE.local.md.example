@@ -1,0 +1,7 @@
+# CLAUDE.local.md — personal, NOT committed (copy to CLAUDE.local.md)
+# NOTE: in this repo CLAUDE.md exists, so creating CLAUDE.local.md does not change AGENTS.md handling.
+
+- My machine: Intel MacBook, Docker Desktop memory set to __ GB. Prefer `--profile core` runs.
+- Ollama model I have pulled locally: llama3.2:3b (chat), nomic-embed-text (embeddings)
+- Explain each phase as if I will be asked about it in a Staff AI Engineer interview tomorrow.
+- I am in the middle of Phase: __

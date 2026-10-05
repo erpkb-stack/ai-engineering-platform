@@ -1,0 +1,26 @@
+# Claude Code GitHub Action: mention @claude in a PR/issue comment to get a review or a fix.
+# Setup: in Claude Code run `/install-github-app`, or add repo secret ANTHROPIC_API_KEY manually.
+# The full CI/CD pipeline (lint → type → tests → scan → build → push → deploy → smoke) is Phase 24.
+name: claude
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+jobs:
+  claude:
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Claude reads CLAUDE.md, .claude/rules, skills and agents from the repo automatically.
