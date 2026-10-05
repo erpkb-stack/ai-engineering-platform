@@ -394,12 +394,13 @@ One Postgres instance [P], **schema per owning service**. Tables (spec list) map
 | `identity` (api) | users, roles, permissions, user_roles, role_permissions |
 | `catalog` (service-catalog, Flyway) | services, repositories, service_dependencies, apis, teams |
 | `incident` | incidents, incident_events, evidence, hypotheses, hypothesis_evidence, approvals, feedback, outbox, processed_events |
-| `orchestrator` | tasks, agent_executions, messages, langgraph checkpoints |
-| `rag` | documents, document_chunks, runbooks (+ runbook_steps) |
-| `history` (rag) | historical_incidents (+ embedding) |
+| `orchestrator` | investigations, tasks, agent_executions, messages (+ LangGraph checkpoint tables, Phase 9) |
+| `rag` | documents, document_chunks, runbooks (steps as JSONB), historical_incidents (+ embedding) |
 | `devdata` (tool-gateway simulated sources) | deployments, commits, pull_requests, log_events, metric_points |
 | `tools` | tool_calls |
 | `llm` | model_usage, prompt_versions |
+
+> Phase 3 implementation notes: full table/column/index reference in [`docs/data-model.md`](docs/data-model.md). `services`/`repositories` live in `catalog` (Java, Phase 20); until then `data/generated/catalog.json`.
 | `audit` | audit_events (append-only, monthly partitions) |
 | `eval` | datasets, eval_cases, eval_runs, evaluations |
 
@@ -582,8 +583,9 @@ Change vs spec: added `prompts/` (prompt versioning needs a home) and `knowledge
 | ADR-010 | OpenTelemetry for traces/metrics/logs | Proposed |
 | ADR-011 | Eleven services from day one (vs modular monolith) — cost acknowledged | Proposed |
 | ADR-012 | Postgres edges + recursive CTE for knowledge graph (no graph DB) | Proposed |
-| ADR-013 *(planned)* | Evidence-rubric confidence bands instead of LLM percentages | to write in Phase 11 |
+| ADR-013 | One Alembic migration stream for all service-owned schemas (for now) | Proposed (Phase 3) |
 | ADR-014 *(planned)* | LLM routing policy (Claude vs Ollama) and fallback | to write in Phase 5 |
+| ADR-015 *(planned)* | Evidence-rubric confidence bands instead of LLM percentages | to write in Phase 11 |
 
 ## 28. Development roadmap
 See [`docs/roadmap.md`](docs/roadmap.md): 31 phases, each with a **Verify** gate. Main changes: an in-process event bus with the Kafka interface from Phase 4; services are created only in the phase that needs them.

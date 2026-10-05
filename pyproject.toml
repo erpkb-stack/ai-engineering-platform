@@ -1,7 +1,7 @@
 # AEOI uv workspace root (virtual: no [project] table).
 # Members: shared libs now; services join in the phase that creates them.
 [tool.uv.workspace]
-members = ["libs/*"]
+members = ["libs/*", "scripts/synth"]
 
 [tool.uv]
 required-version = ">=0.5"
@@ -22,6 +22,9 @@ line-length = 100
 target-version = "py312"
 extend-exclude = ["_to_delete", "data/generated"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth", "tests"]
+
 [tool.ruff.lint]
 select = [
     "E", "W", "F",   # pycodestyle + pyflakes
@@ -35,11 +38,16 @@ select = [
     "PT",            # pytest style
     "N",             # naming
 ]
-ignore = ["RUF012"]
+ignore = [
+    "RUF012",
+    "E501",  # the formatter owns line length; it leaves long strings/SQL alone on purpose
+]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "S105", "S106"]
-"tests/**" = ["S101", "S105", "S106"]
+"**/tests/**" = ["S101", "S105", "S106", "S608", "PT018"]
+"tests/**" = ["S101", "S105", "S106", "S608", "PT018"]
+"**/alembic/versions/*.py" = ["E501", "RUF001", "S608"]  # DDL built from constants
+"scripts/synth/**" = ["S311"]  # random is fine for synthetic data
 
 # ---------- mypy ----------
 [tool.mypy]
@@ -47,8 +55,13 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unreachable = true
-mypy_path = ["libs/common/src", "libs/models/src", "libs/security/src", "libs/observability/src"]
-packages = ["aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability"]
+mypy_path = [
+    "libs/common/src", "libs/models/src", "libs/security/src", "libs/observability/src",
+    "libs/db/src", "scripts/synth/src",
+]
+packages = [
+    "aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth",
+]
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
@@ -57,7 +70,7 @@ warn_required_dynamic_aliases = true
 
 # ---------- pytest ----------
 [tool.pytest.ini_options]
-testpaths = ["tests", "libs"]
+testpaths = ["tests", "libs", "scripts/synth"]
 addopts = "--import-mode=importlib -ra --strict-markers --strict-config -m 'not integration and not eval and not e2e'"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

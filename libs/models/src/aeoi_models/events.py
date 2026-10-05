@@ -10,9 +10,10 @@ from datetime import UTC, datetime
 from enum import StrEnum
 from uuid import UUID
 
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 from aeoi_common.correlation import get_correlation_id
 from aeoi_common.ids import uuid7
-from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class EventType(StrEnum):

@@ -14,5 +14,6 @@
 | [ADR-010](ADR-010-opentelemetry.md) | OpenTelemetry for traces, metrics and logs | Proposed |
 | [ADR-011](ADR-011-eleven-services.md) | Eleven services from day one (instead of a modular monolith) | Proposed |
 | [ADR-012](ADR-012-graph-in-postgres.md) | Postgres edges + recursive CTE for the knowledge graph (no graph DB) | Proposed |
+| [ADR-013](ADR-013-single-migration-stream.md) | One Alembic migration stream for all service-owned schemas (for now) | Proposed |
 
 Rules: Accepted ADRs are immutable (enforced by `.claude/hooks/protect-files.sh`). Use the `/adr` skill to supersede.

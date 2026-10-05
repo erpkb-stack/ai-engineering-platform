@@ -30,7 +30,13 @@
       "Bash(git log *)",
       "Bash(uv lock *)",
       "Bash(uv run pre-commit *)",
-      "Bash(docker compose config *)"
+      "Bash(docker compose config *)",
+      "Bash(make db-current)",
+      "Bash(make db-history)",
+      "Bash(make db-check)",
+      "Bash(make db-verify)",
+      "Bash(make test-integration)",
+      "Bash(uv run python -m aeoi_synth summary *)"
     ],
     "ask": [
       "Bash(docker compose up *)",
@@ -46,7 +52,13 @@
       "Bash(make down)",
       "Bash(make kafka-init)",
       "Bash(make clean *)",
-      "Bash(make psql)"
+      "Bash(make psql)",
+      "Bash(make db-upgrade)",
+      "Bash(make db-downgrade)",
+      "Bash(make db-seed *)",
+      "Bash(make db-seed)",
+      "Bash(make db-revision *)",
+      "Bash(make db-reset *)"
     ],
     "deny": [
       "Read(./.env)",

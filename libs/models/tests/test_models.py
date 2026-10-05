@@ -3,6 +3,8 @@ from datetime import datetime
 from uuid import uuid4
 
 import pytest
+from pydantic import BaseModel, TypeAdapter, ValidationError
+
 from aeoi_common import set_correlation_id
 from aeoi_models import (
     ConfidenceBand,
@@ -15,7 +17,6 @@ from aeoi_models import (
     Hypothesis,
     Recommendation,
 )
-from pydantic import BaseModel, TypeAdapter, ValidationError
 
 
 def ev(eid: str, kind: EvidenceKind) -> EvidenceRef:

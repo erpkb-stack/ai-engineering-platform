@@ -1,0 +1,22 @@
+[project]
+name = "aeoi-db"
+version = "0.1.0"
+description = "AEOI relational data model (SQLAlchemy 2.0) and Alembic migrations, schema-per-owning-service"
+requires-python = ">=3.12"
+dependencies = [
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.14",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3.6",
+    "aeoi-common",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_db"]
+
+[tool.uv.sources]
+aeoi-common = { workspace = true }

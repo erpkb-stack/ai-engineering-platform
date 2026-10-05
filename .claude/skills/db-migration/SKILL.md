@@ -5,8 +5,8 @@ argument-hint: "<service> <message>"
 ---
 # Migration: $ARGUMENTS
 
-1. `cd services/<service> && uv run alembic revision --autogenerate -m "<message>"` — then READ and edit the generated file; autogenerate misses pgvector types, partial indexes, and CHECK constraints.
+1. Change the model in `libs/db/src/aeoi_db/models/<schema>.py`, then `make db-revision MSG="<message>" SCHEMA=<schema>` — then READ and edit the generated file: autogenerate misses sequences, triggers, `COMMENT ON INDEX`, grants, and needs `import pgvector.sqlalchemy` for vector columns.
 2. Zero-downtime pattern (expand → migrate → contract): add nullable column → backfill in batches → add constraint `NOT VALID` → `VALIDATE CONSTRAINT`. Indexes on big tables: `CREATE INDEX CONCURRENTLY` (needs `op.get_context().autocommit_block()`).
 3. Every index gets a comment `-- serves: <query/endpoint>`.
-4. Test: `alembic upgrade head` then `alembic downgrade -1` then `upgrade head` on a Testcontainers DB.
+4. Test: `make db-upgrade && make db-check && make test-integration` (the suite round-trips base↔head with data present).
 5. Never edit a merged migration (hook-enforced).

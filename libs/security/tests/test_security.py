@@ -1,4 +1,5 @@
 import pytest
+
 from aeoi_security import REDACTED, redact_mapping, redact_text, wrap_untrusted
 
 
