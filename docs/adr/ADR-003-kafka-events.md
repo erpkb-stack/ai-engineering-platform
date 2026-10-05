@@ -23,6 +23,8 @@ Against: JVM memory on a laptop, operational complexity, and overkill at 10 rps.
 ## Consequences
 Exactly-once is NOT claimed. Every consumer must be idempotent.
 
+Implementation (Phase 4): `incident.outbox` + `OutboxRelay` (FOR UPDATE SKIP LOCKED, ordered, stops a batch at the first failure) + `Publisher` interface with `LogPublisher` (default, no broker needed) and `KafkaPublisher` (aiokafka, `acks=all`, idempotent producer, key = incident id).
+
 ## Prototype vs Production vs Enterprise-scale
 [P] 1 broker. [Prod] MSK 3 brokers, RF=3, min.insync=2. [Ent] multi-region with MirrorMaker 2/cluster linking.
 

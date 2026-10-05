@@ -21,7 +21,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 | 15 | Release risk analysis | PR/RC analysis report; advisory only |  |
 | 16 | Human approval | interrupt/resume; approvals single-use + expiry + args hash; controlled tool execution; audit |  |
 | 17 | React frontend | 12 screens; investigation workspace; evidence graph; trace waterfall; approval panel; Playwright e2e |  |
-| 18 | Kafka / distributed | swap in-process bus → Kafka; outbox relay; DLQ; idempotent consumers; duplicate-delivery test |  |
+| 18 | Kafka / distributed | consumers with `processed_events` dedupe, retry topics, DLQ + replay tool, duplicate-delivery test, consumer-lag metrics (the producer side - outbox + relay + KafkaPublisher - shipped in Phase 4) |  |
 | 19 | Redis | caches, rate limits, locks, idempotency store; Redis-down behaviour tests |  |
 | 20 | Java Service Catalog | Spring Boot service + Flyway + outbox; Python client generated from OpenAPI; contract test | service-catalog |
 | 21 | Docker | multi-stage non-root images; compose profiles; secrets; resource limits; healthchecks | evaluation, knowledge-service images |
@@ -40,7 +40,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 
 - [x] Phase 1: Requirements & architecture
 - [x] Phase 2: Repository & dev environment
-- [ ] Phase 3: Database & data model
+- [x] Phase 3: Database & data model
 - [ ] Phase 4: FastAPI backend
 - [ ] Phase 5: LLM Gateway
 - [ ] Phase 6: RAG pipeline

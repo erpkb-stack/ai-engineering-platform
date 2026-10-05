@@ -18,6 +18,8 @@ from aeoi_common.ids import uuid7
 
 class EventType(StrEnum):
     INCIDENT_CREATED = "IncidentCreated"
+    INCIDENT_UPDATED = "IncidentUpdated"
+    INVESTIGATION_REQUESTED = "InvestigationRequested"
     INVESTIGATION_STARTED = "InvestigationStarted"
     AGENT_STARTED = "AgentStarted"
     AGENT_COMPLETED = "AgentCompleted"

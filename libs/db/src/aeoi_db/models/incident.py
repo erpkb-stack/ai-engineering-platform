@@ -78,6 +78,8 @@ class Incident(Base):
         Index(
             "ix_incidents_status_severity_created_at", "status", "severity", text("created_at DESC")
         ),
+        # serves: unfiltered incident list, keyset pagination (created_at, id) newest first
+        Index("ix_incidents_created_at_id", text("created_at DESC"), text("id DESC")),
         # serves: "incidents affecting service X" (array containment @>)
         Index("ix_incidents_affected_services", "affected_services", postgresql_using="gin"),
         {"schema": SCHEMA},
@@ -334,3 +336,29 @@ class ProcessedEvent(Base):
     consumer: Mapped[str] = mapped_column(String(80), primary_key=True)
     event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     processed_at: Mapped[datetime] = created_at_col()
+
+
+class IdempotencyKey(Base):
+    """Stored result of a POST that carried an Idempotency-Key (ADR-003 / API rules).
+
+    Scoped by (principal, scope, key): the same key from another user, or for another
+    endpoint, is a different request. Same key + different body = 422, never a silent replay.
+    Written in the SAME transaction as the resource it created.
+    """
+
+    __tablename__ = "idempotency_keys"
+    __table_args__ = (
+        CheckConstraint("request_sha256 ~ '^[0-9a-f]{64}$'", name="request_sha256_hex"),
+        CheckConstraint("length(key) BETWEEN 8 AND 128", name="key_length"),
+        # serves: cleanup job deleting expired keys
+        Index("ix_idempotency_keys_expires_at", "expires_at"),
+        {"schema": SCHEMA},
+    )
+    principal: Mapped[str] = mapped_column(String(255), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(120), primary_key=True)
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    request_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_status: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    response_body: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = created_at_col()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

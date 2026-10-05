@@ -65,7 +65,10 @@ jobs:
           make db-check
           make db-seed
           make db-verify
-      - run: make test-integration
+      - name: Integration tests (DB + Kafka publisher)
+        run: make test-integration
+        env:
+          AEOI_TEST_KAFKA: "1"
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200

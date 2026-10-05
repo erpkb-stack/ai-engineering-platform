@@ -1,7 +1,7 @@
 # AEOI uv workspace root (virtual: no [project] table).
 # Members: shared libs now; services join in the phase that creates them.
 [tool.uv.workspace]
-members = ["libs/*", "scripts/synth"]
+members = ["libs/*", "scripts/synth", "services/api", "services/incident-service"]
 
 [tool.uv]
 required-version = ">=0.5"
@@ -23,7 +23,10 @@ target-version = "py312"
 extend-exclude = ["_to_delete", "data/generated"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth", "tests"]
+known-first-party = [
+    "aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth",
+    "aeoi_web", "aeoi_api", "aeoi_incident", "tests",
+]
 
 [tool.ruff.lint]
 select = [
@@ -57,11 +60,17 @@ plugins = ["pydantic.mypy"]
 warn_unreachable = true
 mypy_path = [
     "libs/common/src", "libs/models/src", "libs/security/src", "libs/observability/src",
-    "libs/db/src", "scripts/synth/src",
+    "libs/db/src", "libs/web/src", "scripts/synth/src", "services/api/src",
+    "services/incident-service/src",
 ]
 packages = [
     "aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth",
+    "aeoi_web", "aeoi_api", "aeoi_incident",
 ]
+
+[[tool.mypy.overrides]]
+module = ["aiokafka", "aiokafka.*"]
+ignore_missing_imports = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true
@@ -70,7 +79,7 @@ warn_required_dynamic_aliases = true
 
 # ---------- pytest ----------
 [tool.pytest.ini_options]
-testpaths = ["tests", "libs", "scripts/synth"]
+testpaths = ["tests", "libs", "scripts/synth", "services/api", "services/incident-service"]
 addopts = "--import-mode=importlib -ra --strict-markers --strict-config -m 'not integration and not eval and not e2e'"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
@@ -79,6 +88,7 @@ markers = [
     "integration: needs Docker infra (make up)",
     "eval: calls real LLMs, costs money",
     "e2e: full stack",
+    "kafka: needs a running Kafka broker (AEOI_TEST_KAFKA=1)",
 ]
 
 [tool.coverage.run]

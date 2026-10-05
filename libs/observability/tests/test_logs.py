@@ -32,3 +32,19 @@ def test_level_filtering(capsys: pytest.CaptureFixture[str]) -> None:
 def test_unknown_level_rejected() -> None:
     with pytest.raises(ValueError, match="unknown log level"):
         configure_logging("x", level="LOUD")
+
+
+def test_exception_logs_never_include_frame_locals(capsys: pytest.CaptureFixture[str]) -> None:
+    configure_logging("test-svc", level="INFO")
+
+    def handler() -> None:
+        api_token = "tok-should-never-be-logged-123"  # a local variable
+        raise RuntimeError(f"failed ({len(api_token)})")
+
+    try:
+        handler()
+    except RuntimeError:
+        get_logger().exception("boom")
+    out = capsys.readouterr().out
+    assert "RuntimeError" in out
+    assert "tok-should-never-be-logged" not in out
