@@ -6,7 +6,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 |---|---|---|---|
 | 1 | Requirements & architecture | architecture.md + ADR-001..012 reviewed; challenges C1–C12 accepted/rejected | — |
 | 2 | Repository & dev environment | `make doctor` green; uv workspace; compose `infra` profile healthy (pg+pgvector, redis, kafka); libs skeleton; pre-commit | — |
-| 3 | Database & data model | Alembic migrations per schema; `alembic upgrade head` + downgrade round-trip; index comments; read-only role for MCP; synthetic data seed v1 | incident, rag, audit schemas |
+| 3 | Database & data model | Alembic migrations per schema; `alembic upgrade head` + downgrade round-trip; index comments; `GRANT USAGE ON SCHEMA` to `aeoi_readonly` (role exists since Phase 2); synthetic data seed v1 | incident, rag, audit schemas |
 | 4 | FastAPI backend | api + incident-service: incidents CRUD, idempotency, problem+json, JWT dev issuer, RBAC deps, health; in-process event bus with Kafka-shaped interface | api, incident-service |
 | 5 | LLM Gateway | Provider interface (generate/structured/stream/embed); Claude + Ollama + Fake; routing config; usage + cost table; ADR-014 | llm-gateway |
 | 6 | RAG pipeline | ingest md/pdf/txt/html/json/code; hybrid search + RRF + rerank; permission filter; leakage test = 0; recall@k baseline measured | rag |
@@ -38,7 +38,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 
 ## Checklist
 
-- [ ] Phase 1: Requirements & architecture
+- [x] Phase 1: Requirements & architecture
 - [ ] Phase 2: Repository & dev environment
 - [ ] Phase 3: Database & data model
 - [ ] Phase 4: FastAPI backend

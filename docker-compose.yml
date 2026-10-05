@@ -1,0 +1,121 @@
+# AEOI local stack. Use the smallest profile that does the job (Intel Mac RAM is the bottleneck).
+#   make up                 -> infra   : postgres(pgvector) + redis            (~0.7 GB)
+#   make up PROFILE=kafka   -> + kafka (KRaft, 1 broker), then topic init job    (+~0.8 GB)
+# Later phases add: core, agents, observability, full.
+# Ports bind to 127.0.0.1 only: nothing is reachable from your LAN.
+# Host ports are NON-default (5433/6380/9094) so they don't clash with a Postgres/Redis/Kafka
+# you already run for other projects. Override in .env.
+name: aeoi
+
+x-defaults: &defaults
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres:
+    <<: *defaults
+    image: pgvector/pgvector:pg16
+    profiles: ["infra", "kafka", "core", "agents", "full"]
+    environment:
+      POSTGRES_USER: aeoi
+      POSTGRES_DB: aeoi
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    secrets: [postgres_password]
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - max_connections=200
+      - -c
+      - log_min_duration_statement=500   # log queries slower than 500 ms
+    ports: ["127.0.0.1:${AEOI_PG_PORT:-5433}:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeoi -d aeoi && psql -U aeoi -d aeoi -tAc \"SELECT 1 FROM pg_extension WHERE extname='vector'\" | grep -q 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    deploy:
+      resources:
+        limits: { memory: 768M, cpus: "1.5" }
+
+  redis:
+    <<: *defaults
+    image: redis:7.4-alpine
+    profiles: ["infra", "kafka", "core", "agents", "full"]
+    # Cache / rate limits / locks only - NOT a source of truth, so no persistence.
+    command: ["redis-server", "--save", "", "--appendonly", "no",
+              "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    ports: ["127.0.0.1:${AEOI_REDIS_PORT:-6380}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits: { memory: 192M, cpus: "0.5" }
+
+  kafka:
+    <<: *defaults
+    image: apache/kafka:3.9.1
+    profiles: ["kafka", "agents", "full"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      # INTERNAL = other containers (kafka:19092); HOST = your Mac (localhost:9094)
+      KAFKA_LISTENERS: INTERNAL://:19092,HOST://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,HOST://localhost:${AEOI_KAFKA_PORT:-9094}
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_HEAP_OPTS: "-Xmx512m -Xms512m"
+    ports: ["127.0.0.1:${AEOI_KAFKA_PORT:-9094}:9092"]
+    volumes:
+      - kafkadata:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
+    deploy:
+      resources:
+        limits: { memory: 1G, cpus: "1.5" }
+
+  kafka-init:
+    # One-shot job, run by `make up PROFILE=kafka` / `make kafka-init` (never auto-started).
+    image: apache/kafka:3.9.1
+    profiles: ["tools"]
+    restart: "no"
+    depends_on:
+      kafka: { condition: service_healthy }
+    entrypoint: ["/bin/bash", "/scripts/create-topics.sh"]
+    environment:
+      BOOTSTRAP: kafka:19092
+    volumes:
+      - ./infrastructure/docker/kafka/create-topics.sh:/scripts/create-topics.sh:ro
+    deploy:
+      resources:
+        limits: { memory: 384M }
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password.txt
+
+volumes:
+  pgdata:
+  kafkadata:

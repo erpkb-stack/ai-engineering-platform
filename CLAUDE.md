@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 1 — Requirements & architecture (no implementation code).**
+**Phase 2 — Repository & dev environment** (Phase 1 done; ADRs still `Proposed`).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -42,8 +42,11 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
   just to run one test.
 
 ## Commands
-- `make doctor` — prerequisite check (Homebrew, Python 3.12, Java 21, Node LTS, Docker, kind)
-- More targets are added per phase; `make help` lists them.
+- `make doctor` — prerequisites · `make setup` — one-time env, hooks, .env, secrets
+- `make check` — lint + mypy --strict + unit tests (must pass before any commit)
+- `make up [PROFILE=infra|kafka]` · `make verify-infra` · `make down` · `make logs SVC=x`
+- Python: `uv` workspace — add a dep with `uv add --package aeoi-<lib> <dep>`; commit `uv.lock`.
+- Work on a branch: the `no-commit-to-branch` hook blocks commits to `main`.
 
 ## Things Claude must never do here
 - Put secrets in code, compose files, or committed `.env` — use `.env.local` (gitignored) / Docker secrets.

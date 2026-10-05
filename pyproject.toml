@@ -1,0 +1,73 @@
+# AEOI uv workspace root (virtual: no [project] table).
+# Members: shared libs now; services join in the phase that creates them.
+[tool.uv.workspace]
+members = ["libs/*"]
+
+[tool.uv]
+required-version = ">=0.5"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.9",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+]
+
+# ---------- Ruff (lint + format) ----------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["_to_delete", "data/generated"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",   # pycodestyle + pyflakes
+    "I",             # isort
+    "UP",            # pyupgrade
+    "B",             # bugbear
+    "SIM",           # simplify
+    "S",             # bandit (security)
+    "ASYNC",         # blocking calls in async code
+    "RUF",
+    "PT",            # pytest style
+    "N",             # naming
+]
+ignore = ["RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106"]
+
+# ---------- mypy ----------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unreachable = true
+mypy_path = ["libs/common/src", "libs/models/src", "libs/security/src", "libs/observability/src"]
+packages = ["aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------- pytest ----------
+[tool.pytest.ini_options]
+testpaths = ["tests", "libs"]
+addopts = "--import-mode=importlib -ra --strict-markers --strict-config -m 'not integration and not eval and not e2e'"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "unit: fast, no IO (default)",
+    "integration: needs Docker infra (make up)",
+    "eval: calls real LLMs, costs money",
+    "e2e: full stack",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["libs"]
