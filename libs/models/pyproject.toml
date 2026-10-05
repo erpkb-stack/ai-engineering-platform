@@ -1,0 +1,19 @@
+[project]
+name = "aeoi-models"
+version = "0.1.0"
+description = "Shared Pydantic contracts: event envelope and evidence-backed findings"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.9",
+    "aeoi-common",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_models"]
+
+[tool.uv.sources]
+aeoi-common = { workspace = true }

@@ -1,0 +1,63 @@
+# Phase 2 CI: proves the repo builds and the local infra starts on a clean Linux machine.
+# Phase 24 extends this to: integration tests, image build/scan/push, deploy, smoke tests.
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: lint · typecheck · unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --frozen
+      - run: make lint
+      - run: make typecheck
+      - run: uv run pytest --cov --cov-report=term-missing
+
+  secrets-scan:
+    name: gitleaks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  infra-smoke:
+    name: compose infra smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare local-only config (same as `make setup`, without Python)
+        run: |
+          cp .env.example .env
+          mkdir -p secrets && chmod 700 secrets
+          openssl rand -hex 24 > secrets/postgres_password.txt
+          chmod 644 secrets/postgres_password.txt
+      - run: make up PROFILE=kafka
+      - run: make verify-infra
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose --profile infra --profile kafka --profile tools logs --tail=200
+      - name: Tear down
+        if: always()
+        run: make clean CONFIRM=1

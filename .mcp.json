@@ -2,7 +2,7 @@
   "mcpServers": {
     "aeoi-postgres": {
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://aeoi_readonly:aeoi_readonly@localhost:5432/aeoi"]
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://aeoi_readonly:aeoi_readonly@localhost:5433/aeoi"]
     },
     "playwright": {
       "command": "npx",

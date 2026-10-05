@@ -4,8 +4,18 @@
     "allow": [
       "Bash(make doctor)",
       "Bash(make help)",
-      "Bash(make lint *)",
-      "Bash(make test *)",
+      "Bash(make check)",
+      "Bash(make lint)",
+      "Bash(make fmt)",
+      "Bash(make typecheck)",
+      "Bash(make test)",
+      "Bash(make cov)",
+      "Bash(make hooks)",
+      "Bash(make ports)",
+      "Bash(make ps)",
+      "Bash(make verify-infra)",
+      "Bash(make kafka-topics)",
+      "Bash(make logs *)",
       "Bash(uv run pytest *)",
       "Bash(uv run ruff *)",
       "Bash(uv run mypy *)",
@@ -17,7 +27,10 @@
       "Bash(docker compose logs *)",
       "Bash(git status *)",
       "Bash(git diff *)",
-      "Bash(git log *)"
+      "Bash(git log *)",
+      "Bash(uv lock *)",
+      "Bash(uv run pre-commit *)",
+      "Bash(docker compose config *)"
     ],
     "ask": [
       "Bash(docker compose up *)",
@@ -26,7 +39,14 @@
       "Bash(alembic downgrade *)",
       "Bash(kubectl *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(make setup)",
+      "Bash(make up *)",
+      "Bash(make up)",
+      "Bash(make down)",
+      "Bash(make kafka-init)",
+      "Bash(make clean *)",
+      "Bash(make psql)"
     ],
     "deny": [
       "Read(./.env)",
@@ -38,7 +58,8 @@
       "Bash(git push -f *)",
       "Bash(docker system prune *)",
       "Bash(kubectl delete namespace *)",
-      "Bash(rm -rf /*)"
+      "Bash(rm -rf /*)",
+      "Bash(cat secrets/*)"
     ]
   },
   "env": {
@@ -50,13 +71,21 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.sh",
+            "timeout": 10
+          }
         ]
       },
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-files.sh", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-files.sh",
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -64,14 +93,22 @@
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-save.sh", "timeout": 60 }
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/format-on-save.sh",
+            "timeout": 60
+          }
         ]
       }
     ],
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-context.sh", "timeout": 10 }
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/session-context.sh",
+            "timeout": 10
+          }
         ]
       }
     ]

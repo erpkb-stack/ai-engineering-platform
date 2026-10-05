@@ -1,0 +1,8 @@
+# Extend default rules; allow the documented local-only read-only DB password.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local-dev placeholders that are not secrets"
+paths = ['''infrastructure/docker/postgres/init/01-init\.sql''', '''\.mcp\.json''']
+regexes = ['''aeoi_readonly''']
