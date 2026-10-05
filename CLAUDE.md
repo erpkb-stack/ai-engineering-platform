@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 3 — Database & data model** (Phases 1–2 done; ADRs still `Proposed` — owner to accept).
+**Phase 4 — FastAPI backend: api gateway + incident-service** (Phases 1–3 done; ADRs still `Proposed`).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -47,6 +47,8 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
 - `make up [PROFILE=infra|kafka]` · `make verify-infra` · `make down` · `make logs SVC=x`
 - DB: `make db-upgrade` · `make db-check` (drift) · `make db-revision MSG=… SCHEMA=…` · `make db-seed` · `make db-verify` · `make test-integration`
 - Data model reference: `docs/data-model.md`. Models: `libs/db/src/aeoi_db/models/<schema>.py`.
+- Services: `make db-users` · `make dev` (api :8000 + incident :8001) · `make smoke` · `export TOKEN=$(make -s token ROLE=SRE)`
+- Service code lives in `services/<name>/src/aeoi_<name>/` (unique package names: one venv for the workspace).
 - Python: `uv` workspace — add a dep with `uv add --package aeoi-<lib> <dep>`; commit `uv.lock`.
 - Work on a branch: the `no-commit-to-branch` hook blocks commits to `main`.
 

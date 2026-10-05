@@ -79,6 +79,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `evidence` | A piece of evidence retrieved during an investigation. Findings cite evidence_key. | 14 |
 | `feedback` | Thumbs up/down on findings, reports, answers, retrievals | 8 |
 | `hypotheses` | Ranked explanations with a confidence band and status | 9 |
+| `idempotency_keys` | Stored result of a POST with an Idempotency-Key, scoped by (principal, scope, key); same transaction as the result (Phase 4, migration 0013) | 8 |
 | `hypothesis_evidence` | Evidence graph edge: hypothesis --SUPPORTS/CONTRADICTS--> evidence. | 4 |
 | `incident_events` | Timeline entries (deploys, alerts, human actions, agent steps). | 10 |
 | `incidents` | System of record for incidents; `number` gives the human key INC-n; optimistic locking via `version` | 13 |
@@ -162,6 +163,8 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `incident.ix_hypotheses_superseded_by` | serves: FK lookup when following supersession chains |
 | `incident.ix_hypothesis_evidence_evidence_id` | serves: reverse edge "which hypotheses use this evidence" (graph view, impact of retracting evidence); the PK already serves hypothesis -> evidence |
 | `incident.ix_incident_events_incident_id_occurred_at` | serves: timeline reconstruction = range scan per incident in time order |
+| `incident.ix_idempotency_keys_expires_at` | serves: cleanup job deleting expired idempotency keys |
+| `incident.ix_incidents_created_at_id` | serves: unfiltered incident list, keyset pagination (created_at, id) newest first |
 | `incident.ix_incidents_affected_services` | serves: "incidents affecting service X" (array containment @>) |
 | `incident.ix_incidents_status_severity_created_at` | serves: dashboard "open incidents by severity, newest first" |
 | `incident.ix_outbox_unpublished` | serves: outbox relay polling of unpublished events; partial so it holds only the backlog |

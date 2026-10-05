@@ -1,0 +1,24 @@
+[project]
+name = "aeoi-web"
+version = "0.1.0"
+description = "Shared FastAPI building blocks: app factory, correlation ids, problem+json, auth deps, health"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "aeoi-common",
+    "aeoi-security",
+    "aeoi-observability",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_web"]
+
+[tool.uv.sources]
+aeoi-common = { workspace = true }
+aeoi-security = { workspace = true }
+aeoi-observability = { workspace = true }

@@ -52,7 +52,11 @@ def configure_logging(
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             _add_correlation_id,
-            structlog.processors.dict_tracebacks,
+            # show_locals=False: frame locals can hold tokens, passwords, request bodies.
+            # (structlog's default dict_tracebacks includes locals - found in Phase 4 tests.)
+            structlog.processors.ExceptionRenderer(
+                structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
+            ),
             _redact,  # LAST before rendering: nothing escapes redaction
             renderer,
         ],

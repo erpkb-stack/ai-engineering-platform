@@ -69,3 +69,39 @@ class ValidationFailedError(AEOIError):
     status = 422
     type_slug = "validation-failed"
     title = "Validation failed"
+
+
+class UnauthorizedError(AEOIError):
+    status = 401
+    type_slug = "unauthorized"
+    title = "Authentication required"
+
+
+class PreconditionFailedError(AEOIError):
+    status = 412
+    type_slug = "precondition-failed"
+    title = "Precondition failed"
+
+
+class PreconditionRequiredError(AEOIError):
+    status = 428
+    type_slug = "precondition-required"
+    title = "Precondition required"
+
+
+class RateLimitedError(AEOIError):
+    status = 429
+    type_slug = "rate-limited"
+    title = "Too many requests"
+
+
+class UpstreamUnavailableError(AEOIError):
+    status = 503
+    type_slug = "upstream-unavailable"
+    title = "Dependency unavailable"
+
+
+class BadRequestError(AEOIError):
+    status = 400
+    type_slug = "bad-request"
+    title = "Bad request"

@@ -57,3 +57,26 @@ def libpq_dsn(*, database: str | None = None) -> str:
     return database_url(database=database, driver="postgresql").render_as_string(
         hide_password=False
     )
+
+
+def service_database_url(
+    *,
+    user: str,
+    password_file: Path,
+    database: str | None = None,
+    driver: str = "postgresql+psycopg",
+) -> URL:
+    """URL for a least-privilege service LOGIN user (created by `make db-users`)."""
+    if os.environ.get("AEOI_DATABASE_URL"):
+        # CI / production: the platform injects a full URL (already the right user).
+        return database_url(database=database, driver=driver)
+    if not password_file.is_file():
+        raise FileNotFoundError(f"{password_file} not found - run `make db-users`")
+    return URL.create(
+        drivername=driver,
+        username=user,
+        password=password_file.read_text().strip(),
+        host=os.environ.get("AEOI_PG_HOST", "localhost"),
+        port=int(os.environ.get("AEOI_PG_PORT", DEFAULT_PG_PORT)),
+        database=database or os.environ.get("AEOI_PG_DATABASE", "aeoi"),
+    )

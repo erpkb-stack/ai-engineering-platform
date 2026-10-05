@@ -15,8 +15,12 @@ ALEMBIC := uv run alembic -c libs/db/alembic.ini
 ALL_PROFILES := --profile infra --profile kafka --profile tools
 SVC ?=
 
+ROLE ?= SRE
+UVICORN := uv run uvicorn --factory --log-level warning
+
 .PHONY: help doctor setup lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init clean test-integration \
+        db-users token run-incident run-api dev smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -35,6 +39,10 @@ setup: ## One-time: Python env, git hooks, .env, local secrets
 	@# dir 700 protects it on your Mac; file 644 so the postgres user inside the container can read it
 	@[ -f secrets/postgres_password.txt ] || { openssl rand -hex 24 > secrets/postgres_password.txt; \
 	  chmod 644 secrets/postgres_password.txt; echo "created secrets/postgres_password.txt"; }
+	@# Dev JWT signing keys (Phase 4). Production uses the IdP's keys (JWKS), never these.
+	@[ -f secrets/jwt_private.pem ] || { openssl genrsa -out secrets/jwt_private.pem 2048 2>/dev/null; \
+	  openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem 2>/dev/null; \
+	  chmod 600 secrets/jwt_private.pem; chmod 644 secrets/jwt_public.pem; echo "created dev JWT keypair"; }
 	@echo "setup done -> next: make check && make up"
 
 # ---------- code quality ----------
@@ -137,3 +145,25 @@ db-reset: ## DESTROY + rebuild all AEOI tables, then seed: make db-reset CONFIRM
 	$(ALEMBIC) downgrade base
 	$(ALEMBIC) upgrade head
 	$(MAKE) --no-print-directory db-seed
+
+db-users: ## Create/refresh least-privilege LOGIN users for services (passwords in secrets/)
+	uv run python -m aeoi_db.users
+
+# ---------- services (Phase 4) ----------
+token: ## Print a dev JWT for a seeded user: export TOKEN=$$(make -s token ROLE=SRE)
+	@uv run --quiet python -m aeoi_api.devtoken --role $(ROLE)
+
+run-incident: ## Run incident-service on :8001 (auto-reload)
+	$(UVICORN) aeoi_incident.main:build_app --port 8001 --reload --reload-dir services/incident-service/src --reload-dir libs
+
+run-api: ## Run the api gateway on :8000 (auto-reload)
+	$(UVICORN) aeoi_api.main:build_app --port 8000 --reload --reload-dir services/api/src --reload-dir libs
+
+dev: ## Run incident-service + api together (Ctrl-C stops both)
+	@trap 'kill 0' INT TERM EXIT; \
+	  $(MAKE) --no-print-directory run-incident & \
+	  $(MAKE) --no-print-directory run-api & \
+	  wait
+
+smoke: ## End-to-end check against running services (make dev in another terminal)
+	@./scripts/smoke-phase4.sh
