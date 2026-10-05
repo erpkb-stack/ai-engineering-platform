@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 2 — Repository & dev environment** (Phase 1 done; ADRs still `Proposed`).
+**Phase 3 — Database & data model** (Phases 1–2 done; ADRs still `Proposed` — owner to accept).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -45,6 +45,8 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
 - `make doctor` — prerequisites · `make setup` — one-time env, hooks, .env, secrets
 - `make check` — lint + mypy --strict + unit tests (must pass before any commit)
 - `make up [PROFILE=infra|kafka]` · `make verify-infra` · `make down` · `make logs SVC=x`
+- DB: `make db-upgrade` · `make db-check` (drift) · `make db-revision MSG=… SCHEMA=…` · `make db-seed` · `make db-verify` · `make test-integration`
+- Data model reference: `docs/data-model.md`. Models: `libs/db/src/aeoi_db/models/<schema>.py`.
 - Python: `uv` workspace — add a dep with `uv add --package aeoi-<lib> <dep>`; commit `uv.lock`.
 - Work on a branch: the `no-commit-to-branch` hook blocks commits to `main`.
 

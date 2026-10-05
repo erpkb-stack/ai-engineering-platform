@@ -4,13 +4,20 @@ SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
+# .env (ports, URLs) is exported to every recipe, so Python tools see AEOI_PG_PORT etc.
+-include .env
+export
+
 PROFILE ?= infra
+SEED ?= 42
 COMPOSE := docker compose
+ALEMBIC := uv run alembic -c libs/db/alembic.ini
 ALL_PROFILES := --profile infra --profile kafka --profile tools
 SVC ?=
 
 .PHONY: help doctor setup lint fmt typecheck test cov check hooks ports up down ps logs \
-        verify-infra psql redis-cli kafka-topics kafka-init clean
+        verify-infra psql redis-cli kafka-topics kafka-init clean test-integration \
+        db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
@@ -49,6 +56,9 @@ cov: ## Unit tests with coverage
 	uv run pytest --cov --cov-report=term-missing
 
 check: lint typecheck test ## lint + typecheck + test (run before every commit)
+
+test-integration: ## Integration tests against the compose Postgres (needs: make up)
+	uv run pytest -m integration
 
 hooks: ## Run all pre-commit hooks on all files
 	uv run pre-commit run --all-files
@@ -92,3 +102,38 @@ kafka-topics: ## List Kafka topics
 clean: ## DESTROY containers + data volumes: make clean CONFIRM=1
 	@[ "$${CONFIRM:-}" = "1" ] || [ "$(CONFIRM)" = "1" ] || { echo "This deletes all local DB/Kafka data. Re-run: make clean CONFIRM=1"; exit 1; }
 	$(COMPOSE) $(ALL_PROFILES) down -v --remove-orphans
+
+# ---------- database (Phase 3) ----------
+db-upgrade: ## Apply all migrations (alembic upgrade head)
+	$(ALEMBIC) upgrade head
+
+db-downgrade: ## Roll back ONE migration
+	$(ALEMBIC) downgrade -1
+
+db-current: ## Show the applied migration
+	$(ALEMBIC) current
+
+db-history: ## List migrations
+	$(ALEMBIC) history
+
+db-check: ## Fail if ORM models and migrations have drifted
+	$(ALEMBIC) check
+
+db-revision: ## New migration: make db-revision MSG="add x" [SCHEMA=incident]
+	@[ -n "$(MSG)" ] || { echo 'usage: make db-revision MSG="what changed" [SCHEMA=incident]'; exit 1; }
+	@last=$$(ls libs/db/alembic/versions | grep -E '^[0-9]{4}_' | sort | tail -1 | cut -c1-4); \
+	  next=$$(printf "%04d" $$((10#$$last + 1))); \
+	  $(ALEMBIC) $(if $(SCHEMA),-x schema=$(SCHEMA)) revision --autogenerate --rev-id $$next -m "$(MSG)"
+	@echo "READ and edit the generated file: autogenerate misses sequences, triggers, comments, grants."
+
+db-verify: ## Print Phase 3 proof queries (counts, demo signals, permission filter)
+	$(COMPOSE) exec -T postgres psql -U aeoi -d aeoi -v ON_ERROR_STOP=1 < scripts/sql/verify-phase3.sql
+
+db-seed: ## Load deterministic synthetic data: make db-seed [SEED=42]
+	uv run python -m aeoi_synth load --seed $(SEED)
+
+db-reset: ## DESTROY + rebuild all AEOI tables, then seed: make db-reset CONFIRM=1
+	@[ "$(CONFIRM)" = "1" ] || { echo "This drops ALL AEOI tables and data. Re-run: make db-reset CONFIRM=1"; exit 1; }
+	$(ALEMBIC) downgrade base
+	$(ALEMBIC) upgrade head
+	$(MAKE) --no-print-directory db-seed

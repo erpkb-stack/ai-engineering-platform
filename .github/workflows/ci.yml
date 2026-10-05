@@ -42,7 +42,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   infra-smoke:
-    name: compose infra smoke test
+    name: compose infra + database integration
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -53,8 +53,19 @@ jobs:
           mkdir -p secrets && chmod 700 secrets
           openssl rand -hex 24 > secrets/postgres_password.txt
           chmod 644 secrets/postgres_password.txt
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --frozen
       - run: make up PROFILE=kafka
       - run: make verify-infra
+      - name: Migrations, drift check, seed
+        run: |
+          make db-upgrade
+          make db-check
+          make db-seed
+          make db-verify
+      - run: make test-integration
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200

@@ -39,7 +39,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 ## Checklist
 
 - [x] Phase 1: Requirements & architecture
-- [ ] Phase 2: Repository & dev environment
+- [x] Phase 2: Repository & dev environment
 - [ ] Phase 3: Database & data model
 - [ ] Phase 4: FastAPI backend
 - [ ] Phase 5: LLM Gateway

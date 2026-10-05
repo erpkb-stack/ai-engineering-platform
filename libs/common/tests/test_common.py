@@ -2,6 +2,7 @@ import time
 import uuid
 
 import pytest
+
 from aeoi_common import (
     BaseServiceSettings,
     Environment,

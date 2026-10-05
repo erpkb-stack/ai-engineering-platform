@@ -11,6 +11,7 @@ from collections.abc import MutableMapping
 from typing import Any
 
 import structlog
+
 from aeoi_common.correlation import get_correlation_id
 from aeoi_security.redaction import redact_mapping
 

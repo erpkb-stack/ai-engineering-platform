@@ -1,6 +1,7 @@
 import json
 
 import pytest
+
 from aeoi_common import set_correlation_id
 from aeoi_observability import configure_logging, get_logger
 

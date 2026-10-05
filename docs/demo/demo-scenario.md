@@ -1,7 +1,7 @@
 # Final 10–15 minute demo — "HTTP 500s after deploy"
 
 Fictional company: Northwind Cloud Systems. Service: `checkout-api` → `orders-db` (Postgres) via `order-repository`.
-Planted ground truth (synthetic): deploy `2026.10.02.4` changed `OrderRepository.findOpenOrders()` to open a new connection per item, which exhausts the connection pool. A **decoy** signal: a cache-node restart in the same window.
+Planted ground truth (synthetic): deploy `2026.10.02.4` changed `OrderRepository.findOpenOrders()` to open a new connection per item, which exhausts the connection pool. A **decoy** signal: a `cart-cache` node restart at 09:52 UTC. All times are planted in seed v1 (`scripts/synth`): deploy 09:42, flag on 09:47, app p95 up 09:49, pool 100% 09:50, first `ERR_POOL_TIMEOUT` 09:50:10, HTTP 5xx +42% 09:51, thread pool 85% 09:52 (alternative hypothesis), DB latency +18% 09:53.
 
 | Min | Step | What the audience sees | Spec item |
 |---|---|---|---|

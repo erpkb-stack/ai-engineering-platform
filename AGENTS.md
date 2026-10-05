@@ -24,7 +24,8 @@ real company's internal architecture.**
 ## Layout
 - `services/<name>/` — independently deployable services (Python 3.12 / FastAPI unless noted)
 - `services/service-catalog/` — Java 21 / Spring Boot
-- `libs/` — shared Python packages (`common`, `models`, `security`, `observability`)
+- `libs/` — shared Python packages (`common`, `models`, `security`, `observability`, `db`)
+- `scripts/synth/` — deterministic synthetic data (`aeoi_synth`)
 - `frontend/` — React + TypeScript (Vite)
 - `infrastructure/` — docker, kubernetes, terraform
 - `docs/adr/` — Architecture Decision Records; `architecture.md` is the source of truth
