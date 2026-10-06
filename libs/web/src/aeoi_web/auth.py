@@ -57,4 +57,21 @@ def require(perm: Perm) -> Callable[[Principal], Awaitable[Principal]]:
     return _check
 
 
+def require_scope(scope: str) -> Callable[[Principal], Awaitable[Principal]]:
+    """Dependency for service-to-service endpoints: a SERVICE principal holding `scope`.
+
+    User tokens are rejected even if they somehow carry a scope claim: an end user must never
+    call internal machinery (e.g. the LLM gateway) directly.
+    """
+
+    async def _check(
+        principal: Annotated[Principal, Depends(current_principal)],
+    ) -> Principal:
+        if not principal.is_service or scope not in principal.scopes:
+            raise ForbiddenError(f"Requires a service token with scope '{scope}'.")
+        return principal
+
+    return _check
+
+
 CurrentPrincipal = Annotated[Principal, Depends(current_principal)]

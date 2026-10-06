@@ -16,11 +16,13 @@ ALL_PROFILES := --profile infra --profile kafka --profile tools
 SVC ?=
 
 ROLE ?= SRE
+comma := ,
 UVICORN := uv run uvicorn --factory --log-level warning
 
 .PHONY: help doctor setup lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init clean test-integration \
         db-users token run-incident run-api dev smoke \
+        service-token ollama-pull run-llm stop-llm llm-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -167,3 +169,37 @@ dev: ## Run incident-service + api together (Ctrl-C stops both)
 
 smoke: ## End-to-end check against running services (make dev in another terminal)
 	@./scripts/smoke-phase4.sh
+
+# ---------- LLM gateway (Phase 5) ----------
+# LLM_ROUTING: routing.yaml (Claude + Ollama fallback) | routing.local.yaml ($0, offline) | routing.test.yaml (fakes)
+LLM_ROUTING ?= routing.yaml
+SCOPES ?= llm:invoke
+
+service-token: ## Service JWT: export STOKEN=$$(make -s service-token SERVICE=orchestrator SCOPES=llm:invoke)
+	@uv run --quiet python -m aeoi_api.devtoken --service $(SERVICE) $(foreach s,$(subst $(comma), ,$(SCOPES)),--scope $(s))
+
+ollama-pull: ## Pull the local models used by routing.yaml (native Ollama app, not Docker)
+	ollama pull llama3.2:3b
+	ollama pull nomic-embed-text
+
+LLM_PORT ?= 8005
+LLM_PIDS = { lsof -nP -t -iTCP:$(LLM_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
+
+stop-llm: ## Stop a running llm-gateway (only if it really is ours)
+	@pids=$$($(LLM_PIDS)); \
+	if [ -z "$$pids" ]; then echo "port $(LLM_PORT) is free"; exit 0; fi; \
+	ps -o pid=,command= -p $$pids; \
+	if ps -o command= -p $$pids | grep -q aeoi_llm; then \
+	  kill $$(echo $$pids | tr ',' ' '); sleep 1; \
+	  echo "stopped llm-gateway ($$pids)"; \
+	else echo "port $(LLM_PORT) is used by something else (above). Not killing it."; exit 1; fi
+
+run-llm: ## Run llm-gateway on :8005: make run-llm [LLM_ROUTING=routing.local.yaml]
+	@pids=$$($(LLM_PIDS)); if [ -n "$$pids" ]; then \
+	  echo "port $(LLM_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
+	  echo "-> run: make stop-llm"; exit 1; fi
+	AEOI_LLM_ROUTING_FILE=services/llm-gateway/config/$(LLM_ROUTING) \
+	  $(UVICORN) aeoi_llm.main:build_app --port 8005 --reload --reload-dir services/llm-gateway --reload-dir libs
+
+llm-smoke: ## Check a RUNNING llm-gateway (make run-llm in another terminal)
+	@./scripts/smoke-phase5.sh

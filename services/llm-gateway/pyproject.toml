@@ -1,0 +1,34 @@
+[project]
+name = "aeoi-llm-gateway"
+version = "0.1.0"
+description = "LLM Gateway: provider abstraction, routing, fallback, budgets, caching and cost accounting (owns schema `llm`)"
+requires-python = ">=3.12"
+dependencies = [
+    "aeoi-common",
+    "aeoi-models",
+    "aeoi-security",
+    "aeoi-observability",
+    "aeoi-web",
+    "aeoi-db",
+    "aeoi-llm-client",
+    "httpx>=0.27",
+    "jsonschema>=4.23",
+    "pyyaml>=6.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_llm"]
+
+[tool.uv.sources]
+aeoi-common = { workspace = true }
+aeoi-models = { workspace = true }
+aeoi-security = { workspace = true }
+aeoi-observability = { workspace = true }
+aeoi-web = { workspace = true }
+aeoi-db = { workspace = true }
+aeoi-llm-client = { workspace = true }

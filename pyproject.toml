@@ -1,7 +1,9 @@
 # AEOI uv workspace root (virtual: no [project] table).
 # Members: shared libs now; services join in the phase that creates them.
 [tool.uv.workspace]
-members = ["libs/*", "scripts/synth", "services/api", "services/incident-service"]
+members = [
+    "libs/*", "scripts/synth", "services/api", "services/incident-service", "services/llm-gateway",
+]
 
 [tool.uv]
 required-version = ">=0.5"
@@ -13,6 +15,8 @@ dev = [
     "pytest-asyncio>=0.24",
     "ruff>=0.9",
     "mypy>=1.13",
+    "types-PyYAML>=6.0",
+    "types-jsonschema>=4.23",
     "pre-commit>=4.0",
 ]
 
@@ -25,7 +29,7 @@ extend-exclude = ["_to_delete", "data/generated"]
 [tool.ruff.lint.isort]
 known-first-party = [
     "aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth",
-    "aeoi_web", "aeoi_api", "aeoi_incident", "tests",
+    "aeoi_web", "aeoi_api", "aeoi_incident", "aeoi_llm", "aeoi_llm_client", "tests",
 ]
 
 [tool.ruff.lint]
@@ -47,7 +51,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"**/tests/**" = ["S101", "S105", "S106", "S608", "PT018"]
+"**/tests/**" = ["S101", "S105", "S106", "S311", "S608", "PT018"]
 "tests/**" = ["S101", "S105", "S106", "S608", "PT018"]
 "**/alembic/versions/*.py" = ["E501", "RUF001", "S608"]  # DDL built from constants
 "scripts/synth/**" = ["S311"]  # random is fine for synthetic data
@@ -61,11 +65,11 @@ warn_unreachable = true
 mypy_path = [
     "libs/common/src", "libs/models/src", "libs/security/src", "libs/observability/src",
     "libs/db/src", "libs/web/src", "scripts/synth/src", "services/api/src",
-    "services/incident-service/src",
+    "services/incident-service/src", "services/llm-gateway/src", "libs/llm-client/src",
 ]
 packages = [
     "aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth",
-    "aeoi_web", "aeoi_api", "aeoi_incident",
+    "aeoi_web", "aeoi_api", "aeoi_incident", "aeoi_llm", "aeoi_llm_client",
 ]
 
 [[tool.mypy.overrides]]
@@ -79,7 +83,10 @@ warn_required_dynamic_aliases = true
 
 # ---------- pytest ----------
 [tool.pytest.ini_options]
-testpaths = ["tests", "libs", "scripts/synth", "services/api", "services/incident-service"]
+testpaths = [
+    "tests", "libs", "scripts/synth", "services/api", "services/incident-service",
+    "services/llm-gateway",
+]
 addopts = "--import-mode=importlib -ra --strict-markers --strict-config -m 'not integration and not eval and not e2e'"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
