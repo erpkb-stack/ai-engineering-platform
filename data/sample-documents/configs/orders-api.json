@@ -1,0 +1,21 @@
+{
+  "service": "orders-api",
+  "owner": "team-orders",
+  "database": {
+    "maxPoolSize": 24,
+    "connectionTimeoutMs": 3000,
+    "statementTimeoutMs": 5000
+  },
+  "http": {
+    "port": 8080,
+    "readTimeoutMs": 2000
+  },
+  "circuitBreaker": {
+    "failureRateThreshold": 50,
+    "openStateSeconds": 30
+  },
+  "featureFlags": {
+    "orders_new_path": false
+  },
+  "configRevision": "CFG-86622"
+}

@@ -23,10 +23,11 @@ UVICORN := uv run uvicorn --factory --log-level warning
         verify-infra psql redis-cli kafka-topics kafka-init clean test-integration \
         db-users token run-incident run-api dev smoke \
         service-token ollama-pull run-llm stop-llm llm-smoke \
+        rag-token docpack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
-	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
+	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
 
 # ---------- environment ----------
 doctor: ## Check macOS prerequisites (read-only)
@@ -152,8 +153,9 @@ db-users: ## Create/refresh least-privilege LOGIN users for services (passwords 
 	uv run python -m aeoi_db.users
 
 # ---------- services (Phase 4) ----------
-token: ## Print a dev JWT for a seeded user: export TOKEN=$$(make -s token ROLE=SRE)
-	@uv run --quiet python -m aeoi_api.devtoken --role $(ROLE)
+token: ## Dev JWT: export TOKEN=$$(make -s token ROLE=SRE) [GROUP=security-team] [WITHOUT=security-team]
+	@uv run --quiet python -m aeoi_api.devtoken --role $(ROLE) $(if $(GROUP),--group $(GROUP),) \
+	  $(if $(WITHOUT),--without-group $(WITHOUT),)
 
 run-incident: ## Run incident-service on :8001 (auto-reload)
 	$(UVICORN) aeoi_incident.main:build_app --port 8001 --reload --reload-dir services/incident-service/src --reload-dir libs
@@ -203,3 +205,52 @@ run-llm: ## Run llm-gateway on :8005: make run-llm [LLM_ROUTING=routing.local.ya
 
 llm-smoke: ## Check a RUNNING llm-gateway (make run-llm in another terminal)
 	@./scripts/smoke-phase5.sh
+
+# ---------- RAG (Phase 6) ----------
+RAG_PORT ?= 8004
+RAG_PIDS = { lsof -nP -t -iTCP:$(RAG_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
+RAG := uv run --quiet python -m aeoi_rag
+
+rag-token: ## Mint the rag -> llm-gateway service token (dev only, 30 days) into secrets/
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service rag --scope llm:invoke \
+	  --ttl-minutes 43200 > secrets/rag_service_token.txt
+	@echo "wrote secrets/rag_service_token.txt (scope llm:invoke, 30 days)"
+
+docpack: ## Regenerate the document pack + eval queries (deterministic; commit the result)
+	uv run python -m aeoi_synth docpack
+
+rag-ingest: ## Ingest doc pack + seeded docs and embed everything (needs make run-llm)
+	$(RAG) ingest
+	$(RAG) chunk-db
+
+rag-embed: ## Embed pending chunks only (resumable). REEMBED=1 after an embedding-model change
+	$(RAG) embed $(if $(REEMBED),--reembed,)
+
+rag-stats: ## Documents, chunks, pending embeddings, models
+	@$(RAG) stats
+
+rag-eval: ## Retrieval eval (recall@k, MRR, leakage, quarantine). RERANK=1 adds hybrid+rerank
+	$(RAG) eval $(if $(RERANK),--rerank,)
+
+rag-sweep: ## Fusion grid (rrf_k, depth, weights): tune on dev split, report on test split
+	$(RAG) sweep
+
+rag-bench: ## Embedding throughput (chunks/s) and query-embedding latency on this machine
+	$(RAG) bench
+
+stop-rag: ## Stop a running rag service (only if it really is ours)
+	@pids=$$($(RAG_PIDS)); \
+	if [ -z "$$pids" ]; then echo "port $(RAG_PORT) is free"; exit 0; fi; \
+	ps -o pid=,command= -p $$pids; \
+	if ps -o command= -p $$pids | grep -q aeoi_rag; then \
+	  kill $$(echo $$pids | tr ',' ' '); sleep 1; echo "stopped rag ($$pids)"; \
+	else echo "port $(RAG_PORT) is used by something else (above). Not killing it."; exit 1; fi
+
+run-rag: ## Run the rag service on :8004 (needs run-llm for vector search)
+	@pids=$$($(RAG_PIDS)); if [ -n "$$pids" ]; then \
+	  echo "port $(RAG_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
+	  echo "-> run: make stop-rag"; exit 1; fi
+	$(UVICORN) aeoi_rag.main:build_app --port $(RAG_PORT) --reload --reload-dir services/rag --reload-dir libs
+
+rag-smoke: ## End-to-end search checks via the api gateway (needs run-llm, run-rag, run-api)
+	@./scripts/smoke-phase6.sh

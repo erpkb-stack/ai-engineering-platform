@@ -1,0 +1,1 @@
+Executive escalation contacts (codename GOLDENPLOVER). For SEV1 only. VP Engineering: jordan.vale@northwind.example, +1 (512) 555-0199. CTO office: cto-office@northwind.example, +1 (512) 555-0142.

@@ -1,0 +1,21 @@
+{
+  "service": "shipping-api",
+  "owner": "team-shipping",
+  "database": {
+    "maxPoolSize": 16,
+    "connectionTimeoutMs": 3000,
+    "statementTimeoutMs": 5000
+  },
+  "http": {
+    "port": 8080,
+    "readTimeoutMs": 2000
+  },
+  "circuitBreaker": {
+    "failureRateThreshold": 50,
+    "openStateSeconds": 30
+  },
+  "featureFlags": {
+    "shipping_fast_path": false
+  },
+  "configRevision": "CFG-94012"
+}

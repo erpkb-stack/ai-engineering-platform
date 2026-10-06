@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 5 — LLM Gateway** (Phases 1–4 done; ADRs still `Proposed`, incl. ADR-014).
+**Phase 6 — RAG pipeline** (Phases 1–5 done; ADRs still `Proposed`, incl. ADR-014, ADR-016).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -50,6 +50,8 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
 - Services: `make db-users` · `make dev` (api :8000 + incident :8001) · `make smoke` · `export TOKEN=$(make -s token ROLE=SRE)`
 - LLM: `make run-llm [LLM_ROUTING=routing.local.yaml|routing.test.yaml]` (:8005) · `make stop-llm` · `make llm-smoke` · `make ollama-pull` · `make -s service-token SERVICE=x SCOPES=llm:invoke`
 - LLM calls from code: only via `aeoi_llm_client.LLMClient` (tests: `FakeLLMClient`). Pick a ROUTE, never a model.
+- RAG: `make rag-token` · `make rag-ingest` · `make rag-eval [RERANK=1]` · `make rag-sweep` · `make rag-bench` · `make run-rag` (:8004) · `make rag-smoke` · `make docpack`
+- Retrieval changes are judged by `make rag-eval` diffs only (data/eval/results/), never by one query.
 - Service code lives in `services/<name>/src/aeoi_<name>/` (unique package names: one venv for the workspace).
 - Python: `uv` workspace — add a dep with `uv add --package aeoi-<lib> <dep>`; commit `uv.lock`.
 - Work on a branch: the `no-commit-to-branch` hook blocks commits to `main`.

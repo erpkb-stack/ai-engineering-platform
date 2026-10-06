@@ -50,6 +50,10 @@ class Document(Base):
         CheckConstraint(in_list("sensitivity", SENSITIVITY), name="sensitivity_valid"),
         # Default DENY: a document with no allowed groups cannot be stored at all.
         CheckConstraint("cardinality(allowed_groups) >= 1", name="has_allowed_groups"),
+        # A quarantined document must say why (and a reason implies quarantine).
+        CheckConstraint(
+            "quarantined = (quarantine_reason IS NOT NULL)", name="quarantine_has_reason"
+        ),
         UniqueConstraint("source_uri", "version"),
         # serves: admin/ACL views "documents visible to group X"
         Index("ix_documents_allowed_groups", "allowed_groups", postgresql_using="gin"),
@@ -69,6 +73,9 @@ class Document(Base):
     allowed_groups: Mapped[list[str]] = mapped_column(ARRAY(String(80)), nullable=False)
     sensitivity: Mapped[str] = mapped_column(String(16), nullable=False, server_default="INTERNAL")
     quarantined: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    quarantine_reason: Mapped[str | None] = mapped_column(
+        Text
+    )  # e.g. "injection:override-instructions"
     created_at: Mapped[datetime] = created_at_col()
     updated_at: Mapped[datetime] = updated_at_col()
     indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

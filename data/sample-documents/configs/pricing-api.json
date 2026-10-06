@@ -1,0 +1,21 @@
+{
+  "service": "pricing-api",
+  "owner": "team-pricing",
+  "database": {
+    "maxPoolSize": 54,
+    "connectionTimeoutMs": 3000,
+    "statementTimeoutMs": 5000
+  },
+  "http": {
+    "port": 8080,
+    "readTimeoutMs": 2000
+  },
+  "circuitBreaker": {
+    "failureRateThreshold": 50,
+    "openStateSeconds": 30
+  },
+  "featureFlags": {
+    "pricing_batch_path": false
+  },
+  "configRevision": "CFG-82512"
+}

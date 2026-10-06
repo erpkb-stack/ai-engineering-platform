@@ -109,12 +109,15 @@ class ProviderRuntime:
     name: str
     config: ProviderConfig
     provider: Provider | None  # None => not configured (e.g. no API key)
-    bulkhead: Bulkhead  # per PROVIDER: the scarce resource (CPU, API quota) is shared
     retry: RetryPolicy
     unavailable_reason: str | None = None
     # Breakers are per MODEL: "llama3.2 fails to load" must not block nomic-embed-text
     # on the same Ollama. A dead provider still opens every model's breaker quickly.
     breakers: dict[str, CircuitBreaker] = field(default_factory=dict)
+    # Bulkheads are per MODEL too. Regression (Phase 6, owner's Mac): one slow llama3.2 rerank
+    # held the single Ollama slot and nomic-embed-text embeddings failed with SaturatedError.
+    # Different models are separate queues in Ollama; one must not starve the other.
+    bulkheads: dict[str, Bulkhead] = field(default_factory=dict)
 
     @property
     def hosted(self) -> bool:
@@ -128,6 +131,13 @@ class ProviderRuntime:
                 cooldown_s=self.config.breaker_cooldown_s,
             )
         return self.breakers[model]
+
+    def bulkhead_for(self, model: str) -> Bulkhead:
+        if model not in self.bulkheads:
+            self.bulkheads[model] = Bulkhead(
+                f"{self.name}/{model}", self.config.max_concurrency, self.config.queue_timeout_s
+            )
+        return self.bulkheads[model]
 
 
 def _reason(exc: BaseException) -> str:
@@ -205,13 +215,14 @@ class Gateway:
     ) -> T:
         """bulkhead -> breaker -> call, wrapped in retries."""
         breaker = rt.breaker_for(model)
+        bulkhead = rt.bulkhead_for(model)
 
         async def once() -> T:
-            await rt.bulkhead.acquire()
+            await bulkhead.acquire()
             try:
                 return await breaker.call(fn)
             finally:
-                rt.bulkhead.release()
+                bulkhead.release()
 
         def on_retry(n: int, exc: ProviderError) -> None:
             log.warning("llm_retry", provider=rt.name, model=model, attempt=n, reason=_reason(exc))
@@ -261,9 +272,10 @@ class Gateway:
         *,
         allow_fallback: bool = True,
         use_cache: bool = True,
+        deadline_s: float | None = None,
     ) -> GatewayResult:
         return await self._with_deadline(
-            self._chat("generate", route, req, meta, allow_fallback, use_cache)
+            self._chat("generate", route, req, meta, allow_fallback, use_cache), deadline_s
         )
 
     async def generate_structured(
@@ -274,6 +286,7 @@ class Gateway:
         *,
         allow_fallback: bool = True,
         use_cache: bool = True,
+        deadline_s: float | None = None,
     ) -> GatewayResult:
         if req.json_schema is None:
             raise BadRequestError("json_schema is required.")
@@ -284,16 +297,21 @@ class Gateway:
         if req.json_schema.get("type") != "object":
             raise BadRequestError("The top-level JSON Schema must be an object.")
         return await self._with_deadline(
-            self._chat("generate_structured", route, req, meta, allow_fallback, use_cache)
+            self._chat("generate_structured", route, req, meta, allow_fallback, use_cache),
+            deadline_s,
         )
 
-    async def _with_deadline[T](self, coro: Awaitable[T]) -> T:
+    async def _with_deadline[T](self, coro: Awaitable[T], deadline_s: float | None = None) -> T:
+        """One deadline for the whole request. The CALLER's deadline wins when it is shorter:
+        work the caller has already given up on must stop - otherwise an abandoned 3B-model
+        generation keeps the CPU (and the bulkhead slot) busy for minutes."""
+        limit = min(self.request_timeout_s, deadline_s) if deadline_s else self.request_timeout_s
         try:
-            async with asyncio.timeout(self.request_timeout_s):
+            async with asyncio.timeout(limit):
                 return await coro
         except TimeoutError as exc:
             raise GatewayTimeoutError(
-                f"No answer within {self.request_timeout_s:.0f}s (retries and fallbacks included)."
+                f"No answer within {limit:.1f}s (retries and fallbacks included)."
             ) from exc
 
     async def _chat(
@@ -592,7 +610,7 @@ class Gateway:
                 yield {"event": "error", "type": "llm-stream-interrupted", "detail": error}
             finally:
                 await agen.aclose()
-                rt.bulkhead.release()
+                rt.bulkhead_for(model).release()
                 cost = cost_usd(mcfg, usage)
                 await self._record(
                     self._row(
@@ -638,19 +656,23 @@ class Gateway:
                 raise
             return agen, first
 
+        bulkhead = rt.bulkhead_for(req.model)
+
         async def once() -> tuple[AsyncGenerator[StreamChunk, None], StreamChunk]:
-            await rt.bulkhead.acquire()
+            await bulkhead.acquire()
             try:
                 return await rt.breaker_for(req.model).call(first_chunk)
             except BaseException:
-                rt.bulkhead.release()
+                bulkhead.release()
                 raise
 
         return await with_retries(once, rt.retry, sleep=self._sleep)
 
     # ------------------------------------------------------------------ embed
 
-    async def embed(self, route: str, inputs: list[str], meta: CallMeta) -> EmbedOutcome:
+    async def embed(
+        self, route: str, inputs: list[str], meta: CallMeta, *, deadline_s: float | None = None
+    ) -> EmbedOutcome:
         chain = self._route(route, "embed")
         model = chain[0]  # embed routes have no fallbacks (validated at load)
         mcfg: ModelConfig = self.routing.models[model]
@@ -672,7 +694,7 @@ class Gateway:
         provider = rt.provider
         try:
             res: EmbedResult = await self._with_deadline(
-                self._guarded(rt, model, lambda: provider.embed(model, inputs))
+                self._guarded(rt, model, lambda: provider.embed(model, inputs)), deadline_s
             )
         except ProviderError as exc:
             await self._record(
@@ -738,8 +760,8 @@ class Gateway:
                     "configured": rt.provider is not None,
                     "unavailable_reason": rt.unavailable_reason,
                     "breakers": {m: b.state.value for m, b in rt.breakers.items()},
-                    "in_flight": rt.bulkhead.in_flight,
-                    "max_concurrency": rt.bulkhead.limit,
+                    "in_flight": {m: b.in_flight for m, b in rt.bulkheads.items()},
+                    "max_concurrency_per_model": rt.config.max_concurrency,
                 }
                 for name, rt in self.runtimes.items()
             },

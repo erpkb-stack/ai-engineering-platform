@@ -585,6 +585,7 @@ Change vs spec: added `prompts/` (prompt versioning needs a home) and `knowledge
 | ADR-012 | Postgres edges + recursive CTE for knowledge graph (no graph DB) | Proposed |
 | ADR-013 | One Alembic migration stream for all service-owned schemas (for now) | Proposed (Phase 3) |
 | ADR-014 | LLM routing policy, fallback and cost accounting in one gateway | Proposed (Phase 5) |
+| ADR-016 | Hybrid retrieval in one SQL statement, RRF fusion, eval-gated LLM rerank | Proposed (Phase 6) |
 | ADR-015 *(planned)* | Evidence-rubric confidence bands instead of LLM percentages | to write in Phase 11 |
 
 ## 28. Development roadmap

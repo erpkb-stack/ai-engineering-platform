@@ -57,6 +57,9 @@ class GenerateIn(_In):
     stop: list[str] | None = Field(default=None, max_length=4)
     allow_fallback: bool = True
     cache: bool = True
+    # The caller's own deadline. The gateway stops all work (retries, fallback, the upstream
+    # call) when it passes, instead of finishing an answer nobody is waiting for.
+    timeout_ms: int | None = Field(default=None, ge=100, le=300_000)
     metadata: Metadata = Field(default_factory=Metadata)
 
     def to_request(self) -> ChatRequest:
@@ -78,6 +81,7 @@ class StructuredIn(GenerateIn):
 class EmbedIn(_In):
     route: str = Field(default="embed", max_length=40)
     inputs: list[str] = Field(min_length=1, max_length=256)
+    timeout_ms: int | None = Field(default=None, ge=100, le=300_000)
     metadata: Metadata = Field(default_factory=Metadata)
 
 
@@ -124,6 +128,10 @@ class EmbedOut(BaseModel):
     latency_ms: int
 
 
+def _secs(ms: int | None) -> float | None:
+    return ms / 1000 if ms else None
+
+
 def _meta(m: Metadata, caller: Principal) -> CallMeta:
     return CallMeta(
         prompt_id=m.prompt_id,
@@ -162,6 +170,7 @@ async def generate(body: GenerateIn, caller: Caller, gw: GatewayDep) -> Generate
         _meta(body.metadata, caller),
         allow_fallback=body.allow_fallback,
         use_cache=body.cache,
+        deadline_s=_secs(body.timeout_ms),
     )
     return _out(result)
 
@@ -178,6 +187,7 @@ async def generate_structured(body: StructuredIn, caller: Caller, gw: GatewayDep
         _meta(body.metadata, caller),
         allow_fallback=body.allow_fallback,
         use_cache=body.cache,
+        deadline_s=_secs(body.timeout_ms),
     )
     return _out(result)
 
@@ -218,7 +228,9 @@ def _sse(ev: dict[str, Any]) -> bytes:
 
 @router.post("/embed", response_model=EmbedOut)
 async def embed(body: EmbedIn, caller: Caller, gw: GatewayDep) -> EmbedOut:
-    r = await gw.embed(body.route, body.inputs, _meta(body.metadata, caller))
+    r = await gw.embed(
+        body.route, body.inputs, _meta(body.metadata, caller), deadline_s=_secs(body.timeout_ms)
+    )
     return EmbedOut(
         request_id=r.request_id,
         model=r.model,

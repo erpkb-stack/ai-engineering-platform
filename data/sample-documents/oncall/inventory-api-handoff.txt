@@ -1,0 +1,6 @@
+On-call handoff notes — inventory-api — week 31
+From: team-inventory primary  To: next primary
+
+Open issue OPS-2827: we saw early signs of thread pool starvation on two pods Tuesday night. Not customer-facing yet. Mitigation is ready but not applied; watch the dashboard.
+Deploy freeze: none. Next release: Thursday.
+Contacts: escalate to the team channel, not to individuals.

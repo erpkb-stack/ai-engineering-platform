@@ -15,8 +15,10 @@ repos:
         exclude: ^frontend/tsconfig.*\.json$  # tsconfig allows comments
       - id: detect-private-key
       - id: end-of-file-fixer
+        exclude: ^data/sample-documents/   # generated corpus: must stay byte-identical
       - id: trailing-whitespace
         args: ["--markdown-linebreak-ext=md"]
+        exclude: ^data/sample-documents/
       - id: check-executables-have-shebangs
       - id: check-shebang-scripts-are-executable
       - id: no-commit-to-branch

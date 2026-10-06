@@ -1,0 +1,6 @@
+On-call handoff notes — shipping-api — week 35
+From: team-shipping primary  To: next primary
+
+Open issue OPS-8433: we saw early signs of cache stampede on cold start on two pods Tuesday night. Not customer-facing yet. Mitigation is ready but not applied; watch the dashboard.
+Deploy freeze: none. Next release: Thursday.
+Contacts: escalate to the team channel, not to individuals.

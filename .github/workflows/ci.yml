@@ -78,6 +78,12 @@ jobs:
             uv run uvicorn --factory aeoi_llm.main:build_app --port 8005 > llm.log 2>&1 &
           for i in $(seq 1 30); do curl -sf localhost:8005/health/live > /dev/null && break; sleep 1; done
           LLM_SMOKE_ROUTE=reasoning ./scripts/smoke-phase5.sh || { cat llm.log; exit 1; }
+      - name: RAG ingest + eval gate (fake embeddings - leakage and quarantine must be 0)
+        run: |
+          make rag-token
+          make rag-ingest
+          make rag-eval   # exits 1 on any leakage or quarantine violation
+          make rag-stats
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200

@@ -1,0 +1,6 @@
+On-call handoff notes — notifications-worker — week 36
+From: team-notifications primary  To: next primary
+
+Open issue OPS-1053: we saw early signs of database connection pool exhaustion on two pods Tuesday night. Not customer-facing yet. Mitigation is ready but not applied; watch the dashboard.
+Deploy freeze: none. Next release: Thursday.
+Contacts: escalate to the team channel, not to individuals.

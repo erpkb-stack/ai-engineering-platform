@@ -19,7 +19,10 @@ class Settings(BaseServiceSettings):
     service_name: str = "api"
     port: int = 8000
     incident_service_url: str = "http://localhost:8001"
+    rag_service_url: str = "http://localhost:8004"
     upstream_timeout_s: float = 5.0
+    # search may include an LLM rerank (25 s budget in rag) - a longer, explicit timeout
+    rag_timeout_s: float = 35.0
     upstream_connect_timeout_s: float = 1.0
 
     jwt_public_key_file: Path = Field(default_factory=lambda: _secret("jwt_public.pem"))

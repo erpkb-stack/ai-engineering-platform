@@ -258,7 +258,9 @@ async def test_stream_events(gateway: Gateway, hosted: FakeProvider, sink: Memor
     assert "".join(e["text"] for e in events if e["event"] == "delta").strip() == "one two three"
     assert events[-1]["event"] == "done"
     assert sink.rows[-1].operation == "stream"
-    assert gateway.runtimes["hosted_fake"].bulkhead.in_flight == 0  # slot released
+    assert (
+        gateway.runtimes["hosted_fake"].bulkhead_for("fake-large").in_flight == 0
+    )  # slot released
 
 
 async def test_stream_falls_back_before_first_token(gateway: Gateway, hosted: FakeProvider) -> None:
@@ -347,3 +349,41 @@ async def test_attempt_detail_says_why(gateway: Gateway, hosted: FakeProvider) -
     hosted.fail_next(RetryableError("cannot reach http://x (ConnectError)"), RetryableError("x"))
     r = await gateway.generate("reasoning", req(), META)
     assert r.attempts[0].detail == "RetryableError: x"  # last retry's cause, not just a class name
+
+
+async def test_slow_generation_does_not_starve_embeddings_on_the_same_provider(
+    gateway: Gateway, local: FakeProvider
+) -> None:
+    """Regression (Phase 6, owner's Mac): a long llama3.2 rerank held Ollama's single slot and
+    embeddings failed with SaturatedError. Bulkheads are per model now."""
+    rt = gateway.runtimes["local_fake"]
+    rt.config = rt.config.model_copy(update={"max_concurrency": 1, "queue_timeout_s": 0.05})
+    started = asyncio.Event()
+
+    async def slow(_: ChatRequest) -> None:
+        started.set()
+        await asyncio.sleep(5)
+
+    local.generate = slow  # type: ignore[method-assign,assignment]
+    gen = asyncio.create_task(gateway.generate("local", req(), META))
+    await started.wait()
+    r = await gateway.embed("embed", ["still served"], META)  # other model, own slot
+    assert r.dimensions == 768
+    gen.cancel()
+
+
+async def test_caller_deadline_stops_work_early(gateway: Gateway, hosted: FakeProvider) -> None:
+    cancelled = asyncio.Event()
+
+    async def slow(_: ChatRequest) -> None:
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+
+    hosted.generate = slow  # type: ignore[method-assign,assignment]
+    gateway.request_timeout_s = 60
+    with pytest.raises(GatewayTimeoutError, match=r"0\.1s"):
+        await gateway.generate("reasoning", req(), META, allow_fallback=False, deadline_s=0.1)
+    assert cancelled.is_set()  # the upstream call was cancelled, not left running

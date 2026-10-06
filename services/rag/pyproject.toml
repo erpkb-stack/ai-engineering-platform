@@ -1,0 +1,33 @@
+[project]
+name = "aeoi-rag"
+version = "0.1.0"
+description = "RAG service: ingestion (parse, scrub, chunk, embed) and permission-aware hybrid retrieval (owns schema `rag`)"
+requires-python = ">=3.12"
+dependencies = [
+    "aeoi-common",
+    "aeoi-models",
+    "aeoi-security",
+    "aeoi-observability",
+    "aeoi-web",
+    "aeoi-db",
+    "aeoi-llm-client",
+    "httpx>=0.27",
+    "pypdfium2>=4.30",
+    "sqlalchemy[asyncio]>=2.0.36",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_rag"]
+
+[tool.uv.sources]
+aeoi-common = { workspace = true }
+aeoi-models = { workspace = true }
+aeoi-security = { workspace = true }
+aeoi-observability = { workspace = true }
+aeoi-web = { workspace = true }
+aeoi-db = { workspace = true }
+aeoi-llm-client = { workspace = true }

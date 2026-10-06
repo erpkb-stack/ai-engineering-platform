@@ -1,0 +1,6 @@
+On-call handoff notes — payments-api — week 30
+From: team-payments primary  To: next primary
+
+Open issue OPS-6573: we saw early signs of upstream rate limiting (HTTP 429) on two pods Tuesday night. Not customer-facing yet. Mitigation is ready but not applied; watch the dashboard.
+Deploy freeze: none. Next release: Thursday.
+Contacts: escalate to the team channel, not to individuals.

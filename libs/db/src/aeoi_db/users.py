@@ -18,6 +18,7 @@ from aeoi_db.config import find_repo_root, libpq_dsn
 # login user -> group role it gets (add one line per new service)
 SERVICE_LOGINS: dict[str, str] = {
     "incident_svc": "svc_incident",
+    "rag_svc": "svc_rag",
     "llm_svc": "svc_llm_gateway",
 }
 

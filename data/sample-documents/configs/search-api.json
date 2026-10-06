@@ -1,0 +1,21 @@
+{
+  "service": "search-api",
+  "owner": "team-search",
+  "database": {
+    "maxPoolSize": 43,
+    "connectionTimeoutMs": 3000,
+    "statementTimeoutMs": 5000
+  },
+  "http": {
+    "port": 8080,
+    "readTimeoutMs": 2000
+  },
+  "circuitBreaker": {
+    "failureRateThreshold": 50,
+    "openStateSeconds": 30
+  },
+  "featureFlags": {
+    "search_fast_path": false
+  },
+  "configRevision": "CFG-60019"
+}
