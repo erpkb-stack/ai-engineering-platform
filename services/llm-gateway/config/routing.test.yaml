@@ -11,4 +11,5 @@ models:
 routes:
   reasoning: {primary: fake-large, fallbacks: [fake-small]}
   local: {primary: fake-small}
+  fast: {primary: fake-small}
   embed: {operation: embed, primary: fake-embed}

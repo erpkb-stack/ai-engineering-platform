@@ -1,0 +1,268 @@
+{
+ "environment": {
+  "timestamp": "2026-10-06T04:30:23+00:00",
+  "git_commit": "13b55cf",
+  "host": "Darwin x86_64",
+  "embedding_model": "nomic-embed-text",
+  "pgvector": "0.8.7",
+  "dataset": "rag_queries_v1.jsonl",
+  "dataset_sha256": "5a071a5e49e89613",
+  "is_baseline": true,
+  "warning": null
+ },
+ "sweep": {
+  "split": {
+   "dev": 54,
+   "test": 54,
+   "seed": 13
+  },
+  "grid": {
+   "rrf_k": [
+    1,
+    5,
+    10,
+    20,
+    60
+   ],
+   "depth": [
+    10,
+    20,
+    40
+   ],
+   "wk_identifiers": [
+    1.0,
+    2.0,
+    4.0
+   ],
+   "wv_descriptive": [
+    1.0,
+    2.0,
+    4.0
+   ]
+  },
+  "default": {
+   "config": {
+    "rrf_k": 60,
+    "depth": 40,
+    "wk_identifiers": 1.0,
+    "wv_descriptive": 1.0
+   },
+   "dev": {
+    "recall@1": 0.3148,
+    "recall@5": 0.5926,
+    "mrr@10": 0.4121,
+    "mrr@10_ci95": [
+     0.2976,
+     0.5311
+    ],
+    "keyword": {
+     "recall@1": 0.3929,
+     "recall@5": 0.6071,
+     "mrr@10": 0.448
+    },
+    "paraphrase": {
+     "recall@1": 0.2308,
+     "recall@5": 0.5769,
+     "mrr@10": 0.3736
+    }
+   },
+   "test": {
+    "recall@1": 0.4815,
+    "recall@5": 0.7407,
+    "mrr@10": 0.5979,
+    "mrr@10_ci95": [
+     0.4827,
+     0.7129
+    ],
+    "keyword": {
+     "recall@1": 0.5357,
+     "recall@5": 0.7857,
+     "mrr@10": 0.646
+    },
+    "paraphrase": {
+     "recall@1": 0.4231,
+     "recall@5": 0.6923,
+     "mrr@10": 0.5462
+    }
+   }
+  },
+  "best_on_dev": {
+   "config": {
+    "rrf_k": 1,
+    "depth": 40,
+    "wk_identifiers": 2.0,
+    "wv_descriptive": 4.0
+   },
+   "dev": {
+    "recall@1": 0.6667,
+    "recall@5": 0.9074,
+    "mrr@10": 0.7715,
+    "mrr@10_ci95": [
+     0.6759,
+     0.8593
+    ],
+    "keyword": {
+     "recall@1": 1.0,
+     "recall@5": 1.0,
+     "mrr@10": 1.0
+    },
+    "paraphrase": {
+     "recall@1": 0.3077,
+     "recall@5": 0.8077,
+     "mrr@10": 0.5253
+    }
+   },
+   "test": {
+    "recall@1": 0.7037,
+    "recall@5": 0.963,
+    "mrr@10": 0.7986,
+    "mrr@10_ci95": [
+     0.7099,
+     0.8776
+    ],
+    "keyword": {
+     "recall@1": 1.0,
+     "recall@5": 1.0,
+     "mrr@10": 1.0
+    },
+    "paraphrase": {
+     "recall@1": 0.3846,
+     "recall@5": 0.9231,
+     "mrr@10": 0.5818
+    }
+   }
+  },
+  "vector_only": {
+   "dev": {
+    "recall@1": 0.2037,
+    "recall@5": 0.5741,
+    "mrr@10": 0.3531,
+    "mrr@10_ci95": [
+     0.2568,
+     0.4611
+    ],
+    "keyword": {
+     "recall@1": 0.1071,
+     "recall@5": 0.2857,
+     "mrr@10": 0.175
+    },
+    "paraphrase": {
+     "recall@1": 0.3077,
+     "recall@5": 0.8846,
+     "mrr@10": 0.5449
+    }
+   },
+   "test": {
+    "recall@1": 0.2593,
+    "recall@5": 0.537,
+    "mrr@10": 0.3685,
+    "mrr@10_ci95": [
+     0.2611,
+     0.4827
+    ],
+    "keyword": {
+     "recall@1": 0.1429,
+     "recall@5": 0.25,
+     "mrr@10": 0.1845
+    },
+    "paraphrase": {
+     "recall@1": 0.3846,
+     "recall@5": 0.8462,
+     "mrr@10": 0.5667
+    }
+   }
+  },
+  "keyword_only": {
+   "dev": {
+    "recall@1": 0.537,
+    "recall@5": 0.6852,
+    "mrr@10": 0.5964,
+    "mrr@10_ci95": [
+     0.4729,
+     0.7142
+    ],
+    "keyword": {
+     "recall@1": 1.0,
+     "recall@5": 1.0,
+     "mrr@10": 1.0
+    },
+    "paraphrase": {
+     "recall@1": 0.0385,
+     "recall@5": 0.3462,
+     "mrr@10": 0.1618
+    }
+   },
+   "test": {
+    "recall@1": 0.6852,
+    "recall@5": 0.8148,
+    "mrr@10": 0.7276,
+    "mrr@10_ci95": [
+     0.6116,
+     0.8333
+    ],
+    "keyword": {
+     "recall@1": 1.0,
+     "recall@5": 1.0,
+     "mrr@10": 1.0
+    },
+    "paraphrase": {
+     "recall@1": 0.3462,
+     "recall@5": 0.6154,
+     "mrr@10": 0.4343
+    }
+   }
+  },
+  "top5_dev": [
+   {
+    "mrr@10": 0.7715,
+    "recall@5": 0.9074,
+    "config": {
+     "rrf_k": 1,
+     "depth": 40,
+     "wk_identifiers": 2.0,
+     "wv_descriptive": 4.0
+    }
+   },
+   {
+    "mrr@10": 0.7715,
+    "recall@5": 0.9074,
+    "config": {
+     "rrf_k": 1,
+     "depth": 20,
+     "wk_identifiers": 2.0,
+     "wv_descriptive": 4.0
+    }
+   },
+   {
+    "mrr@10": 0.7708,
+    "recall@5": 0.8889,
+    "config": {
+     "rrf_k": 1,
+     "depth": 40,
+     "wk_identifiers": 4.0,
+     "wv_descriptive": 4.0
+    }
+   },
+   {
+    "mrr@10": 0.7708,
+    "recall@5": 0.8889,
+    "config": {
+     "rrf_k": 1,
+     "depth": 20,
+     "wk_identifiers": 4.0,
+     "wv_descriptive": 4.0
+    }
+   },
+   {
+    "mrr@10": 0.7707,
+    "recall@5": 0.8889,
+    "config": {
+     "rrf_k": 5,
+     "depth": 20,
+     "wk_identifiers": 4.0,
+     "wv_descriptive": 4.0
+    }
+   }
+  ]
+ }
+}

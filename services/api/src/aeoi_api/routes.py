@@ -3,13 +3,14 @@
 Order of checks on every route: authenticate (401) -> rate limit (429) -> permission (403)
 -> validate body (422) -> forward. Unauthorised requests never reach internal services.
 
-Spec endpoints that belong to later phases (documents, search, approvals, agents, trace,
-metrics) are added by those phases - not stubbed here, so the OpenAPI never lies.
+Spec endpoints that belong to later phases (approvals, agents, trace, metrics) are added by
+those phases - not stubbed here, so the OpenAPI never lies. Search/documents: Phase 6.
 """
 
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel
@@ -27,6 +28,7 @@ from aeoi_models.api.incidents import (
     InvestigationAccepted,
     TimelineEntry,
 )
+from aeoi_models.api.search import DocumentOut, SearchRequest, SearchResponse
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import Perm
 from aeoi_web.auth import current_principal
@@ -55,6 +57,13 @@ def incidents(request: Request) -> Upstream:
 
 
 Incidents = Annotated[Upstream, Depends(incidents)]
+
+
+def rag(request: Request) -> Upstream:
+    return request.app.state.upstreams["rag"]  # type: ignore[no-any-return]
+
+
+Rag = Annotated[Upstream, Depends(rag)]
 
 
 def _json(model: BaseModel) -> bytes:
@@ -163,3 +172,24 @@ async def feedback(
     _: Annotated[Principal, Depends(guard(Perm.FEEDBACK_WRITE))],
 ) -> Response:
     return await up.forward(request, "/v1/feedback", body=_json(body))
+
+
+@router.post("/search", response_model=SearchResponse, tags=["search"])
+async def search(
+    body: SearchRequest,
+    request: Request,
+    up: Rag,
+    _: Annotated[Principal, Depends(guard(Perm.DOCS_READ))],
+) -> Response:
+    """Permission-aware hybrid search. The caller's groups come from the token, in rag."""
+    return await up.forward(request, "/v1/search", body=_json(body))
+
+
+@router.get("/documents/{document_id}", response_model=DocumentOut, tags=["search"])
+async def get_document(
+    document_id: UUID,
+    request: Request,
+    up: Rag,
+    _: Annotated[Principal, Depends(guard(Perm.DOCS_READ))],
+) -> Response:
+    return await up.forward(request, f"/v1/documents/{document_id}")

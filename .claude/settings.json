@@ -42,7 +42,14 @@
       "Bash(make smoke)",
       "Bash(make llm-smoke)",
       "Bash(make service-token *)",
-      "Bash(make -s service-token *)"
+      "Bash(make -s service-token *)",
+      "Bash(make rag-stats)",
+      "Bash(make rag-eval)",
+      "Bash(make rag-smoke)",
+      "Bash(make docpack)",
+      "Bash(make stop-rag)",
+      "Bash(make rag-sweep)",
+      "Bash(make rag-bench)"
     ],
     "ask": [
       "Bash(docker compose up *)",
@@ -72,7 +79,12 @@
       "Bash(make run-llm *)",
       "Bash(make run-llm)",
       "Bash(make ollama-pull)",
-      "Bash(ollama pull *)"
+      "Bash(ollama pull *)",
+      "Bash(make rag-ingest)",
+      "Bash(make rag-embed *)",
+      "Bash(make rag-token)",
+      "Bash(make run-rag)",
+      "Bash(make rag-eval RERANK=1)"
     ],
     "deny": [
       "Read(./.env)",

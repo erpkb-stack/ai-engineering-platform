@@ -189,4 +189,6 @@ async def test_me(client: httpx.AsyncClient, keys: KeyPair) -> None:
 async def test_openapi_lists_only_real_routes(client: httpx.AsyncClient) -> None:
     paths = (await client.get("/openapi.json")).json()["paths"]
     assert "/api/v1/incidents" in paths
-    assert "/api/v1/search" not in paths  # Phase 6 adds it; no stubs that lie
+    assert "/api/v1/search" in paths  # Phase 6
+    assert "/api/v1/documents/{document_id}" in paths
+    assert "/api/v1/approvals" not in paths  # Phase 16 adds it; no stubs that lie

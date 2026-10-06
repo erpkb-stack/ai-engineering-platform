@@ -24,18 +24,22 @@ def build_app(
     limiter: RateLimiter | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
-    timeout = httpx.Timeout(
-        settings.upstream_timeout_s, connect=settings.upstream_connect_timeout_s
-    )
-    targets = {"incident-service": settings.incident_service_url}
+
+    def timeout(seconds: float) -> httpx.Timeout:
+        return httpx.Timeout(seconds, connect=settings.upstream_connect_timeout_s)
+
+    targets = {
+        "incident-service": (settings.incident_service_url, timeout(settings.upstream_timeout_s)),
+        "rag": (settings.rag_service_url, timeout(settings.rag_timeout_s)),
+    }
     clients = {
         name: httpx.AsyncClient(
             base_url=url,
-            timeout=timeout,
+            timeout=t,
             transport=(transports or {}).get(name),
             limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
         )
-        for name, url in targets.items()
+        for name, (url, t) in targets.items()
     }
 
     @asynccontextmanager
@@ -57,6 +61,8 @@ def build_app(
         authenticator=Authenticator(
             settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
         ),
+        # rag is deliberately NOT a readiness dependency: search being down must not take
+        # incident management out of the load balancer.
         readiness={"incident-service": incident_service_ready},
         lifespan=lifespan,
         log_level=settings.log_level,

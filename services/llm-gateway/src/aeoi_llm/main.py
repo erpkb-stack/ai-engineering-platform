@@ -17,7 +17,7 @@ from aeoi_llm.config import ProviderConfig, ProviderKind, RoutingConfig, Setting
 from aeoi_llm.db import make_engine, make_sessionmaker
 from aeoi_llm.gateway import Gateway, ProviderRuntime
 from aeoi_llm.providers import AnthropicProvider, FakeProvider, OpenAICompatProvider, Provider
-from aeoi_llm.resilience import Bulkhead, RetryPolicy
+from aeoi_llm.resilience import RetryPolicy
 from aeoi_llm.usage import DbUsageSink, MemoryUsageSink, UsageSink
 from aeoi_web import Authenticator, create_app
 
@@ -73,7 +73,6 @@ def build_gateway(
             name=name,
             config=cfg,
             provider=provider,
-            bulkhead=Bulkhead(name, cfg.max_concurrency, cfg.queue_timeout_s),
             retry=RetryPolicy(max_attempts=cfg.max_attempts),
             unavailable_reason=reason,
         )

@@ -1,0 +1,907 @@
+{
+ "documents": [
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "checkout",
+   "owner": "team-checkout",
+   "path": "runbooks/checkout-api-pool.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "c4778f60bd5dcdc2d881d62fcf23bb26b616c8696e13792754f9c1ff9cf28780",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/checkout-api-pool.md",
+   "title": "Runbook: checkout-api \u2014 database connection pool exhaustion",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "orders",
+   "owner": "team-orders",
+   "path": "runbooks/orders-api-oom.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "468126ccf90dda5697034aa57abf1806a8ca94cc5f7c1337468f5bf1488f705e",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/orders-api-oom.md",
+   "title": "Runbook: orders-api \u2014 memory leak and OOMKilled pods",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "payments",
+   "owner": "team-payments",
+   "path": "runbooks/payments-api-lag.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "6da0a7cc9b8af32971da5a7604d0a649ee2cdeeecf28288551343ddffa9b2373",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/payments-api-lag.md",
+   "title": "Runbook: payments-api \u2014 Kafka consumer lag",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "inventory",
+   "owner": "team-inventory",
+   "path": "runbooks/inventory-api-tls.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "e94ec2d8b02575e69036f8e4ae3c13fb128c3232538527d8f9183df2ad03388b",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/inventory-api-tls.md",
+   "title": "Runbook: inventory-api \u2014 TLS certificate expiry",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "cart",
+   "owner": "team-cart",
+   "path": "runbooks/cart-api-disk.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "0f867eac0f85af8072df26b36795824500d9eb1311df5cbc2aab4a5dbb7a10e4",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/cart-api-disk.md",
+   "title": "Runbook: cart-api \u2014 disk full on the log volume",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "search",
+   "owner": "team-search",
+   "path": "runbooks/search-api-dns.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "748054234b93dd185caa2def4fc6d2f4c90d9e7f8ca61ad54143c7023f6ba73b",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/search-api-dns.md",
+   "title": "Runbook: search-api \u2014 intermittent DNS resolution failures",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "pricing",
+   "owner": "team-pricing",
+   "path": "runbooks/pricing-api-throttle.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "55e5cfd7b29ddebc15120f48c1e8c3bcbda3d8cec011abf77e507e6113a87230",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/pricing-api-throttle.md",
+   "title": "Runbook: pricing-api \u2014 upstream rate limiting (HTTP 429)",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "shipping",
+   "owner": "team-shipping",
+   "path": "runbooks/shipping-api-threads.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "2bea97c0a4157b5a5ff008a87c895e9c1898e13c73183e21dcf077d271d6b2cc",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/shipping-api-threads.md",
+   "title": "Runbook: shipping-api \u2014 thread pool starvation",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "notifications",
+   "owner": "team-notifications",
+   "path": "runbooks/notifications-worker-slowquery.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "0ec433516cff50f5d3cdb1d7d907907ec9f74ec7ac4c40e0aa3ce9735b836b33",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/notifications-worker-slowquery.md",
+   "title": "Runbook: notifications-worker \u2014 slow queries after an index was dropped",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "ledger",
+   "owner": "team-ledger",
+   "path": "runbooks/ledger-worker-flag.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "4cb024ba149acde0b2655b36f418a560f961e2d62ac611e435bfc149c9218d7e",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/ledger-worker-flag.md",
+   "title": "Runbook: ledger-worker \u2014 bad feature flag rollout",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "fraud",
+   "owner": "team-fraud",
+   "path": "runbooks/fraud-api-retrystorm.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "1b4129dcaecc0124b5287d96700a6ee89e29a2ea35c926e9da9bb65f688e80dc",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/fraud-api-retrystorm.md",
+   "title": "Runbook: fraud-api \u2014 retry storm after a partial outage",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "billing",
+   "owner": "team-billing",
+   "path": "runbooks/billing-api-cache.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "f6d52992f8a00d2f9fdaa0b1f6acd7d3102e7d0c3eb6adf1428eaa07bc3ed2d7",
+   "source": "markdown",
+   "source_uri": "docpack://runbooks/billing-api-cache.md",
+   "title": "Runbook: billing-api \u2014 cache stampede on cold start",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "checkout",
+   "owner": "team-checkout",
+   "path": "postmortems/inc-7891-checkout-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "4c20f3eae0d81d18fade32857eb377650032ceac1443f46dc67ba2721aac900d",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7891-checkout-api.pdf",
+   "title": "Postmortem INC-7891: checkout-api TLS certificate expiry",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "orders",
+   "owner": "team-orders",
+   "path": "postmortems/inc-7203-orders-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "8c7c301d59cb92be3076b652aeae80cc5b291bf036507bfe158666b9375a4186",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7203-orders-api.pdf",
+   "title": "Postmortem INC-7203: orders-api disk full on the log volume",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "payments",
+   "owner": "team-payments",
+   "path": "postmortems/inc-7473-payments-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "55532e299d6cbc7eb2236b3285ec6688dc6de4fa9917882dd8d15092e6909654",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7473-payments-api.pdf",
+   "title": "Postmortem INC-7473: payments-api intermittent DNS resolution failures",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "inventory",
+   "owner": "team-inventory",
+   "path": "postmortems/inc-7373-inventory-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "768c010e8da4d38d9aab8b26d780ca33c6788e81e04e42bd5558729dcfcad7f3",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7373-inventory-api.pdf",
+   "title": "Postmortem INC-7373: inventory-api upstream rate limiting (HTTP 429)",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "cart",
+   "owner": "team-cart",
+   "path": "postmortems/inc-7750-cart-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "a0c388e041b106d6cbd9d23b2524f5c282973cf21db947a33d72412051bf93f6",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7750-cart-api.pdf",
+   "title": "Postmortem INC-7750: cart-api thread pool starvation",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "search",
+   "owner": "team-search",
+   "path": "postmortems/inc-7573-search-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "c5fcbf4b564cbbba865dcef09b1408499cacb324cca397df3b941ff2d9276d17",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7573-search-api.pdf",
+   "title": "Postmortem INC-7573: search-api slow queries after an index was dropped",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "pricing",
+   "owner": "team-pricing",
+   "path": "postmortems/inc-7324-pricing-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "8d6c1c91a05b042d536a18d0beda92ae5a2b8d890a3b863f13b412d87534b602",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7324-pricing-api.pdf",
+   "title": "Postmortem INC-7324: pricing-api bad feature flag rollout",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "shipping",
+   "owner": "team-shipping",
+   "path": "postmortems/inc-7157-shipping-api.pdf",
+   "sensitivity": "INTERNAL",
+   "sha256": "34479f7732a06ee8403d552ebd37151ca4bfc3c013e2ebe93a7bf65070c8c35a",
+   "source": "pdf",
+   "source_uri": "docpack://postmortems/inc-7157-shipping-api.pdf",
+   "title": "Postmortem INC-7157: shipping-api retry storm after a partial outage",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "payments",
+   "owner": "team-payments",
+   "path": "architecture/payments-api.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "f0085baac1f4c80dc3b89a9fa1929dc4770abafbd9369499e8218257e185b621",
+   "source": "html",
+   "source_uri": "docpack://architecture/payments-api.html",
+   "title": "Architecture: payments-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "inventory",
+   "owner": "team-inventory",
+   "path": "architecture/inventory-api.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "5578fdac45a60d8811ad8d3105840222e0f8e32b0940755eea7807a1384f0db8",
+   "source": "html",
+   "source_uri": "docpack://architecture/inventory-api.html",
+   "title": "Architecture: inventory-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "cart",
+   "owner": "team-cart",
+   "path": "architecture/cart-api.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "d91b6d426d2544595d3f7830dcda911d921f2dd48eaf0bfa67285b831e432500",
+   "source": "html",
+   "source_uri": "docpack://architecture/cart-api.html",
+   "title": "Architecture: cart-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "search",
+   "owner": "team-search",
+   "path": "architecture/search-api.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "7d5a1130a1b793cd2eb09efd1622cc066f58b3fc0f4f843d71b25826cd5c2af3",
+   "source": "html",
+   "source_uri": "docpack://architecture/search-api.html",
+   "title": "Architecture: search-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "pricing",
+   "owner": "team-pricing",
+   "path": "architecture/pricing-api.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "4cefd16a7ab5789b89b17ea09640f3e8f99fec66beeeed8c6227becb23451e5e",
+   "source": "html",
+   "source_uri": "docpack://architecture/pricing-api.html",
+   "title": "Architecture: pricing-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "shipping",
+   "owner": "team-shipping",
+   "path": "architecture/shipping-api.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "26d2eaf010a8f5e1da9fc1da1bb9db571ce703d5c66c6eed92e2bb33d971104b",
+   "source": "html",
+   "source_uri": "docpack://architecture/shipping-api.html",
+   "title": "Architecture: shipping-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "notifications",
+   "owner": "team-notifications",
+   "path": "architecture/notifications-worker.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "fa75aa129cb8662bd52686a0026544a81cc9218d1a73d6db7e2820a09f8e6f71",
+   "source": "html",
+   "source_uri": "docpack://architecture/notifications-worker.html",
+   "title": "Architecture: notifications-worker",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "ledger",
+   "owner": "team-ledger",
+   "path": "architecture/ledger-worker.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "84c97534f6b6b998ac4f80d0a5a3711142b8fc1461b20c9d77c5100ebc498c16",
+   "source": "html",
+   "source_uri": "docpack://architecture/ledger-worker.html",
+   "title": "Architecture: ledger-worker",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "checkout",
+   "owner": "team-checkout",
+   "path": "configs/checkout-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "f52474b5a9d692fdcdbead4548178535e66860e6ab986723ac50fa9517e83c3e",
+   "source": "json",
+   "source_uri": "docpack://configs/checkout-api.json",
+   "title": "Configuration: checkout-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "orders",
+   "owner": "team-orders",
+   "path": "configs/orders-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "008e1e062f7ab4ec1cb6a6281bf335b531291e718e83897b6b8bb84b6b69417c",
+   "source": "json",
+   "source_uri": "docpack://configs/orders-api.json",
+   "title": "Configuration: orders-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "payments",
+   "owner": "team-payments",
+   "path": "configs/payments-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "a77ca078cf6d765d8ce1ded5d23a0f5705983d2c3d50af4302362399d8d3e788",
+   "source": "json",
+   "source_uri": "docpack://configs/payments-api.json",
+   "title": "Configuration: payments-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "inventory",
+   "owner": "team-inventory",
+   "path": "configs/inventory-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "a24d074d3506ffe8bb2bc72c5ca8318134083f1b5d0050063e966072a1b31108",
+   "source": "json",
+   "source_uri": "docpack://configs/inventory-api.json",
+   "title": "Configuration: inventory-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "cart",
+   "owner": "team-cart",
+   "path": "configs/cart-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "a61552b7e26c35829874864ec0923aa92ab9b8df8cca798031f096ef715dba0f",
+   "source": "json",
+   "source_uri": "docpack://configs/cart-api.json",
+   "title": "Configuration: cart-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "search",
+   "owner": "team-search",
+   "path": "configs/search-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "803ec9b78d8ab98bd761637757cb470aa3312ef466819028bcbc1f453036527e",
+   "source": "json",
+   "source_uri": "docpack://configs/search-api.json",
+   "title": "Configuration: search-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "pricing",
+   "owner": "team-pricing",
+   "path": "configs/pricing-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "03d7bff5a39c905e4082c1daa2963b7ad681c83c3990022a9c1d93f22d255105",
+   "source": "json",
+   "source_uri": "docpack://configs/pricing-api.json",
+   "title": "Configuration: pricing-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "shipping",
+   "owner": "team-shipping",
+   "path": "configs/shipping-api.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "7588ff289652511c42a63d1468abc3f1b814fea9734ab7b17cc9b044e4ab0200",
+   "source": "json",
+   "source_uri": "docpack://configs/shipping-api.json",
+   "title": "Configuration: shipping-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "cart",
+   "owner": "team-cart",
+   "path": "code/cart-api/compute_backoff_with_jitter.py",
+   "sensitivity": "INTERNAL",
+   "sha256": "7b4d3b5059adb929e894c90f86e47f870b19dfff9f3181be285fbff0d6c3fe96",
+   "source": "code",
+   "source_uri": "docpack://code/cart-api/compute_backoff_with_jitter.py",
+   "title": "cart-api: compute_backoff_with_jitter",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "search",
+   "owner": "team-search",
+   "path": "code/search-api/IdempotencyKeyFilter.java",
+   "sensitivity": "INTERNAL",
+   "sha256": "1f6a7b917d0ea9327ac31c5d2885e972d5bb547bdf830f34f04b3ab0508b19db",
+   "source": "code",
+   "source_uri": "docpack://code/search-api/IdempotencyKeyFilter.java",
+   "title": "search-api: IdempotencyKeyFilter",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "pricing",
+   "owner": "team-pricing",
+   "path": "code/pricing-api/acquire_with_deadline.py",
+   "sensitivity": "INTERNAL",
+   "sha256": "55122d87d6c80acab84b8b140b3550da06093a4725ba5b90098a2f04eecead82",
+   "source": "code",
+   "source_uri": "docpack://code/pricing-api/acquire_with_deadline.py",
+   "title": "pricing-api: acquire_with_deadline",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "shipping",
+   "owner": "team-shipping",
+   "path": "code/shipping-api/CircuitBreakerRegistry.java",
+   "sensitivity": "INTERNAL",
+   "sha256": "31a861319b40c4d77a01c7b295c4c8bcc363138ce234b5dc26028ad92ef920e7",
+   "source": "code",
+   "source_uri": "docpack://code/shipping-api/CircuitBreakerRegistry.java",
+   "title": "shipping-api: CircuitBreakerRegistry",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "notifications",
+   "owner": "team-notifications",
+   "path": "code/notifications-worker/redact_card_number.py",
+   "sensitivity": "INTERNAL",
+   "sha256": "15c502c1decf02cd6edd2909c4b1fe5ff322314997767f2d4af94e906688dac5",
+   "source": "code",
+   "source_uri": "docpack://code/notifications-worker/redact_card_number.py",
+   "title": "notifications-worker: redact_card_number",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "ledger",
+   "owner": "team-ledger",
+   "path": "code/ledger-worker/OutboxPublisher.java",
+   "sensitivity": "INTERNAL",
+   "sha256": "f100205c9f5bf1f1ad059c2c258658992d7ba384d99e47ea0745bb3fbe943ebf",
+   "source": "code",
+   "source_uri": "docpack://code/ledger-worker/OutboxPublisher.java",
+   "title": "ledger-worker: OutboxPublisher",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "fraud",
+   "owner": "team-fraud",
+   "path": "code/fraud-api/paginate_by_cursor.py",
+   "sensitivity": "INTERNAL",
+   "sha256": "39127f9790b658cedd40f3ef37e57ec3d7cee1f0faa066bed3c48a455e1870eb",
+   "source": "code",
+   "source_uri": "docpack://code/fraud-api/paginate_by_cursor.py",
+   "title": "fraud-api: paginate_by_cursor",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "billing",
+   "owner": "team-billing",
+   "path": "code/billing-api/HealthProbeController.java",
+   "sensitivity": "INTERNAL",
+   "sha256": "9319f70f40c4b45bc12c268a931ab14c33279fc029dfc6872a52419975d662bf",
+   "source": "code",
+   "source_uri": "docpack://code/billing-api/HealthProbeController.java",
+   "title": "billing-api: HealthProbeController",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "payments",
+   "owner": "team-payments",
+   "path": "oncall/payments-api-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "6ce0d7fa7e2f48216fa379ed42fc24cdcb1af03bc978510e40c90e43d42b82fa",
+   "source": "txt",
+   "source_uri": "docpack://oncall/payments-api-handoff.txt",
+   "title": "On-call handoff: payments-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "inventory",
+   "owner": "team-inventory",
+   "path": "oncall/inventory-api-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "cb29a84416b5370ffe1c7837cb021b1dfc216b25961b98698086712a682e3df0",
+   "source": "txt",
+   "source_uri": "docpack://oncall/inventory-api-handoff.txt",
+   "title": "On-call handoff: inventory-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "cart",
+   "owner": "team-cart",
+   "path": "oncall/cart-api-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "dfbb8649498605e8959a380e73fd8dd86c8385e2c34256c5b0e39b471bd258ad",
+   "source": "txt",
+   "source_uri": "docpack://oncall/cart-api-handoff.txt",
+   "title": "On-call handoff: cart-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "search",
+   "owner": "team-search",
+   "path": "oncall/search-api-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "4d7e68f81e77fbf2b5d635c4ffc20fa149e0ab0e0a4add65338256381ff991ba",
+   "source": "txt",
+   "source_uri": "docpack://oncall/search-api-handoff.txt",
+   "title": "On-call handoff: search-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "pricing",
+   "owner": "team-pricing",
+   "path": "oncall/pricing-api-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "7c4ae246060a898b321f8e647e3157b809d559dbe4ff081d17129baf06d484d6",
+   "source": "txt",
+   "source_uri": "docpack://oncall/pricing-api-handoff.txt",
+   "title": "On-call handoff: pricing-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "shipping",
+   "owner": "team-shipping",
+   "path": "oncall/shipping-api-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "c123d07e97b8021d9cdd6829a49962edba34aa3f8305253a59e21d15f9c83d73",
+   "source": "txt",
+   "source_uri": "docpack://oncall/shipping-api-handoff.txt",
+   "title": "On-call handoff: shipping-api",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "notifications",
+   "owner": "team-notifications",
+   "path": "oncall/notifications-worker-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "195e2541c72815a94c3d8e1be6f571e2a3194973d2adbd669f1f91f5af645bb1",
+   "source": "txt",
+   "source_uri": "docpack://oncall/notifications-worker-handoff.txt",
+   "title": "On-call handoff: notifications-worker",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "ledger",
+   "owner": "team-ledger",
+   "path": "oncall/ledger-worker-handoff.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "da0da5e9c268e1d134ad6cd868997e881032986c7f27f22777d8a099626b26e7",
+   "source": "txt",
+   "source_uri": "docpack://oncall/ledger-worker-handoff.txt",
+   "title": "On-call handoff: ledger-worker",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "security-team"
+   ],
+   "department": "security",
+   "owner": "security-team",
+   "path": "restricted/secrets-rotation-procedure.md",
+   "sensitivity": "RESTRICTED",
+   "sha256": "79146102af38be032f79597fc3f5171f7bd7a2d574157c9a22e2b5f52cc0f1d5",
+   "source": "markdown",
+   "source_uri": "docpack://restricted/secrets-rotation-procedure.md",
+   "title": "Production secrets rotation procedure",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "management"
+   ],
+   "department": "management",
+   "owner": "eng-management",
+   "path": "restricted/headcount-plan.txt",
+   "sensitivity": "CONFIDENTIAL",
+   "sha256": "ca82fa8718e0f9ef56a72dffe4f43e0459e48123dba29b54d55da7b47eb2b124",
+   "source": "txt",
+   "source_uri": "docpack://restricted/headcount-plan.txt",
+   "title": "Platform headcount plan H2",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "incident-commanders"
+   ],
+   "department": "incident-management",
+   "owner": "ic-guild",
+   "path": "restricted/exec-escalation-contacts.txt",
+   "sensitivity": "CONFIDENTIAL",
+   "sha256": "ad159ac8bcb98d208bc5e32fc5f2b78dba9937e509994672ea3d68afc768256c",
+   "source": "txt",
+   "source_uri": "docpack://restricted/exec-escalation-contacts.txt",
+   "title": "Executive escalation contacts",
+   "version": "1"
+  },
+  {
+   "adversarial": false,
+   "allowed_groups": [
+    "security-team",
+    "architecture-team"
+   ],
+   "department": "security",
+   "owner": "security-team",
+   "path": "restricted/pentest-findings.pdf",
+   "sensitivity": "RESTRICTED",
+   "sha256": "3591e580681047d8be9dbbc76b331a80b2da8d2387fd9f5fdc4a1ea25e0e49ca",
+   "source": "pdf",
+   "source_uri": "docpack://restricted/pentest-findings.pdf",
+   "title": "Penetration test findings 2026",
+   "version": "1"
+  },
+  {
+   "adversarial": true,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "platform",
+   "owner": "team-platform",
+   "path": "adversarial/runbook-cache-flush.md",
+   "sensitivity": "INTERNAL",
+   "sha256": "acf4d41714e6407411062df15b1d67b553ca68fa8876f82a8711b51c028a58ea",
+   "source": "markdown",
+   "source_uri": "docpack://adversarial/runbook-cache-flush.md",
+   "title": "Runbook: emergency cache flush",
+   "version": "1"
+  },
+  {
+   "adversarial": true,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "platform",
+   "owner": "team-platform",
+   "path": "adversarial/status-page.html",
+   "sensitivity": "INTERNAL",
+   "sha256": "b5841fad359abea29250e15a4cb549c1a5e93ad37ed0ad20c2668e93069075e0",
+   "source": "html",
+   "source_uri": "docpack://adversarial/status-page.html",
+   "title": "Status page snapshot",
+   "version": "1"
+  },
+  {
+   "adversarial": true,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "platform",
+   "owner": "team-platform",
+   "path": "adversarial/webhook-config.json",
+   "sensitivity": "INTERNAL",
+   "sha256": "e4497881530f41e60f9992d9bd9c6f341ff7eb0ce0d808d7610a7c5c3b2a1ec4",
+   "source": "json",
+   "source_uri": "docpack://adversarial/webhook-config.json",
+   "title": "Webhook configuration",
+   "version": "1"
+  },
+  {
+   "adversarial": true,
+   "allowed_groups": [
+    "eng-all"
+   ],
+   "department": "platform",
+   "owner": "team-platform",
+   "path": "adversarial/relevance-booster.txt",
+   "sensitivity": "INTERNAL",
+   "sha256": "a9a2c4fef2bbaba1417b3c05a55f9d5b6714e3587c7cc83ad9c7e133ebc466e4",
+   "source": "txt",
+   "source_uri": "docpack://adversarial/relevance-booster.txt",
+   "title": "Generic notes",
+   "version": "1"
+  }
+ ],
+ "seed": 42,
+ "version": "docpack-v1"
+}

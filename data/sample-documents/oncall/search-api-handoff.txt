@@ -1,0 +1,6 @@
+On-call handoff notes — search-api — week 33
+From: team-search primary  To: next primary
+
+Open issue OPS-8123: we saw early signs of bad feature flag rollout on two pods Tuesday night. Not customer-facing yet. Mitigation is ready but not applied; watch the dashboard.
+Deploy freeze: none. Next release: Thursday.
+Contacts: escalate to the team channel, not to individuals.

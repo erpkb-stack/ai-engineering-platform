@@ -1,0 +1,6 @@
+On-call handoff notes — cart-api — week 32
+From: team-cart primary  To: next primary
+
+Open issue OPS-5808: we saw early signs of slow queries after an index was dropped on two pods Tuesday night. Not customer-facing yet. Mitigation is ready but not applied; watch the dashboard.
+Deploy freeze: none. Next release: Thursday.
+Contacts: escalate to the team channel, not to individuals.

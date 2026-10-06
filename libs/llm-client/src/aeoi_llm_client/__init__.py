@@ -83,6 +83,7 @@ class LLMClient(Protocol):
         temperature: float = ...,
         allow_fallback: bool = ...,
         metadata: CallMetadata | None = ...,
+        timeout_s: float | None = ...,
     ) -> LLMResponse: ...
 
     async def generate_structured(
@@ -96,9 +97,12 @@ class LLMClient(Protocol):
         allow_fallback: bool = ...,
         metadata: CallMetadata | None = ...,
         schema_name: str = ...,
+        timeout_s: float | None = ...,
     ) -> LLMResponse: ...
 
-    async def embed(self, inputs: list[str], *, route: str = ...) -> EmbedResponse: ...
+    async def embed(
+        self, inputs: list[str], *, route: str = ..., timeout_s: float | None = ...
+    ) -> EmbedResponse: ...
 
 
 class HttpLLMClient:
@@ -117,9 +121,27 @@ class HttpLLMClient:
     async def aclose(self) -> None:
         await self._http.aclose()
 
-    async def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+    async def _post(
+        self, path: str, body: dict[str, Any], timeout_s: float | None = None
+    ) -> dict[str, Any]:
+        """`timeout_s` is the caller's deadline: sent to the gateway (which stops its own work
+        when it passes) and used for this HTTP call with a small margin, so the gateway's 504
+        with a reason arrives before our local timeout."""
         headers = {"Authorization": f"Bearer {await self._token()}"}
-        r = await self._http.post(path, json=body, headers=headers)
+        if timeout_s is not None:
+            body = {**body, "timeout_ms": max(100, int(timeout_s * 1000))}
+        try:
+            r = await self._http.post(
+                path,
+                json=body,
+                headers=headers,
+                timeout=timeout_s + 5 if timeout_s is not None else httpx.USE_CLIENT_DEFAULT,
+            )
+        except httpx.TimeoutException as exc:
+            raise LLMError(504, "client-timeout", f"no answer from the LLM gateway: {exc}") from exc
+        except httpx.TransportError as exc:
+            # one error type for callers: "the LLM path is down", whatever the cause
+            raise LLMError(503, "gateway-unreachable", f"{type(exc).__name__}: {exc}") from exc
         if r.status_code >= 400:
             try:
                 p = r.json()
@@ -140,6 +162,7 @@ class HttpLLMClient:
         temperature: float = 0.0,
         allow_fallback: bool = True,
         metadata: CallMetadata | None = None,
+        timeout_s: float | None = None,
     ) -> LLMResponse:
         body = {
             "route": route,
@@ -150,7 +173,7 @@ class HttpLLMClient:
             "allow_fallback": allow_fallback,
             "metadata": (metadata or CallMetadata()).model_dump(mode="json"),
         }
-        return LLMResponse.model_validate(await self._post("/v1/generate", body))
+        return LLMResponse.model_validate(await self._post("/v1/generate", body, timeout_s))
 
     async def generate_structured(
         self,
@@ -163,6 +186,7 @@ class HttpLLMClient:
         allow_fallback: bool = True,
         metadata: CallMetadata | None = None,
         schema_name: str = "result",
+        timeout_s: float | None = None,
     ) -> LLMResponse:
         body = {
             "route": route,
@@ -174,11 +198,15 @@ class HttpLLMClient:
             "allow_fallback": allow_fallback,
             "metadata": (metadata or CallMetadata()).model_dump(mode="json"),
         }
-        return LLMResponse.model_validate(await self._post("/v1/generate_structured", body))
+        return LLMResponse.model_validate(
+            await self._post("/v1/generate_structured", body, timeout_s)
+        )
 
-    async def embed(self, inputs: list[str], *, route: str = "embed") -> EmbedResponse:
+    async def embed(
+        self, inputs: list[str], *, route: str = "embed", timeout_s: float | None = None
+    ) -> EmbedResponse:
         return EmbedResponse.model_validate(
-            await self._post("/v1/embed", {"route": route, "inputs": inputs})
+            await self._post("/v1/embed", {"route": route, "inputs": inputs}, timeout_s)
         )
 
 
@@ -220,7 +248,9 @@ class FakeLLMClient:
         data = self.data.pop(0) if self.data else {}
         return self._resp(kw.get("route", "reasoning"), json.dumps(data), data)
 
-    async def embed(self, inputs: list[str], *, route: str = "embed") -> EmbedResponse:
+    async def embed(
+        self, inputs: list[str], *, route: str = "embed", timeout_s: float | None = None
+    ) -> EmbedResponse:
         self.calls.append({"op": "embed", "inputs": inputs})
         return EmbedResponse(
             request_id="fake",

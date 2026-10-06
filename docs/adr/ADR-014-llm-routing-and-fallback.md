@@ -39,6 +39,14 @@ Agents (Phase 8+) need text, structured JSON, streams and embeddings. Constraint
    model chain (a policy change invalidates it).
 10. **Only services call the gateway** (service token with scope `llm:invoke`); user tokens get 403.
 
+### Amendment (Phase 6, measured on the owner's Mac)
+- **Bulkheads per model, not per provider.** A llama3.2 rerank held Ollama's single slot and
+  embeddings (a different model) failed with `SaturatedError`. Same reasoning as the per-model
+  circuit breaker: one model's trouble must not block another.
+- **Caller deadlines propagate.** Requests may carry `timeout_ms`; the gateway's deadline becomes
+  min(own, caller's) and cancels retries, fallbacks and the upstream call when it passes. Before,
+  a client that gave up after 25 s left a CPU generation running for up to 180 s.
+
 ## Alternatives
 | Option | Why not (here) |
 |---|---|

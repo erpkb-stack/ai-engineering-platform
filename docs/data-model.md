@@ -98,7 +98,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | Table | Purpose | Columns |
 |---|---|---|
 | `document_chunks` |  | 11 |
-| `documents` | Source documents with ACL (`allowed_groups`) and sensitivity | 15 |
+| `documents` | Source documents with ACL (`allowed_groups`), sensitivity, quarantine flag + reason (0015) | 16 |
 | `historical_incidents` | Closed past incidents (Feature 8). root_cause_category doubles as eval ground truth. | 16 |
 | `runbooks` |  | 8 |
 

@@ -1,0 +1,6 @@
+On-call handoff notes — pricing-api — week 34
+From: team-pricing primary  To: next primary
+
+Open issue OPS-3591: we saw early signs of retry storm after a partial outage on two pods Tuesday night. Not customer-facing yet. Mitigation is ready but not applied; watch the dashboard.
+Deploy freeze: none. Next release: Thursday.
+Contacts: escalate to the team channel, not to individuals.

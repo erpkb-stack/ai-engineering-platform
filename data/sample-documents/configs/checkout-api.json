@@ -1,0 +1,21 @@
+{
+  "service": "checkout-api",
+  "owner": "team-checkout",
+  "database": {
+    "maxPoolSize": 57,
+    "connectionTimeoutMs": 3000,
+    "statementTimeoutMs": 5000
+  },
+  "http": {
+    "port": 8080,
+    "readTimeoutMs": 2000
+  },
+  "circuitBreaker": {
+    "failureRateThreshold": 50,
+    "openStateSeconds": 30
+  },
+  "featureFlags": {
+    "checkout_batch_path": true
+  },
+  "configRevision": "CFG-44718"
+}

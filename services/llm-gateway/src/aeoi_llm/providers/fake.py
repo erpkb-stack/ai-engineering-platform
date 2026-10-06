@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any
@@ -97,16 +98,28 @@ class FakeProvider:
         yield StreamChunk(usage=result.usage, model=req.model)
 
     async def embed(self, model: str, inputs: list[str]) -> EmbedResult:
+        """Hashed bag-of-words vectors: deterministic and LEXICALLY meaningful (texts sharing
+        words are close), so retrieval tests in CI exercise real ranking code. Not semantic:
+        a paraphrase with no shared words scores ~0. Never quote recall measured with this."""
         self._maybe_fail()
-        vectors = []
-        for text in inputs:
-            seed = hashlib.sha256(text.encode()).digest()
-            raw = [((seed[i % 32] + i * 31) % 255) / 255 - 0.5 for i in range(self.dimensions)]
-            norm = math.sqrt(sum(v * v for v in raw)) or 1.0
-            vectors.append([v / norm for v in raw])
+        vectors = [_hashed_bow(text, self.dimensions) for text in inputs]
         return EmbedResult(
             vectors=vectors,
             usage=Usage(sum(_tokens(t) for t in inputs), 0),
             model=model,
             dimensions=self.dimensions,
         )
+
+
+_WORD = re.compile(r"[a-z0-9]+")
+
+
+def _hashed_bow(text: str, dims: int) -> list[float]:
+    vec = [0.0] * dims
+    for word in _WORD.findall(text.lower()):
+        h = int.from_bytes(hashlib.blake2b(word.encode(), digest_size=8).digest(), "big")
+        vec[h % dims] += 1.0 if (h >> 32) & 1 else -1.0
+    norm = math.sqrt(sum(v * v for v in vec))
+    if norm == 0:
+        vec[0], norm = 1.0, 1.0  # empty text: fixed unit vector instead of a zero vector
+    return [v / norm for v in vec]

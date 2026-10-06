@@ -145,3 +145,14 @@ async def test_routes_never_expose_keys(client: httpx.AsyncClient, keys: KeyPair
 
 async def test_health_needs_no_auth(client: httpx.AsyncClient) -> None:
     assert (await client.get("/health/live")).status_code == 200
+
+
+async def test_timeout_ms_is_validated(client: httpx.AsyncClient, keys: KeyPair) -> None:
+    r = await client.post(
+        "/v1/generate", json={**BODY, "timeout_ms": 10}, headers=svc(keys, "llm:invoke")
+    )
+    assert r.status_code == 422  # below 100 ms makes no sense
+    ok = await client.post(
+        "/v1/generate", json={**BODY, "timeout_ms": 5000}, headers=svc(keys, "llm:invoke")
+    )
+    assert ok.status_code == 200

@@ -42,8 +42,8 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 - [x] Phase 2: Repository & dev environment
 - [x] Phase 3: Database & data model
 - [x] Phase 4: FastAPI backend
-- [ ] Phase 5: LLM Gateway — built; done when `make llm-smoke` passes on the Mac with a real key or Ollama
-- [ ] Phase 6: RAG pipeline
+- [x] Phase 5: LLM Gateway
+- [ ] Phase 6: RAG pipeline — built; done when `make rag-eval` on the Mac (real embeddings) shows leakage 0 and records the baseline
 - [ ] Phase 7: Tool Gateway
 - [ ] Phase 8: First AI agent
 - [ ] Phase 9: LangGraph orchestration
