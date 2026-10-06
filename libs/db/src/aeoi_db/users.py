@@ -20,6 +20,8 @@ SERVICE_LOGINS: dict[str, str] = {
     "incident_svc": "svc_incident",
     "rag_svc": "svc_rag",
     "llm_svc": "svc_llm_gateway",
+    "tools_svc": "svc_tool_gateway",
+    "audit_svc": "svc_audit",
 }
 
 

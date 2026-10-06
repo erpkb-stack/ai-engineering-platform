@@ -1,0 +1,1152 @@
+{
+ "environment": {
+  "timestamp": "2026-10-06T21:26:37+00:00",
+  "git_commit": "4cf1e6f",
+  "host": "Darwin x86_64",
+  "embedding_model": "nomic-embed-text",
+  "pgvector": "0.8.7",
+  "dataset": "rag_queries_v1.jsonl",
+  "dataset_sha256": "5a071a5e49e89613",
+  "is_baseline": true,
+  "warning": null
+ },
+ "settings": {
+  "rrf_k": 1,
+  "vector_candidates": 40,
+  "keyword_candidates": 40,
+  "keyword_weight_identifiers": 2.0,
+  "chunk_target_tokens": 350,
+  "rerank_route": null
+ },
+ "results": {
+  "keyword": {
+   "overall": {
+    "n": 108,
+    "recall@1": 0.6019,
+    "recall@3": 0.6667,
+    "recall@5": 0.7407,
+    "recall@5_ci95": [
+     0.6574,
+     0.8148
+    ],
+    "recall@10": 0.7593,
+    "mrr@10": 0.6502,
+    "mrr@10_ci95": [
+     0.5649,
+     0.732
+    ],
+    "latency_ms_p50": 109,
+    "latency_ms_p95": 446
+   },
+   "by_kind": {
+    "keyword": {
+     "n": 56,
+     "recall@1": 1.0,
+     "recall@3": 1.0,
+     "recall@5": 1.0,
+     "recall@5_ci95": [
+      1.0,
+      1.0
+     ],
+     "recall@10": 1.0,
+     "mrr@10": 1.0,
+     "mrr@10_ci95": [
+      1.0,
+      1.0
+     ],
+     "latency_ms_p50": 39,
+     "latency_ms_p95": 364
+    },
+    "paraphrase": {
+     "n": 52,
+     "recall@1": 0.1731,
+     "recall@3": 0.3077,
+     "recall@5": 0.4615,
+     "recall@5_ci95": [
+      0.3269,
+      0.5962
+     ],
+     "recall@10": 0.5,
+     "mrr@10": 0.2736,
+     "mrr@10_ci95": [
+      0.177,
+      0.3797
+     ],
+     "latency_ms_p50": 204,
+     "latency_ms_p95": 468
+    }
+   },
+   "leakage": {
+    "queries": 4,
+    "violations": []
+   },
+   "quarantine": {
+    "queries": 4,
+    "violations": []
+   },
+   "rerank_failures": null,
+   "aborted": null,
+   "degraded_queries": 0,
+   "valid": true,
+   "misses": [
+    {
+     "id": "q002",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 88,
+     "top3": [
+      "docs://northwind/01087",
+      "docs://northwind/00005",
+      "docs://northwind/00370"
+     ]
+    },
+    {
+     "id": "q004",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 66,
+     "top3": [
+      "docs://northwind/00141",
+      "docs://northwind/00001",
+      "docs://northwind/00525"
+     ]
+    },
+    {
+     "id": "q006",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 89,
+     "top3": [
+      "docs://northwind/00485",
+      "docs://northwind/00358",
+      "docs://northwind/00002"
+     ]
+    },
+    {
+     "id": "q008",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 109,
+     "top3": [
+      "docs://northwind/00003",
+      "docs://northwind/00116",
+      "docs://northwind/00362"
+     ]
+    },
+    {
+     "id": "q010",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 130,
+     "top3": [
+      "docs://northwind/00905",
+      "docs://northwind/00004",
+      "docs://northwind/00072"
+     ]
+    },
+    {
+     "id": "q012",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 380,
+     "top3": [
+      "docs://northwind/00229",
+      "docs://northwind/00582",
+      "docs://northwind/00100"
+     ]
+    },
+    {
+     "id": "q014",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 446,
+     "top3": [
+      "docs://northwind/00653",
+      "docs://northwind/00774",
+      "docs://northwind/00073"
+     ]
+    },
+    {
+     "id": "q016",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 389,
+     "top3": [
+      "docs://northwind/00502",
+      "docs://northwind/00864",
+      "docs://northwind/00009"
+     ]
+    },
+    {
+     "id": "q020",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 132,
+     "top3": [
+      "docs://northwind/00824",
+      "docs://northwind/00207",
+      "docpack://architecture/ledger-worker.html"
+     ]
+    },
+    {
+     "id": "q022",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 407,
+     "top3": [
+      "docs://northwind/00979",
+      "docs://northwind/00865",
+      "docs://northwind/00016"
+     ]
+    },
+    {
+     "id": "q024",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 600,
+     "top3": [
+      "docs://northwind/00356",
+      "docs://northwind/01053",
+      "docs://northwind/01087"
+     ]
+    },
+    {
+     "id": "q052",
+     "kind": "paraphrase",
+     "rank": 7,
+     "latency_ms": 208,
+     "top3": [
+      "docs://northwind/00502",
+      "docs://northwind/00864",
+      "docs://northwind/00009"
+     ]
+    },
+    {
+     "id": "q058",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 178,
+     "top3": [
+      "docs://northwind/01094",
+      "docs://northwind/00005",
+      "docs://northwind/01087"
+     ]
+    },
+    {
+     "id": "q060",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 149,
+     "top3": [
+      "docs://northwind/00141",
+      "docs://northwind/00001",
+      "docs://northwind/01053"
+     ]
+    },
+    {
+     "id": "q062",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 204,
+     "top3": [
+      "docs://northwind/00485",
+      "docs://northwind/00358",
+      "docs://northwind/00002"
+     ]
+    },
+    {
+     "id": "q064",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 181,
+     "top3": [
+      "docs://northwind/00003",
+      "docs://northwind/00788",
+      "docs://northwind/00116"
+     ]
+    },
+    {
+     "id": "q066",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 152,
+     "top3": [
+      "docs://northwind/00905",
+      "docs://northwind/00004",
+      "docs://northwind/00264"
+     ]
+    },
+    {
+     "id": "q068",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 226,
+     "top3": [
+      "docs://northwind/00229",
+      "docs://northwind/00582",
+      "docs://northwind/00100"
+     ]
+    },
+    {
+     "id": "q070",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 180,
+     "top3": [
+      "docs://northwind/00008",
+      "docpack://architecture/pricing-api.html",
+      "docs://northwind/00987"
+     ]
+    },
+    {
+     "id": "q072",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 120,
+     "top3": [
+      "docs://northwind/00502",
+      "docs://northwind/00864",
+      "docs://northwind/00009"
+     ]
+    },
+    {
+     "id": "q074",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 126,
+     "top3": [
+      "docs://northwind/00905",
+      "docs://northwind/00004",
+      "docpack://architecture/cart-api.html"
+     ]
+    },
+    {
+     "id": "q076",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 189,
+     "top3": [
+      "docs://northwind/00582",
+      "docs://northwind/00100",
+      "docs://northwind/00889"
+     ]
+    },
+    {
+     "id": "q078",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 230,
+     "top3": [
+      "docs://northwind/00008",
+      "docs://northwind/01053",
+      "docs://northwind/00617"
+     ]
+    },
+    {
+     "id": "q080",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 337,
+     "top3": [
+      "docs://northwind/00502",
+      "docs://northwind/00864",
+      "docs://northwind/00009"
+     ]
+    },
+    {
+     "id": "q084",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 192,
+     "top3": [
+      "docpack://architecture/ledger-worker.html",
+      "docs://northwind/00150",
+      "docs://northwind/01041"
+     ]
+    },
+    {
+     "id": "q086",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 361,
+     "top3": [
+      "docs://northwind/00370",
+      "docs://northwind/00979",
+      "docs://northwind/00865"
+     ]
+    },
+    {
+     "id": "q088",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 153,
+     "top3": [
+      "docs://northwind/00465",
+      "docs://northwind/00014",
+      "docs://northwind/00437"
+     ]
+    },
+    {
+     "id": "q100",
+     "kind": "paraphrase",
+     "rank": 6,
+     "latency_ms": 350,
+     "top3": [
+      "docs://northwind/00502",
+      "docs://northwind/00864",
+      "docs://northwind/00009"
+     ]
+    }
+   ]
+  },
+  "vector": {
+   "overall": {
+    "n": 108,
+    "recall@1": 0.2315,
+    "recall@3": 0.4722,
+    "recall@5": 0.5556,
+    "recall@5_ci95": [
+     0.463,
+     0.6481
+    ],
+    "recall@10": 0.5833,
+    "mrr@10": 0.3608,
+    "mrr@10_ci95": [
+     0.2901,
+     0.4376
+    ],
+    "latency_ms_p50": 210,
+    "latency_ms_p95": 433
+   },
+   "by_kind": {
+    "keyword": {
+     "n": 56,
+     "recall@1": 0.125,
+     "recall@3": 0.2321,
+     "recall@5": 0.2679,
+     "recall@5_ci95": [
+      0.1607,
+      0.3929
+     ],
+     "recall@10": 0.2679,
+     "mrr@10": 0.1798,
+     "mrr@10_ci95": [
+      0.0982,
+      0.2708
+     ],
+     "latency_ms_p50": 195,
+     "latency_ms_p95": 620
+    },
+    "paraphrase": {
+     "n": 52,
+     "recall@1": 0.3462,
+     "recall@3": 0.7308,
+     "recall@5": 0.8654,
+     "recall@5_ci95": [
+      0.7692,
+      0.9423
+     ],
+     "recall@10": 0.9231,
+     "mrr@10": 0.5558,
+     "mrr@10_ci95": [
+      0.4588,
+      0.6513
+     ],
+     "latency_ms_p50": 214,
+     "latency_ms_p95": 360
+    }
+   },
+   "leakage": {
+    "queries": 4,
+    "violations": []
+   },
+   "quarantine": {
+    "queries": 4,
+    "violations": []
+   },
+   "rerank_failures": null,
+   "aborted": null,
+   "degraded_queries": 0,
+   "valid": true,
+   "misses": [
+    {
+     "id": "q001",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 433,
+     "top3": [
+      "docs://northwind/00363",
+      "docs://northwind/00560",
+      "docs://northwind/00912"
+     ]
+    },
+    {
+     "id": "q005",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 216,
+     "top3": [
+      "docpack://runbooks/orders-api-oom.md",
+      "docs://northwind/00104",
+      "docs://northwind/00440"
+     ]
+    },
+    {
+     "id": "q009",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 178,
+     "top3": [
+      "docs://northwind/00324",
+      "docs://northwind/00343",
+      "docs://northwind/01034"
+     ]
+    },
+    {
+     "id": "q011",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 216,
+     "top3": [
+      "docs://northwind/00343",
+      "docs://northwind/00104",
+      "docs://northwind/00810"
+     ]
+    },
+    {
+     "id": "q013",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 160,
+     "top3": [
+      "docs://northwind/00440",
+      "docs://northwind/00053",
+      "docs://northwind/00104"
+     ]
+    },
+    {
+     "id": "q015",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 182,
+     "top3": [
+      "docs://northwind/00104",
+      "docs://northwind/00218",
+      "docs://northwind/00053"
+     ]
+    },
+    {
+     "id": "q017",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 173,
+     "top3": [
+      "docs://northwind/00125",
+      "docs://northwind/00104",
+      "docs://northwind/00218"
+     ]
+    },
+    {
+     "id": "q019",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 175,
+     "top3": [
+      "docs://northwind/00218",
+      "docs://northwind/00785",
+      "docs://northwind/00104"
+     ]
+    },
+    {
+     "id": "q021",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 199,
+     "top3": [
+      "docs://northwind/00766",
+      "docs://northwind/00146",
+      "docpack://postmortems/inc-7473-payments-api.pdf"
+     ]
+    },
+    {
+     "id": "q023",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 184,
+     "top3": [
+      "docs://northwind/00324",
+      "docs://northwind/01034",
+      "docpack://postmortems/inc-7373-inventory-api.pdf"
+     ]
+    },
+    {
+     "id": "q024",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 170,
+     "top3": [
+      "docs://northwind/00356",
+      "docs://northwind/00077",
+      "docs://northwind/00443"
+     ]
+    },
+    {
+     "id": "q025",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 149,
+     "top3": [
+      "docs://northwind/00415",
+      "docs://northwind/00810",
+      "docs://northwind/00324"
+     ]
+    },
+    {
+     "id": "q027",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 169,
+     "top3": [
+      "docs://northwind/00415",
+      "docs://northwind/00363",
+      "docs://northwind/00605"
+     ]
+    },
+    {
+     "id": "q032",
+     "kind": "paraphrase",
+     "rank": 8,
+     "latency_ms": 172,
+     "top3": [
+      "docpack://architecture/inventory-api.html",
+      "docpack://runbooks/inventory-api-tls.md",
+      "docs://northwind/00069"
+     ]
+    },
+    {
+     "id": "q033",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 144,
+     "top3": [
+      "docs://northwind/00415",
+      "docs://northwind/00324",
+      "docs://northwind/00053"
+     ]
+    },
+    {
+     "id": "q034",
+     "kind": "paraphrase",
+     "rank": 6,
+     "latency_ms": 275,
+     "top3": [
+      "docs://northwind/00160",
+      "docpack://architecture/cart-api.html",
+      "docs://northwind/00264"
+     ]
+    },
+    {
+     "id": "q035",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 215,
+     "top3": [
+      "docpack://postmortems/inc-7373-inventory-api.pdf",
+      "docs://northwind/00415",
+      "docs://northwind/00810"
+     ]
+    },
+    {
+     "id": "q037",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 180,
+     "top3": [
+      "docs://northwind/00810",
+      "docs://northwind/00363",
+      "docs://northwind/00316"
+     ]
+    },
+    {
+     "id": "q039",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 159,
+     "top3": [
+      "docs://northwind/00119",
+      "docs://northwind/00415",
+      "docs://northwind/00363"
+     ]
+    },
+    {
+     "id": "q040",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 253,
+     "top3": [
+      "docs://northwind/00332",
+      "docpack://architecture/shipping-api.html",
+      "docs://northwind/01057"
+     ]
+    },
+    {
+     "id": "q041",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 201,
+     "top3": [
+      "docpack://architecture/inventory-api.html",
+      "docpack://architecture/shipping-api.html",
+      "docpack://architecture/ledger-worker.html"
+     ]
+    },
+    {
+     "id": "q047",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 259,
+     "top3": [
+      "docpack://architecture/inventory-api.html",
+      "docpack://architecture/shipping-api.html",
+      "docpack://architecture/ledger-worker.html"
+     ]
+    },
+    {
+     "id": "q049",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 155,
+     "top3": [
+      "docpack://architecture/inventory-api.html",
+      "docpack://architecture/shipping-api.html",
+      "docpack://architecture/ledger-worker.html"
+     ]
+    },
+    {
+     "id": "q053",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 1200,
+     "top3": [
+      "docpack://architecture/inventory-api.html",
+      "docpack://architecture/shipping-api.html",
+      "docpack://architecture/ledger-worker.html"
+     ]
+    },
+    {
+     "id": "q057",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 204,
+     "top3": [
+      "docs://northwind/00560",
+      "docs://northwind/00516",
+      "docs://northwind/00421"
+     ]
+    },
+    {
+     "id": "q059",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 174,
+     "top3": [
+      "docs://northwind/00516",
+      "docs://northwind/00560",
+      "docs://northwind/00912"
+     ]
+    },
+    {
+     "id": "q061",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 312,
+     "top3": [
+      "docs://northwind/00560",
+      "docs://northwind/00516",
+      "docs://northwind/00912"
+     ]
+    },
+    {
+     "id": "q063",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 234,
+     "top3": [
+      "docs://northwind/00516",
+      "docs://northwind/00560",
+      "docs://northwind/00421"
+     ]
+    },
+    {
+     "id": "q065",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 247,
+     "top3": [
+      "docs://northwind/00560",
+      "docs://northwind/00516",
+      "docs://northwind/00912"
+     ]
+    },
+    {
+     "id": "q067",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 198,
+     "top3": [
+      "docs://northwind/00560",
+      "docs://northwind/00516",
+      "docs://northwind/00912"
+     ]
+    },
+    {
+     "id": "q069",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 223,
+     "top3": [
+      "docs://northwind/00560",
+      "docs://northwind/00516",
+      "docs://northwind/00280"
+     ]
+    },
+    {
+     "id": "q071",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 283,
+     "top3": [
+      "docs://northwind/00560",
+      "docs://northwind/00516",
+      "docs://northwind/00912"
+     ]
+    },
+    {
+     "id": "q075",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 463,
+     "top3": [
+      "docs://northwind/00566",
+      "docs://northwind/00403",
+      "docs://northwind/00343"
+     ]
+    },
+    {
+     "id": "q079",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 1216,
+     "top3": [
+      "docs://northwind/00566",
+      "docs://northwind/00403",
+      "docs://northwind/00343"
+     ]
+    },
+    {
+     "id": "q083",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 186,
+     "top3": [
+      "docs://northwind/00566",
+      "docs://northwind/00403",
+      "docs://northwind/00343"
+     ]
+    },
+    {
+     "id": "q084",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 221,
+     "top3": [
+      "docs://northwind/01041",
+      "docs://northwind/00150",
+      "docs://northwind/00207"
+     ]
+    },
+    {
+     "id": "q087",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 585,
+     "top3": [
+      "docs://northwind/00566",
+      "docs://northwind/00403",
+      "docs://northwind/00343"
+     ]
+    },
+    {
+     "id": "q089",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 195,
+     "top3": [
+      "docs://northwind/00218",
+      "docs://northwind/00104",
+      "docs://northwind/00146"
+     ]
+    },
+    {
+     "id": "q090",
+     "kind": "paraphrase",
+     "rank": 8,
+     "latency_ms": 254,
+     "top3": [
+      "docpack://postmortems/inc-7473-payments-api.pdf",
+      "docs://northwind/00796",
+      "docs://northwind/00254"
+     ]
+    },
+    {
+     "id": "q091",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 206,
+     "top3": [
+      "docs://northwind/00363",
+      "docs://northwind/00843",
+      "docs://northwind/00553"
+     ]
+    },
+    {
+     "id": "q093",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 186,
+     "top3": [
+      "docs://northwind/00415",
+      "docs://northwind/00104",
+      "docs://northwind/00178"
+     ]
+    },
+    {
+     "id": "q095",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 183,
+     "top3": [
+      "docs://northwind/00363",
+      "docs://northwind/00440",
+      "docs://northwind/00785"
+     ]
+    },
+    {
+     "id": "q096",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 384,
+     "top3": [
+      "docs://northwind/00332",
+      "docpack://runbooks/search-api-dns.md",
+      "docs://northwind/00104"
+     ]
+    },
+    {
+     "id": "q097",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 186,
+     "top3": [
+      "docs://northwind/00104",
+      "docs://northwind/01066",
+      "docs://northwind/00677"
+     ]
+    },
+    {
+     "id": "q099",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 168,
+     "top3": [
+      "docs://northwind/00363",
+      "docs://northwind/00785",
+      "docpack://runbooks/inventory-api-tls.md"
+     ]
+    },
+    {
+     "id": "q101",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 196,
+     "top3": [
+      "docs://northwind/00023",
+      "docs://northwind/00108",
+      "docs://northwind/00785"
+     ]
+    },
+    {
+     "id": "q103",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 163,
+     "top3": [
+      "docs://northwind/01066",
+      "docs://northwind/00104",
+      "docpack://runbooks/inventory-api-tls.md"
+     ]
+    },
+    {
+     "id": "q108",
+     "kind": "keyword",
+     "rank": null,
+     "latency_ms": 159,
+     "top3": [
+      "docs://northwind/01032",
+      "docs://northwind/00895",
+      "docs://northwind/00368"
+     ]
+    }
+   ]
+  },
+  "hybrid": {
+   "overall": {
+    "n": 108,
+    "recall@1": 0.6852,
+    "recall@3": 0.8981,
+    "recall@5": 0.9352,
+    "recall@5_ci95": [
+     0.8889,
+     0.9722
+    ],
+    "recall@10": 0.963,
+    "mrr@10": 0.785,
+    "mrr@10_ci95": [
+     0.7239,
+     0.846
+    ],
+    "latency_ms_p50": 526,
+    "latency_ms_p95": 2015
+   },
+   "by_kind": {
+    "keyword": {
+     "n": 56,
+     "recall@1": 1.0,
+     "recall@3": 1.0,
+     "recall@5": 1.0,
+     "recall@5_ci95": [
+      1.0,
+      1.0
+     ],
+     "recall@10": 1.0,
+     "mrr@10": 1.0,
+     "mrr@10_ci95": [
+      1.0,
+      1.0
+     ],
+     "latency_ms_p50": 293,
+     "latency_ms_p95": 3117
+    },
+    "paraphrase": {
+     "n": 52,
+     "recall@1": 0.3462,
+     "recall@3": 0.7885,
+     "recall@5": 0.8654,
+     "recall@5_ci95": [
+      0.7692,
+      0.9423
+     ],
+     "recall@10": 0.9231,
+     "mrr@10": 0.5535,
+     "mrr@10_ci95": [
+      0.456,
+      0.6494
+     ],
+     "latency_ms_p50": 764,
+     "latency_ms_p95": 1397
+    }
+   },
+   "leakage": {
+    "queries": 4,
+    "violations": []
+   },
+   "quarantine": {
+    "queries": 4,
+    "violations": []
+   },
+   "rerank_failures": null,
+   "aborted": null,
+   "degraded_queries": 0,
+   "valid": true,
+   "misses": [
+    {
+     "id": "q014",
+     "kind": "paraphrase",
+     "rank": 6,
+     "latency_ms": 866,
+     "top3": [
+      "docs://northwind/00774",
+      "docs://northwind/00008",
+      "docs://northwind/00073"
+     ]
+    },
+    {
+     "id": "q024",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 504,
+     "top3": [
+      "docs://northwind/00356",
+      "docs://northwind/00077",
+      "docs://northwind/00443"
+     ]
+    },
+    {
+     "id": "q040",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 717,
+     "top3": [
+      "docs://northwind/00332",
+      "docpack://architecture/shipping-api.html",
+      "docs://northwind/01057"
+     ]
+    },
+    {
+     "id": "q076",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 706,
+     "top3": [
+      "docs://northwind/00582",
+      "docs://northwind/00100",
+      "docs://northwind/00229"
+     ]
+    },
+    {
+     "id": "q084",
+     "kind": "paraphrase",
+     "rank": null,
+     "latency_ms": 459,
+     "top3": [
+      "docs://northwind/01041",
+      "docs://northwind/00150",
+      "docs://northwind/00207"
+     ]
+    },
+    {
+     "id": "q090",
+     "kind": "paraphrase",
+     "rank": 7,
+     "latency_ms": 1315,
+     "top3": [
+      "docpack://postmortems/inc-7473-payments-api.pdf",
+      "docs://northwind/00796",
+      "docs://northwind/00254"
+     ]
+    },
+    {
+     "id": "q096",
+     "kind": "paraphrase",
+     "rank": 8,
+     "latency_ms": 578,
+     "top3": [
+      "docs://northwind/00332",
+      "docpack://runbooks/search-api-dns.md",
+      "docs://northwind/00104"
+     ]
+    }
+   ]
+  }
+ }
+}

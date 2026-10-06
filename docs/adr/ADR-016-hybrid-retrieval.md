@@ -62,6 +62,23 @@ trust - they are chosen by `make rag-sweep` on a dev split and confirmed on a he
 split, then written back here with the numbers. LLM rerank on the local CPU model timed out on
 every call (25 s budget): not viable on this hardware.
 
+### Adopted defaults (Phase 6 close-out, done in the Phase 7 change)
+Sweep file `rag-sweep-2026-10-06T043023.json` (owner's Mac, `nomic-embed-text`): best on the
+**dev** split = `rrf_k=1, depth=40, keyword_weight_identifiers=2, vector_weight_no_identifiers=4`.
+On the **held-out test** split: MRR@10 **0.799** (95% CI 0.71–0.88) vs **0.598** (0.48–0.71) for
+plain RRF k=60; R@5 0.963. These are now the code defaults (`aeoi_rag.config`), replacing
+decision item 2's "k=60, weight 1.0".
+- **Caveat (say it every time):** the identifier routing matches how the eval set was built
+  (keyword queries contain planted identifiers). Real queries are messier. The two CIs just touch
+  (0.71) and the test split is small (about half of the 108 ranked queries), so the true gain
+  may be well below 0.2 MRR.
+- **Invalid run, not quoted:** `rag-2026-10-06T043554.json` (RERANK=1) - every rerank call failed,
+  p95 86 s, and searches silently fell back to keyword-only. The eval now counts `degraded`
+  queries per mode and marks such a mode `valid: false` / INVALID in the table (regression test).
+- Runbooks are now indexed with source `runbook` (a document KIND, parsed as markdown), so the
+  `search_runbooks` tool can filter on it. Re-run `make rag-ingest` once (the pack's runbooks
+  change source; the content hash check also compares source, so they are re-indexed).
+
 ## Consequences
 - Phase 6 gate = `make rag-eval` on the Mac: leakage 0, quarantine 0, recall@k and MRR recorded
   with the embedding model and dataset hash. CI runs the same eval with fake embeddings as a

@@ -63,3 +63,18 @@ class TestRedaction:
         data = {"token": "t"}
         redact_mapping(data)
         assert data == {"token": "t"}
+
+
+class TestKeyValueSecrets:
+    """Free-text `key=value` secrets (log lines). Found by the Phase 7 tool-gateway test:
+    `password=hunter2` in a log line passed every token-format pattern."""
+
+    def test_value_is_removed_key_is_kept(self) -> None:
+        assert redact_text("login failed password=hunter2 user=x") == (
+            f"login failed password={REDACTED} user=x"
+        )
+        assert redact_text("API_KEY: sk1234abcd") == f"API_KEY: {REDACTED}"
+
+    def test_prose_without_digits_is_untouched(self) -> None:
+        text = "the token: bucket refills; secret = sauce"
+        assert redact_text(text) == text

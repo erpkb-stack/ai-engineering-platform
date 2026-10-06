@@ -103,11 +103,16 @@ async def run_eval(
         leaks: list[dict[str, Any]] = []
         rerank_failures = 0
         rerank_attempts = 0
+        degraded = 0
         aborted: str | None = None
         for q in queries:
             t0 = time.perf_counter()
             res = await retriever.search(q.query, list(q.as_groups), k=10, mode=mode)
             hits = res.hits
+            if res.degraded:
+                # e.g. embeddings unavailable -> keyword-only answer. Counting it as "hybrid"
+                # silently mixes two systems in one number (it happened: Phase 6, rerank run).
+                degraded += 1
             if use_rerank and reranker is not None:
                 out = await reranker.rerank(q.query, hits)
                 hits = out.hits
@@ -157,6 +162,8 @@ async def run_eval(
             },
             "rerank_failures": rerank_failures if use_rerank else None,
             "aborted": aborted,
+            "degraded_queries": degraded,
+            "valid": degraded == 0 and aborted is None,
             "misses": [p for p in per_query if p["rank"] is None or p["rank"] > 5],
         }
     return results
@@ -200,6 +207,11 @@ def format_table(results: dict[str, Any]) -> str:
         if r.get("aborted"):
             lines.append(f"| {mode} | ABORTED: {r['aborted']} |||||||||")
             continue
+        if r.get("degraded_queries"):
+            lines.append(
+                f"| {mode} | INVALID: {r['degraded_queries']} queries ran degraded "
+                "(vector search unavailable) - do not use these numbers |||||||||"
+            )
         rows = [("all", r["overall"]), *r["by_kind"].items()]
         for kind, s in rows:
             ci = s.get("recall@5_ci95") or [0, 0]

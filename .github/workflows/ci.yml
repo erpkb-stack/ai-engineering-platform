@@ -84,6 +84,17 @@ jobs:
           make rag-ingest
           make rag-eval   # exits 1 on any leakage or quarantine violation
           make rag-stats
+      - name: Tool gateway smoke (real processes + DB; rag not started -> knowledge tool is a note)
+        run: |
+          make tools-tokens
+          uv run uvicorn --factory aeoi_audit.main:build_app --port 8008 > audit.log 2>&1 &
+          uv run uvicorn --factory aeoi_tools.main:build_app --port 8006 > tools.log 2>&1 &
+          uv run uvicorn --factory aeoi_incident.main:build_app --port 8001 > incident.log 2>&1 &
+          uv run uvicorn --factory aeoi_api.main:build_app --port 8000 > api.log 2>&1 &
+          for p in 8008 8006 8001 8000; do
+            for i in $(seq 1 30); do curl -sf localhost:$p/health/live > /dev/null && break; sleep 1; done
+          done
+          ./scripts/smoke-phase7.sh || { tail -n 80 tools.log audit.log api.log; exit 1; }
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200

@@ -24,6 +24,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         db-users token run-incident run-api dev smoke \
         service-token ollama-pull run-llm stop-llm llm-smoke \
         rag-token docpack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
+        tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -254,3 +255,45 @@ run-rag: ## Run the rag service on :8004 (needs run-llm for vector search)
 
 rag-smoke: ## End-to-end search checks via the api gateway (needs run-llm, run-rag, run-api)
 	@./scripts/smoke-phase6.sh
+
+# ---------- Tool gateway + audit (Phase 7) ----------
+TOOLS_PORT ?= 8006
+AUDIT_PORT ?= 8008
+TOOLS_PIDS = { lsof -nP -t -iTCP:$(TOOLS_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
+AUDIT_PIDS = { lsof -nP -t -iTCP:$(AUDIT_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
+
+tools-tokens: ## Mint the tool-gateway -> audit service token (dev only, 30 days) into secrets/
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope audit:write \
+	  --ttl-minutes 43200 > secrets/tools_audit_token.txt
+	@echo "wrote secrets/tools_audit_token.txt (scope audit:write, 30 days)"
+
+stop-tools: ## Stop a running tool-gateway (only if it really is ours)
+	@pids=$$($(TOOLS_PIDS)); \
+	if [ -z "$$pids" ]; then echo "port $(TOOLS_PORT) is free"; exit 0; fi; \
+	ps -o pid=,command= -p $$pids; \
+	if ps -o command= -p $$pids | grep -q aeoi_tools; then \
+	  kill $$(echo $$pids | tr ',' ' '); sleep 1; echo "stopped tool-gateway ($$pids)"; \
+	else echo "port $(TOOLS_PORT) is used by something else (above). Not killing it."; exit 1; fi
+
+run-tools: ## Run the tool-gateway on :8006 (needs db-users, tools-tokens; run-rag for knowledge tools)
+	@pids=$$($(TOOLS_PIDS)); if [ -n "$$pids" ]; then \
+	  echo "port $(TOOLS_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
+	  echo "-> run: make stop-tools"; exit 1; fi
+	$(UVICORN) aeoi_tools.main:build_app --port $(TOOLS_PORT) --reload --reload-dir services/tool-gateway --reload-dir libs
+
+stop-audit: ## Stop a running audit service (only if it really is ours)
+	@pids=$$($(AUDIT_PIDS)); \
+	if [ -z "$$pids" ]; then echo "port $(AUDIT_PORT) is free"; exit 0; fi; \
+	ps -o pid=,command= -p $$pids; \
+	if ps -o command= -p $$pids | grep -q aeoi_audit; then \
+	  kill $$(echo $$pids | tr ',' ' '); sleep 1; echo "stopped audit ($$pids)"; \
+	else echo "port $(AUDIT_PORT) is used by something else (above). Not killing it."; exit 1; fi
+
+run-audit: ## Run the audit service on :8008
+	@pids=$$($(AUDIT_PIDS)); if [ -n "$$pids" ]; then \
+	  echo "port $(AUDIT_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
+	  echo "-> run: make stop-audit"; exit 1; fi
+	$(UVICORN) aeoi_audit.main:build_app --port $(AUDIT_PORT) --reload --reload-dir services/audit --reload-dir libs
+
+tools-smoke: ## End-to-end tool checks (needs run-api, run-tools, run-audit; run-rag for knowledge)
+	@./scripts/smoke-phase7.sh

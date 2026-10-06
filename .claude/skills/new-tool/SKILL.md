@@ -5,17 +5,27 @@ argument-hint: "<tool_name>"
 ---
 # Register tool: $ARGUMENTS
 
-A tool definition is incomplete unless it has ALL of these (Feature 14):
+Read ADR-017 and `services/tool-gateway/CLAUDE.md` first. A tool is incomplete unless it has ALL
+of these. `ToolSpec.__post_init__` and `services/tool-gateway/tests/test_contracts.py` enforce most.
+
 | Field | Rule |
 |---|---|
 | name | snake_case verb_noun, e.g. `search_logs` |
-| description | written for the LLM: what it returns, when NOT to use it |
-| input_schema | Pydantic; bound every string (max_length), every list (max_items), every time range (≤24h default) |
-| output_schema | Pydantic; includes `evidence_id` per item so findings can cite it |
-| authorization | required permission(s), e.g. `logs:read`; checked against the *end user* on whose behalf the agent runs |
-| side_effect | `READ` / `WRITE` / `CONSEQUENTIAL`. CONSEQUENTIAL ⇒ requires `approval_id` input, verified server-side |
-| timeout_s, retry | idempotent READs may retry (exp backoff + jitter); WRITEs only with idempotency key |
-| audit | which fields are logged; redact PII/secrets |
-| output sanitisation | strip/escape instruction-like content, size cap, mark as untrusted |
+| description | ≥ 40 chars, written for the LLM: what it returns, its limits, when NOT to use it |
+| input model (`schemas.py`) | subclass `In` (extra=forbid). Every str has max_length/pattern, every int an upper bound, every list max_length, no free dicts. Time ranges subclass `TimeWindow` (tz-aware, ≤ 24 h). Searches are scoped (one service/repo) |
+| output model | subclass `Out`; `items: list[<Item>]` with max_length; `Item` carries `evidence_id` (the gateway fills it) |
+| permissions | required `Perm`s, checked against the END USER (agent calls: user perms ∩ allow-list) |
+| side_effect | READ / WRITE / CONSEQUENTIAL. CONSEQUENTIAL ⇒ `approval_id` verified server-side (Phase 16; denied before), `max_attempts=1`, `idempotent=False`, only the `action_executor` agent |
+| dependency | breaker/bulkhead key (`devdata`, `rag`, …); add a bulkhead limit in config if new |
+| timeout_s, max_attempts | one deadline for all attempts; only READ may retry |
+| audit_fields | input fields copied into the audit event (prefer keys/ids; free text only when it IS the point, e.g. a rollback reason - it is PII-scrubbed) |
+| sanitisation | automatic (caps, redaction, PII, injection FLAGS - never silently drop evidence). Mask secret config values in the adapter |
 
-Then add tests in `tests/security/test_tool_<name>.py`: unauthorized role denied, oversized input rejected, malicious output (injection text) is wrapped not obeyed, CONSEQUENTIAL without approval rejected.
+Then:
+1. Add the tool to the right agent(s) in `services/tool-gateway/config/agents.yaml` (security review).
+2. Integration tests in `tests/integration/tools/` with planted rows under a unique key:
+   happy path, unauthorized role denied AND recorded, oversized/malformed input rejected,
+   malicious output flagged (not obeyed, not dropped), agent outside allow-list denied,
+   CONSEQUENTIAL without approval denied. Assert the `tools.tool_calls` row every time.
+3. Extend `scripts/smoke-phase7.sh` if the tool is part of the demo. Run `make check`,
+   `make test-integration`, `make tools-smoke`.

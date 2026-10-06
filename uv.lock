@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "aeoi-api",
+    "aeoi-audit",
     "aeoi-common",
     "aeoi-db",
     "aeoi-incident-service",
@@ -19,6 +20,7 @@ members = [
     "aeoi-rag",
     "aeoi-security",
     "aeoi-synth",
+    "aeoi-tool-gateway",
     "aeoi-web",
 ]
 
@@ -57,6 +59,31 @@ requires-dist = [
     { name = "aeoi-security", editable = "libs/security" },
     { name = "aeoi-web", editable = "libs/web" },
     { name = "httpx", specifier = ">=0.27" },
+]
+
+[[package]]
+name = "aeoi-audit"
+version = "0.1.0"
+source = { editable = "services/audit" }
+dependencies = [
+    { name = "aeoi-common" },
+    { name = "aeoi-db" },
+    { name = "aeoi-models" },
+    { name = "aeoi-observability" },
+    { name = "aeoi-security" },
+    { name = "aeoi-web" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aeoi-common", editable = "libs/common" },
+    { name = "aeoi-db", editable = "libs/db" },
+    { name = "aeoi-models", editable = "libs/models" },
+    { name = "aeoi-observability", editable = "libs/observability" },
+    { name = "aeoi-security", editable = "libs/security" },
+    { name = "aeoi-web", editable = "libs/web" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
 ]
 
 [[package]]
@@ -261,6 +288,35 @@ dependencies = [
 requires-dist = [
     { name = "aeoi-common", editable = "libs/common" },
     { name = "aeoi-db", editable = "libs/db" },
+]
+
+[[package]]
+name = "aeoi-tool-gateway"
+version = "0.1.0"
+source = { editable = "services/tool-gateway" }
+dependencies = [
+    { name = "aeoi-common" },
+    { name = "aeoi-db" },
+    { name = "aeoi-models" },
+    { name = "aeoi-observability" },
+    { name = "aeoi-security" },
+    { name = "aeoi-web" },
+    { name = "httpx" },
+    { name = "pyyaml" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aeoi-common", editable = "libs/common" },
+    { name = "aeoi-db", editable = "libs/db" },
+    { name = "aeoi-models", editable = "libs/models" },
+    { name = "aeoi-observability", editable = "libs/observability" },
+    { name = "aeoi-security", editable = "libs/security" },
+    { name = "aeoi-web", editable = "libs/web" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
 ]
 
 [[package]]

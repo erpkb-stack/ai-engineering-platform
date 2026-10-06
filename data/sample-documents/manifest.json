@@ -10,7 +10,7 @@
    "path": "runbooks/checkout-api-pool.md",
    "sensitivity": "INTERNAL",
    "sha256": "c4778f60bd5dcdc2d881d62fcf23bb26b616c8696e13792754f9c1ff9cf28780",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/checkout-api-pool.md",
    "title": "Runbook: checkout-api \u2014 database connection pool exhaustion",
    "version": "1"
@@ -25,7 +25,7 @@
    "path": "runbooks/orders-api-oom.md",
    "sensitivity": "INTERNAL",
    "sha256": "468126ccf90dda5697034aa57abf1806a8ca94cc5f7c1337468f5bf1488f705e",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/orders-api-oom.md",
    "title": "Runbook: orders-api \u2014 memory leak and OOMKilled pods",
    "version": "1"
@@ -40,7 +40,7 @@
    "path": "runbooks/payments-api-lag.md",
    "sensitivity": "INTERNAL",
    "sha256": "6da0a7cc9b8af32971da5a7604d0a649ee2cdeeecf28288551343ddffa9b2373",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/payments-api-lag.md",
    "title": "Runbook: payments-api \u2014 Kafka consumer lag",
    "version": "1"
@@ -55,7 +55,7 @@
    "path": "runbooks/inventory-api-tls.md",
    "sensitivity": "INTERNAL",
    "sha256": "e94ec2d8b02575e69036f8e4ae3c13fb128c3232538527d8f9183df2ad03388b",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/inventory-api-tls.md",
    "title": "Runbook: inventory-api \u2014 TLS certificate expiry",
    "version": "1"
@@ -70,7 +70,7 @@
    "path": "runbooks/cart-api-disk.md",
    "sensitivity": "INTERNAL",
    "sha256": "0f867eac0f85af8072df26b36795824500d9eb1311df5cbc2aab4a5dbb7a10e4",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/cart-api-disk.md",
    "title": "Runbook: cart-api \u2014 disk full on the log volume",
    "version": "1"
@@ -85,7 +85,7 @@
    "path": "runbooks/search-api-dns.md",
    "sensitivity": "INTERNAL",
    "sha256": "748054234b93dd185caa2def4fc6d2f4c90d9e7f8ca61ad54143c7023f6ba73b",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/search-api-dns.md",
    "title": "Runbook: search-api \u2014 intermittent DNS resolution failures",
    "version": "1"
@@ -100,7 +100,7 @@
    "path": "runbooks/pricing-api-throttle.md",
    "sensitivity": "INTERNAL",
    "sha256": "55e5cfd7b29ddebc15120f48c1e8c3bcbda3d8cec011abf77e507e6113a87230",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/pricing-api-throttle.md",
    "title": "Runbook: pricing-api \u2014 upstream rate limiting (HTTP 429)",
    "version": "1"
@@ -115,7 +115,7 @@
    "path": "runbooks/shipping-api-threads.md",
    "sensitivity": "INTERNAL",
    "sha256": "2bea97c0a4157b5a5ff008a87c895e9c1898e13c73183e21dcf077d271d6b2cc",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/shipping-api-threads.md",
    "title": "Runbook: shipping-api \u2014 thread pool starvation",
    "version": "1"
@@ -130,7 +130,7 @@
    "path": "runbooks/notifications-worker-slowquery.md",
    "sensitivity": "INTERNAL",
    "sha256": "0ec433516cff50f5d3cdb1d7d907907ec9f74ec7ac4c40e0aa3ce9735b836b33",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/notifications-worker-slowquery.md",
    "title": "Runbook: notifications-worker \u2014 slow queries after an index was dropped",
    "version": "1"
@@ -145,7 +145,7 @@
    "path": "runbooks/ledger-worker-flag.md",
    "sensitivity": "INTERNAL",
    "sha256": "4cb024ba149acde0b2655b36f418a560f961e2d62ac611e435bfc149c9218d7e",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/ledger-worker-flag.md",
    "title": "Runbook: ledger-worker \u2014 bad feature flag rollout",
    "version": "1"
@@ -160,7 +160,7 @@
    "path": "runbooks/fraud-api-retrystorm.md",
    "sensitivity": "INTERNAL",
    "sha256": "1b4129dcaecc0124b5287d96700a6ee89e29a2ea35c926e9da9bb65f688e80dc",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/fraud-api-retrystorm.md",
    "title": "Runbook: fraud-api \u2014 retry storm after a partial outage",
    "version": "1"
@@ -175,7 +175,7 @@
    "path": "runbooks/billing-api-cache.md",
    "sensitivity": "INTERNAL",
    "sha256": "f6d52992f8a00d2f9fdaa0b1f6acd7d3102e7d0c3eb6adf1428eaa07bc3ed2d7",
-   "source": "markdown",
+   "source": "runbook",
    "source_uri": "docpack://runbooks/billing-api-cache.md",
    "title": "Runbook: billing-api \u2014 cache stampede on cold start",
    "version": "1"

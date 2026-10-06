@@ -17,5 +17,6 @@
 | [ADR-013](ADR-013-single-migration-stream.md) | One Alembic migration stream for all service-owned schemas (for now) | Proposed |
 | [ADR-014](ADR-014-llm-routing-and-fallback.md) | LLM routing policy, fallback and cost accounting in one gateway | Proposed |
 | [ADR-016](ADR-016-hybrid-retrieval.md) | Hybrid retrieval in one SQL statement, RRF fusion, eval-gated LLM rerank | Proposed |
+| [ADR-017](ADR-017-tool-gateway-authz-and-audit.md) | Tool Gateway: on-behalf-of authz (user ∩ agent allow-list), fail-closed audit via outbox | Proposed |
 
 Rules: Accepted ADRs are immutable (enforced by `.claude/hooks/protect-files.sh`). Use the `/adr` skill to supersede.

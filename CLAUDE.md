@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 6 — RAG pipeline** (Phases 1–5 done; ADRs still `Proposed`, incl. ADR-014, ADR-016).
+**Phase 7 — Tool Gateway** (Phases 1–6 done; ADRs still `Proposed`, incl. ADR-014, ADR-016, ADR-017).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -52,6 +52,8 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
 - LLM calls from code: only via `aeoi_llm_client.LLMClient` (tests: `FakeLLMClient`). Pick a ROUTE, never a model.
 - RAG: `make rag-token` · `make rag-ingest` · `make rag-eval [RERANK=1]` · `make rag-sweep` · `make rag-bench` · `make run-rag` (:8004) · `make rag-smoke` · `make docpack`
 - Retrieval changes are judged by `make rag-eval` diffs only (data/eval/results/), never by one query.
+- Tools: `make tools-tokens` · `make run-tools` (:8006) · `make run-audit` (:8008) · `make tools-smoke` · stop with `make stop-tools` / `make stop-audit`
+- Agents reach systems only via the tool-gateway (service token `tools:invoke` + `X-On-Behalf-Of` user token). New tool = `/new-tool` skill + contract lint + security test.
 - Service code lives in `services/<name>/src/aeoi_<name>/` (unique package names: one venv for the workspace).
 - Python: `uv` workspace — add a dep with `uv add --package aeoi-<lib> <dep>`; commit `uv.lock`.
 - Work on a branch: the `no-commit-to-branch` hook blocks commits to `main`.

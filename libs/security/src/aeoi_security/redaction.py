@@ -29,6 +29,20 @@ _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
+# `password=hunter2` / `api_key: sk1234` inside free text (log lines, config dumps). The value
+# must contain a digit, which keeps prose like "token: bucket" untouched. Key is kept so the
+# reader still learns WHAT leaked; only the value goes.
+_KV_SECRET = re.compile(
+    r"(?i)\b(pass(?:word|wd)?|pwd|secret|client[_-]?secret|api[_-]?key|access[_-]?key|token)"
+    r"(\s*[=:]\s*)(?=[^\s,;'\"&]*\d)[^\s,;'\"&]{4,}"
+)
+
+
+def is_sensitive_key(key: str) -> bool:
+    """True for names like `password`, `api_key`, `db.token` whose VALUE must never be shown."""
+    return bool(_SENSITIVE_KEYS.search(key))
+
+
 def redact_text(text: str) -> str:
     return redact_text_counted(text)[0]
 
@@ -39,7 +53,8 @@ def redact_text_counted(text: str) -> tuple[str, int]:
     for pattern in _SECRET_PATTERNS:
         out, n = pattern.subn(REDACTED, out)
         total += n
-    return out, total
+    out, n = _KV_SECRET.subn(lambda m: f"{m.group(1)}{m.group(2)}{REDACTED}", out)
+    return out, total + n
 
 
 def _redact_value(value: Any) -> Any:

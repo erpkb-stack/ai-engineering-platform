@@ -6,6 +6,8 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
+from aeoi_common.resilience import TransientError
+
 Role = Literal["user", "assistant"]
 
 
@@ -70,7 +72,7 @@ class ProviderError(Exception):
         self.status = status
 
 
-class RetryableError(ProviderError):
+class RetryableError(ProviderError, TransientError):
     retryable = True
 
 
