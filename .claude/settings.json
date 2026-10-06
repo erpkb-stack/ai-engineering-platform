@@ -39,7 +39,10 @@
       "Bash(uv run python -m aeoi_synth summary *)",
       "Bash(make token *)",
       "Bash(make -s token *)",
-      "Bash(make smoke)"
+      "Bash(make smoke)",
+      "Bash(make llm-smoke)",
+      "Bash(make service-token *)",
+      "Bash(make -s service-token *)"
     ],
     "ask": [
       "Bash(docker compose up *)",
@@ -65,7 +68,11 @@
       "Bash(make db-users)",
       "Bash(make run-incident)",
       "Bash(make run-api)",
-      "Bash(make dev)"
+      "Bash(make dev)",
+      "Bash(make run-llm *)",
+      "Bash(make run-llm)",
+      "Bash(make ollama-pull)",
+      "Bash(ollama pull *)"
     ],
     "deny": [
       "Read(./.env)",

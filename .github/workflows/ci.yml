@@ -69,6 +69,15 @@ jobs:
         run: make test-integration
         env:
           AEOI_TEST_KAFKA: "1"
+      - name: LLM gateway smoke (real process + DB, FAKE providers - no key, no cost)
+        run: |
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out secrets/jwt_private.pem
+          openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+          make db-users
+          AEOI_LLM_ROUTING_FILE=services/llm-gateway/config/routing.test.yaml AEOI_LLM_LOG_JSON=false \
+            uv run uvicorn --factory aeoi_llm.main:build_app --port 8005 > llm.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8005/health/live > /dev/null && break; sleep 1; done
+          LLM_SMOKE_ROUTE=reasoning ./scripts/smoke-phase5.sh || { cat llm.log; exit 1; }
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200

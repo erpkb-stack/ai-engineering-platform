@@ -30,10 +30,16 @@ _SECRET_PATTERNS: tuple[re.Pattern[str], ...] = (
 
 
 def redact_text(text: str) -> str:
-    out = text
+    return redact_text_counted(text)[0]
+
+
+def redact_text_counted(text: str) -> tuple[str, int]:
+    """Like redact_text, plus how many secrets were removed (for metrics/audit, never content)."""
+    out, total = text, 0
     for pattern in _SECRET_PATTERNS:
-        out = pattern.sub(REDACTED, out)
-    return out
+        out, n = pattern.subn(REDACTED, out)
+        total += n
+    return out, total
 
 
 def _redact_value(value: Any) -> Any:

@@ -119,7 +119,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 ### `llm`
 | Table | Purpose | Columns |
 |---|---|---|
-| `model_usage` | Every LLM call: model, tokens, latency, cost, status | 17 |
+| `model_usage` | Every LLM call attempt: model, tokens, latency, cost, status. Append-only for `svc_llm_gateway` (0014) | 17 |
 | `prompt_versions` | Registry mirror of prompts/<agent>/vN.md (git is the source; this is for joins). | 5 |
 
 ### `audit`

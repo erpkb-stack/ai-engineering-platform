@@ -1,0 +1,26 @@
+# All-local policy: no API key, $0, works offline. Quality is much lower - use for dev only.
+#   AEOI_LLM_ROUTING_FILE=services/llm-gateway/config/routing.local.yaml make run-llm
+version: 1
+pricing_note: Local models only; cost is your electricity, recorded as $0.
+budget_usd_per_investigation: null
+providers:
+  ollama:
+    kind: openai_compat
+    base_url: http://localhost:11434/v1
+    hosted: false
+    timeout_s: 180
+    max_concurrency: 1
+    queue_timeout_s: 30
+    max_attempts: 2
+models:
+  llama3.2:3b:
+    provider: ollama
+  nomic-embed-text:
+    provider: ollama
+    dimensions: 768
+    supports_structured: false
+routes:
+  reasoning: {primary: "llama3.2:3b"}
+  fast: {primary: "llama3.2:3b"}
+  local: {primary: "llama3.2:3b"}
+  embed: {operation: embed, primary: nomic-embed-text}

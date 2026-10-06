@@ -5,7 +5,7 @@ import jwt
 import pytest
 
 from aeoi_security import AuthError, Perm, issue_token, permissions_for, verify_token
-from aeoi_security.testing import KeyPair, generate_keypair, token_for
+from aeoi_security.testing import KeyPair, generate_keypair, service_token_for, token_for
 
 
 @pytest.fixture(scope="module")
@@ -113,3 +113,30 @@ def test_unknown_role_grants_nothing() -> None:
 
 def test_admin_cannot_approve_actions() -> None:
     assert Perm.ACTIONS_APPROVE not in permissions_for(["ADMIN"])
+
+
+def test_service_token_uses_scopes_not_roles(keys: KeyPair) -> None:
+    p = verify_token(
+        service_token_for(keys, "orchestrator", "llm:invoke"), public_key=keys.public_pem
+    )
+    assert p.is_service
+    assert p.actor == "service:orchestrator"
+    assert p.scopes == {"llm:invoke"}
+    assert p.permissions == frozenset()
+
+
+def test_user_token_scope_claim_is_ignored(keys: KeyPair) -> None:
+    claims = {
+        "iss": "aeoi-dev-issuer",
+        "aud": "aeoi-api",
+        "sub": "oidc|u",
+        "uid": str(uuid4()),
+        "roles": ["ENGINEER"],
+        "scope": "llm:invoke",
+        "iat": int(datetime.now(UTC).timestamp()),
+        "exp": 4102444800,
+    }
+    token = jwt.encode(claims, keys.private_pem, algorithm="RS256")
+    p = verify_token(token, public_key=keys.public_pem)
+    assert not p.is_service
+    assert p.scopes == frozenset()

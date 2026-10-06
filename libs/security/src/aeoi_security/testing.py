@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from aeoi_security.auth import issue_token
+from aeoi_security.auth import issue_service_token, issue_token
 
 
 @dataclass(frozen=True)
@@ -49,3 +49,7 @@ def token_for(
         roles=list(roles),
         groups=list(groups),
     )
+
+
+def service_token_for(keys: KeyPair, service: str, *scopes: str) -> str:
+    return issue_service_token(private_key=keys.private_pem, service=service, scopes=list(scopes))

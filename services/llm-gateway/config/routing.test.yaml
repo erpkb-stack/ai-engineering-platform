@@ -1,0 +1,14 @@
+# Used by tests and `make llm-smoke-fake`: deterministic fake providers, no network.
+version: 1
+budget_usd_per_investigation: 0.01
+providers:
+  hosted_fake: {kind: fake, hosted: true, max_attempts: 2, breaker_threshold: 3}
+  local_fake: {kind: fake, hosted: false, max_attempts: 2}
+models:
+  fake-large: {provider: hosted_fake, input_per_mtok: 2.00, output_per_mtok: 10.00, cached_input_per_mtok: 0.20}
+  fake-small: {provider: local_fake}
+  fake-embed: {provider: local_fake, dimensions: 768, supports_structured: false}
+routes:
+  reasoning: {primary: fake-large, fallbacks: [fake-small]}
+  local: {primary: fake-small}
+  embed: {operation: embed, primary: fake-embed}

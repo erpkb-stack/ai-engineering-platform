@@ -1,0 +1,71 @@
+# LLM routing policy - Claude primary, local Ollama fallback (ADR-014).
+# Change policy here, not in code. Validated at startup: a typo fails the boot, not a request.
+version: 1
+
+pricing_note: >-
+  Prices are USD per 1M tokens from a third-party snapshot (benchlm.ai, 2026-10-01).
+  VERIFY against https://www.anthropic.com/pricing before quoting any cost number.
+
+# Hard stop per investigation (pre-call check; can overshoot by one call). null = no limit.
+budget_usd_per_investigation: 2.00
+
+providers:
+  anthropic:
+    kind: anthropic
+    base_url: https://api.anthropic.com
+    hosted: true
+    api_key_env: ANTHROPIC_API_KEY
+    api_key_file: anthropic_api_key.txt
+    timeout_s: 60
+    max_concurrency: 4
+    max_attempts: 3
+  ollama:
+    kind: openai_compat
+    base_url: http://localhost:11434/v1
+    hosted: false
+    timeout_s: 180          # Intel CPU: a 3B model needs tens of seconds for long outputs
+    max_concurrency: 1      # CPU inference is serial; queueing more only creates timeouts
+    queue_timeout_s: 30
+    max_attempts: 2
+
+models:
+  claude-sonnet-5-5:
+    provider: anthropic
+    input_per_mtok: 2.00
+    output_per_mtok: 10.00
+    cached_input_per_mtok: 0.20
+  claude-haiku-4-5-20251001:
+    provider: anthropic
+    input_per_mtok: 1.00
+    output_per_mtok: 5.00
+    cached_input_per_mtok: 0.10
+  claude-opus-5-5:
+    provider: anthropic
+    input_per_mtok: 4.00
+    output_per_mtok: 20.00
+    cached_input_per_mtok: 0.20
+  llama3.2:3b:
+    provider: ollama
+  nomic-embed-text:
+    provider: ollama
+    dimensions: 768
+    supports_structured: false
+
+routes:
+  reasoning:
+    description: Root-cause hypotheses, synthesis. Quality matters most.
+    primary: claude-sonnet-5-5
+    fallbacks: [llama3.2:3b]
+    max_tokens_cap: 4096
+  fast:
+    description: Classification, extraction, short summaries.
+    primary: claude-haiku-4-5-20251001
+    fallbacks: [llama3.2:3b]
+    max_tokens_cap: 2048
+  local:
+    description: Data must not leave the machine. No hosted fallback, ever.
+    primary: llama3.2:3b
+  embed:
+    operation: embed
+    description: Document/chunk embeddings for pgvector (768-d). Never falls back.
+    primary: nomic-embed-text
