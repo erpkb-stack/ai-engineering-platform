@@ -88,3 +88,27 @@ class DocumentOut(BaseModel):
     content: str
     indexed_at: datetime | None
     chunk_count: int
+
+
+class IncidentSearchRequest(BaseModel):
+    """Keyword search over closed historical incidents (vector similarity: Phase 13)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=1, max_length=500)
+    service_key: str | None = Field(default=None, max_length=100)
+    k: int = Field(default=5, ge=1, le=20)
+
+
+class HistoricalIncidentHit(BaseModel):
+    incident_key: str
+    title: str
+    summary: str
+    root_cause: str
+    root_cause_category: str
+    remediation: str
+    service_keys: list[str]
+    severity: str
+    occurred_at: datetime
+    resolved_at: datetime
+    score: float

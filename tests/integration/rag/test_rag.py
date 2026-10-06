@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -340,3 +341,44 @@ async def test_python_fusion_matches_sql(pack: Pack, rag_app: FastAPI) -> None:
             k=10,
         )
         assert py == sql_uris, q
+
+
+async def test_incident_search_applies_group_acl_and_service_filter(
+    rag: httpx.AsyncClient, keys: KeyPair, owner_conn: psycopg.Connection
+) -> None:
+    """POST /v1/incidents/search (Phase 7, backs the search_incidents tool): same ACL rule as
+    documents - the filter is in the SQL, the groups come from the token."""
+    tag = uuid.uuid4().hex[:6]
+    n = int(tag, 16) % 10**6
+    a, b, c = (f"INC-8{n:06d}{i}" for i in range(3))  # unique per run: no seed collision
+    for key, groups, svc in (
+        (a, ["eng-all"], "checkout-api"),
+        (b, ["security-team"], "checkout-api"),
+        (c, ["eng-all"], "tax-api"),
+    ):
+        owner_conn.execute(
+            "INSERT INTO rag.historical_incidents (id, incident_key, title, summary, root_cause,"
+            " root_cause_category, remediation, service_keys, severity, occurred_at, resolved_at,"
+            " allowed_groups) VALUES (gen_random_uuid(), %s, %s, 'pool exhausted', %s, 'code',"
+            " 'rollback', %s, 'SEV2', now() - interval '30 days', now() - interval '29 days', %s)",
+            (key, f"zq{tag} connection pool exhaustion", f"zq{tag} N+1 query", [svc], groups),
+        )
+    mine = {a, b, c}
+
+    def found(resp: httpx.Response) -> set[str]:
+        # the OR-query also matches seeded incidents about pools: look only at ours
+        return {h["incident_key"] for h in resp.json()} & mine
+
+    body = {"query": f"zq{tag} pool exhaustion", "k": 20}
+    r = await rag.post("/v1/incidents/search", json=body, headers=user(keys, "eng-all"))
+    assert r.status_code == 200
+    assert found(r) == {a, c}
+    r = await rag.post(
+        "/v1/incidents/search",
+        json={**body, "service_key": "checkout-api"},
+        headers=user(keys, "eng-all", "security-team"),
+    )
+    assert found(r) == {a, b}
+    assert all("checkout-api" in h["service_keys"] for h in r.json())
+    r = await rag.post("/v1/incidents/search", json=body, headers=user(keys, "nobody"))
+    assert r.json() == []

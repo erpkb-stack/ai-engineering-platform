@@ -1,0 +1,29 @@
+[project]
+name = "aeoi-audit"
+version = "0.1.0"
+description = "Audit service: append-only audit trail (owns schema `audit`) + scoped query API"
+requires-python = ">=3.12"
+dependencies = [
+    "aeoi-common",
+    "aeoi-models",
+    "aeoi-security",
+    "aeoi-observability",
+    "aeoi-web",
+    "aeoi-db",
+    "sqlalchemy[asyncio]>=2.0.36",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_audit"]
+
+[tool.uv.sources]
+aeoi-common = { workspace = true }
+aeoi-models = { workspace = true }
+aeoi-security = { workspace = true }
+aeoi-observability = { workspace = true }
+aeoi-web = { workspace = true }
+aeoi-db = { workspace = true }

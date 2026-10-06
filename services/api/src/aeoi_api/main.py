@@ -31,6 +31,8 @@ def build_app(
     targets = {
         "incident-service": (settings.incident_service_url, timeout(settings.upstream_timeout_s)),
         "rag": (settings.rag_service_url, timeout(settings.rag_timeout_s)),
+        "tool-gateway": (settings.tool_gateway_url, timeout(settings.tools_timeout_s)),
+        "audit": (settings.audit_service_url, timeout(settings.upstream_timeout_s)),
     }
     clients = {
         name: httpx.AsyncClient(

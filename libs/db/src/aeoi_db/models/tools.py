@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Index, Integer, SmallInteger, String, Text, text
+from sqlalchemy import CheckConstraint, DateTime, Index, Integer, SmallInteger, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,3 +57,30 @@ class ToolCall(Base):
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     attempt: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="1")
     created_at: Mapped[datetime] = created_at_col()
+
+
+class AuditOutbox(Base):
+    """Audit events for tool calls, written in the SAME transaction as the tool_calls row and
+    delivered to the audit service by a relay (at-least-once; the audit service dedupes on id).
+
+    Why not call the audit service synchronously: then an audit outage either blocks every
+    tool call or silently loses audit records. The outbox gives "100% of tool calls audited"
+    without making audit a hard runtime dependency (ADR-017).
+    """
+
+    __tablename__ = "audit_outbox"
+    __table_args__ = (
+        # serves: relay polling "next undelivered events in order" - partial = only the backlog
+        Index(
+            "ix_audit_outbox_undelivered",
+            "created_at",
+            postgresql_where=text("delivered_at IS NULL"),
+        ),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()  # = audit event id (idempotency key at the receiver)
+    event: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = created_at_col()
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(Text)

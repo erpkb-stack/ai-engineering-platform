@@ -13,13 +13,15 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from aeoi_common.errors import NotFoundError
 from aeoi_db.models.rag import Document, DocumentChunk
 from aeoi_models.api.search import (
     DocumentOut,
+    HistoricalIncidentHit,
+    IncidentSearchRequest,
     RerankInfo,
     SearchHit,
     SearchRequest,
@@ -136,3 +138,34 @@ async def get_document(document_id: UUID, principal: Reader, request: Request) -
         indexed_at=doc.indexed_at,
         chunk_count=n,
     )
+
+
+_INCIDENT_SQL = text("""
+WITH q AS (
+  SELECT CASE WHEN plainto_tsquery('english', :q)::text = '' THEN NULL
+              ELSE replace(plainto_tsquery('english', :q)::text, '&', '|')::tsquery END AS tsq
+)
+SELECT h.incident_key, h.title, h.summary, h.root_cause, h.root_cause_category, h.remediation,
+       h.service_keys, h.severity, h.occurred_at, h.resolved_at, ts_rank_cd(h.tsv, q.tsq) AS score
+FROM rag.historical_incidents h, q
+WHERE q.tsq IS NOT NULL AND h.tsv @@ q.tsq
+  AND h.allowed_groups && CAST(:groups AS varchar[])
+  AND (CAST(:svc AS text) IS NULL OR CAST(:svc AS text) = ANY(h.service_keys))
+ORDER BY score DESC, h.occurred_at DESC
+LIMIT :k
+""")
+
+
+@router.post("/incidents/search", response_model=list[HistoricalIncidentHit])
+async def search_incidents(
+    body: IncidentSearchRequest,
+    principal: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+    request: Request,
+) -> list[HistoricalIncidentHit]:
+    """Keyword search over past incidents with the same group ACL rule as documents."""
+    sessions: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
+    async with sessions() as s:
+        rows = (await s.execute(_INCIDENT_SQL, {
+            "q": body.query, "groups": sorted(principal.groups), "svc": body.service_key, "k": body.k,
+        })).mappings().all()  # fmt: skip
+    return [HistoricalIncidentHit(**{**r, "score": float(r["score"])}) for r in rows]

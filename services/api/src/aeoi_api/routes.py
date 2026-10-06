@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from aeoi_api.proxy import Upstream
 from aeoi_common.errors import RateLimitedError
+from aeoi_models.api.audit import AuditPage
 from aeoi_models.api.common import Page
 from aeoi_models.api.incidents import (
     EvidenceOut,
@@ -29,6 +30,7 @@ from aeoi_models.api.incidents import (
     TimelineEntry,
 )
 from aeoi_models.api.search import DocumentOut, SearchRequest, SearchResponse
+from aeoi_models.api.tools import ToolInfo, ToolInvokeRequest, ToolResult
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import Perm
 from aeoi_web.auth import current_principal
@@ -52,6 +54,22 @@ def guard(perm: Perm):  # type: ignore[no-untyped-def]  # returns a FastAPI depe
     return _dep
 
 
+def authenticated():  # type: ignore[no-untyped-def]  # returns a FastAPI dependency
+    """Rate limit + authentication only. For routes whose authorization is inherently
+    per-item and lives in the service (which tool; which audit scope). Not a shortcut: the
+    service is the policy point, and it audits the decision."""
+
+    async def _dep(
+        request: Request, principal: Annotated[Principal, Depends(current_principal)]
+    ) -> Principal:
+        wait = await request.app.state.limiter.acquire(principal.subject)
+        if wait > 0:
+            raise RateLimitedError(f"Rate limit exceeded. Retry in {wait:.1f}s.")
+        return principal
+
+    return _dep
+
+
 def incidents(request: Request) -> Upstream:
     return request.app.state.upstreams["incident-service"]  # type: ignore[no-any-return]
 
@@ -64,6 +82,20 @@ def rag(request: Request) -> Upstream:
 
 
 Rag = Annotated[Upstream, Depends(rag)]
+
+
+def tools(request: Request) -> Upstream:
+    return request.app.state.upstreams["tool-gateway"]  # type: ignore[no-any-return]
+
+
+Tools = Annotated[Upstream, Depends(tools)]
+
+
+def audit(request: Request) -> Upstream:
+    return request.app.state.upstreams["audit"]  # type: ignore[no-any-return]
+
+
+Audit = Annotated[Upstream, Depends(audit)]
 
 
 def _json(model: BaseModel) -> bytes:
@@ -193,3 +225,32 @@ async def get_document(
     _: Annotated[Principal, Depends(guard(Perm.DOCS_READ))],
 ) -> Response:
     return await up.forward(request, f"/v1/documents/{document_id}")
+
+
+@router.get("/tools", response_model=list[ToolInfo], tags=["tools"])
+async def list_tools(
+    request: Request, up: Tools, _: Annotated[Principal, Depends(authenticated())]
+) -> Response:
+    """Tools the caller's permissions allow (manual mode: the user is the caller)."""
+    return await up.forward(request, "/v1/tools")
+
+
+@router.post("/tools/{name}/invoke", response_model=ToolResult, tags=["tools"])
+async def invoke_tool(
+    name: str,
+    body: ToolInvokeRequest,
+    request: Request,
+    up: Tools,
+    _: Annotated[Principal, Depends(authenticated())],
+) -> Response:
+    """Manual tool call. The tool-gateway authorizes (per tool), sanitises and AUDITS it.
+    X-On-Behalf-Of is never forwarded from the edge: only internal services may use it."""
+    return await up.forward(request, f"/v1/tools/{name}/invoke", body=_json(body))
+
+
+@router.get("/audit/events", response_model=AuditPage, tags=["audit"])
+async def audit_events(
+    request: Request, up: Audit, _: Annotated[Principal, Depends(authenticated())]
+) -> Response:
+    """Scope (all / incident / own) is decided by the audit service from permissions."""
+    return await up.forward(request, "/v1/events")

@@ -224,7 +224,7 @@ class Gateway:
             finally:
                 bulkhead.release()
 
-        def on_retry(n: int, exc: ProviderError) -> None:
+        def on_retry(n: int, exc: BaseException) -> None:
             log.warning("llm_retry", provider=rt.name, model=model, attempt=n, reason=_reason(exc))
 
         return await with_retries(once, rt.retry, sleep=self._sleep, on_retry=on_retry)

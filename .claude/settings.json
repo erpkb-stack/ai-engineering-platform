@@ -49,7 +49,10 @@
       "Bash(make docpack)",
       "Bash(make stop-rag)",
       "Bash(make rag-sweep)",
-      "Bash(make rag-bench)"
+      "Bash(make rag-bench)",
+      "Bash(make tools-smoke)",
+      "Bash(make stop-tools)",
+      "Bash(make stop-audit)"
     ],
     "ask": [
       "Bash(docker compose up *)",

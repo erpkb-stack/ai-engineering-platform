@@ -1,0 +1,43 @@
+# Agent tool allow-lists (architecture.md §10). Effective permission at call time =
+# USER permissions ∩ this list. Validated at boot: an unknown tool or agent name = startup error.
+# Changing this file is a security change: it needs review like code (CODEOWNERS, Phase 26).
+version: 1
+
+# Which SERVICE (token subject "service:<name>") may act as which agents. A service not listed
+# here cannot call tools at all; a listed service cannot claim an agent it is not trusted for.
+trusted_services:
+  agents: [triage, log_analysis, metrics, code_intelligence, deployment, knowledge, historical_incident]
+  orchestrator: [triage]
+  copilot: [copilot]
+  action_executor: [action_executor]
+
+agents:
+  triage:
+    description: Incident triage - severity, affected services, time window
+    tools: [query_service_catalog]
+  log_analysis:
+    description: Error clusters from logs (clustering in code, labels by LLM)
+    tools: [search_logs]
+  metrics:
+    description: Anomalies and correlations (mostly code)
+    tools: [query_metrics]
+  code_intelligence:
+    description: What changed in code and why it might matter
+    tools: [get_commit, get_pull_request, search_repository]
+  deployment:
+    description: Deploy and config events in the window
+    tools: [get_deployment, get_config_diff]
+  knowledge:
+    description: Runbook steps and documents with citations
+    tools: [search_runbooks, search_docs]
+  historical_incident:
+    description: Similar past incidents and how they differ
+    tools: [search_incidents]
+  copilot:
+    description: Interactive Q&A for an engineer (Phase 17) - read-only, every READ tool
+    tools: [query_service_catalog, search_logs, query_metrics, get_commit, get_pull_request,
+            search_repository, get_deployment, get_config_diff, search_runbooks, search_docs,
+            search_incidents]
+  action_executor:
+    description: Runs APPROVED actions only (Phase 16); the only agent with a consequential tool
+    tools: [rollback_deployment]

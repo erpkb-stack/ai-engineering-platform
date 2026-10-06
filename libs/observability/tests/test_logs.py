@@ -48,3 +48,16 @@ def test_exception_logs_never_include_frame_locals(capsys: pytest.CaptureFixture
     out = capsys.readouterr().out
     assert "RuntimeError" in out
     assert "tok-should-never-be-logged" not in out
+
+
+def test_console_mode_can_log_exceptions(capsys: pytest.CaptureFixture[str]) -> None:
+    """Regression (Phase 7): ConsoleRenderer crashed on the dict traceback, so a handled error
+    in an `except` block (tool-gateway) escaped as a 500."""
+    configure_logging("svc", json_output=False)
+    log = get_logger("t")
+    try:
+        raise ZeroDivisionError("boom")
+    except ZeroDivisionError:
+        log.exception("handled", password="hunter2")
+    out = capsys.readouterr().out
+    assert "ZeroDivisionError" in out and "hunter2" not in out

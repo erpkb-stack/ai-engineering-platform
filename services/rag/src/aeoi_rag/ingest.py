@@ -101,7 +101,9 @@ class Ingestor:
             )
         try:
             source = meta.source or detect_source(filename)
-            parsed = parse(data, source, filename, max_pdf_pages=self._s.max_pdf_pages)
+            # "runbook" is a document KIND (so tools can search runbooks only); it is markdown
+            parser = "markdown" if source == "runbook" else source
+            parsed = parse(data, parser, filename, max_pdf_pages=self._s.max_pdf_pages)
         except ParseError as exc:
             return DocOutcome(meta.source_uri, "rejected", detail=str(exc))
 
@@ -130,6 +132,7 @@ class Ingestor:
                 and existing.content_sha256 == sha
                 and existing.allowed_groups == meta.allowed_groups
                 and existing.quarantine_reason == reason
+                and existing.source == source
             ):
                 return DocOutcome(meta.source_uri, "unchanged", pii=pii, secrets=secrets)
             doc = existing or Document(id=uuid7(), source_uri=meta.source_uri, version=meta.version)

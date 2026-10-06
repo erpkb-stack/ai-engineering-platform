@@ -43,8 +43,23 @@ def configure_logging(
     if log_level is None:
         raise ValueError(f"unknown log level: {level}")
 
+    # Exceptions: JSON gets a dict traceback; the console renderer formats exc_info itself.
+    # (A dict traceback fed to ConsoleRenderer crashes it - and a crash inside an `except`
+    # block turns a handled error into a 500. Found in Phase 7.) Never show frame locals:
+    # they can hold tokens, passwords, request bodies (found in Phase 4).
+    exceptions: list[Any] = (
+        [
+            structlog.processors.ExceptionRenderer(
+                structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
+            )
+        ]
+        if json_output
+        else []
+    )
     renderer: Any = (
-        structlog.processors.JSONRenderer() if json_output else structlog.dev.ConsoleRenderer()
+        structlog.processors.JSONRenderer()
+        if json_output
+        else structlog.dev.ConsoleRenderer(exception_formatter=structlog.dev.plain_traceback)
     )
     structlog.configure(
         processors=[
@@ -52,11 +67,7 @@ def configure_logging(
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             _add_correlation_id,
-            # show_locals=False: frame locals can hold tokens, passwords, request bodies.
-            # (structlog's default dict_tracebacks includes locals - found in Phase 4 tests.)
-            structlog.processors.ExceptionRenderer(
-                structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
-            ),
+            *exceptions,
             _redact,  # LAST before rendering: nothing escapes redaction
             renderer,
         ],

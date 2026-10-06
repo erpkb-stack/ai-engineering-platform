@@ -422,7 +422,7 @@ def build_pack(seed: int = 42) -> tuple[list[DocSpec], list[Query]]:
         a, b = rnd.randint(10, 40), rnd.randint(41, 90)
         d = DocSpec(
             f"runbooks/{svc}-{prob[0]}.md",
-            "markdown",
+            "runbook",
             f"Runbook: {svc} — {prob[1]}",
             team,
             f"team-{team}",

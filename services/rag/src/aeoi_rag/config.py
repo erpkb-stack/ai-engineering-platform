@@ -48,11 +48,13 @@ class Settings(BaseServiceSettings):
     # retrieval
     vector_candidates: int = 40
     keyword_candidates: int = 40
-    rrf_k: int = 60  # standard RRF constant (Cormack et al. 2009)
+    # Chosen by `make rag-sweep` on the owner's Mac (nomic-embed-text): best on the dev split,
+    # confirmed on the held-out test split (MRR@10 0.799 vs 0.598 for plain RRF k=60). ADR-016.
+    rrf_k: int = 1
     # Weighted RRF when the query contains an identifier. 1.0 = plain RRF. Tune ONLY from a
     # real-embedding eval run (AEOI_RAG_KEYWORD_WEIGHT_IDENTIFIERS=2 make rag-eval), never from fakes.
-    keyword_weight_identifiers: float = 1.0
-    vector_weight_no_identifiers: float = 1.0
+    keyword_weight_identifiers: float = 2.0
+    vector_weight_no_identifiers: float = 4.0
     max_chunks_per_document: int = 2
     hnsw_ef_search: int = 100
 

@@ -83,3 +83,23 @@ async def test_rerank_mode_aborts_after_three_failures() -> None:
     res = await run_eval(_Retriever(), qs, modes=["hybrid+rerank"], reranker=_SlowReranker())  # type: ignore[arg-type]
     assert _SlowReranker.calls == 3
     assert "not viable" in res["hybrid+rerank"]["aborted"]
+
+
+class _DegradedRetriever(_Retriever):
+    async def search(self, query: str, groups: list[str], **kw: Any) -> SearchResult:
+        res = await super().search(query, groups, **kw)
+        res.degraded = "embedding unavailable: keyword only"
+        return res
+
+
+async def test_degraded_runs_are_marked_invalid() -> None:
+    """Regression (Phase 6 Mac run 043554): 116 searches silently fell back to keyword-only
+    and the result file still said 'hybrid'. Now the mode is INVALID, in the JSON and the table."""
+    from aeoi_rag.evaluation import format_table
+
+    qs = [EvalQuery(f"q{i}", "x", ("docpack://x",), "keyword", ("g",), ()) for i in range(4)]
+    res = await run_eval(_DegradedRetriever(), qs, modes=["hybrid"])  # type: ignore[arg-type]
+    assert res["hybrid"]["degraded_queries"] == 4 and res["hybrid"]["valid"] is False
+    ok = await run_eval(_Retriever(), qs, modes=["hybrid"])  # type: ignore[arg-type]
+    assert ok["hybrid"]["valid"] is True
+    assert "INVALID" in format_table(res) and "INVALID" not in format_table(ok)
