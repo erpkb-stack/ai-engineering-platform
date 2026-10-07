@@ -1,0 +1,186 @@
+# ruff: noqa: F811  - fixtures imported from tools/conftest are re-used as parameters below
+"""Phase 8 end-to-end fixtures: incident-service, tool-gateway, audit, llm-gateway (fake
+providers), agents and the orchestrator runner - all in-process, real Postgres, each with its
+own least-privilege login. Only the model is fake (the Mac run uses real ones)."""
+
+from __future__ import annotations
+
+import secrets
+from collections.abc import AsyncIterator
+from datetime import timedelta
+from pathlib import Path
+from typing import Any
+
+import httpx
+import psycopg
+import pytest
+from fastapi import FastAPI
+from pydantic import SecretStr
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+from aeoi_agents.config import Settings as AgentSettings
+from aeoi_agents.main import build_app as build_agents
+from aeoi_db.config import database_url, libpq_dsn
+from aeoi_db.users import ensure_login
+from aeoi_incident.config import Settings as IncidentSettings
+from aeoi_incident.events import InMemoryPublisher
+from aeoi_incident.main import build_app as build_incident
+from aeoi_llm.config import Settings as LlmSettings
+from aeoi_llm.main import build_app as build_llm
+from aeoi_orchestrator.config import Settings as OrchSettings
+from aeoi_orchestrator.runner import Runner
+from aeoi_security.testing import KeyPair, service_token_for
+
+# re-use the Phase 7 fixtures (importing a fixture into a conftest registers it here)
+from tests.integration.tools.conftest import (  # noqa: F401
+    T0,
+    Planted,
+    Tokens,
+    audit_app,
+    audit_db_url,
+    audit_token_file,
+    catalog_file,
+    owner,
+    planted,
+    stub_rag,
+    tkeys,
+    tok,
+    tools_app,
+    tools_db_url,
+    tpub,
+)
+
+LLM_CONFIG = Path(__file__).resolve().parents[3] / "services" / "llm-gateway" / "config"
+
+
+def _login(db: str, user: str, role: str) -> str:
+    password = secrets.token_hex(16)
+    with psycopg.connect(libpq_dsn(database=db), autocommit=True) as conn:
+        ensure_login(conn, user, role, password)
+    return (
+        database_url(database=db)
+        .set(username=user, password=password)
+        .render_as_string(hide_password=False)
+    )
+
+
+class HostRouter(httpx.AsyncBaseTransport):
+    """One client, several in-process apps, chosen by host (like DNS for services)."""
+
+    def __init__(self, apps: dict[str, FastAPI]) -> None:
+        self._t = {host: httpx.ASGITransport(app=app) for host, app in apps.items()}
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        return await self._t[request.url.host].handle_async_request(request)
+
+
+@pytest.fixture(scope="session")
+def orch_db_url(migrated_db: str) -> str:
+    return _login(migrated_db, "orch_svc_test", "svc_orchestrator")
+
+
+@pytest.fixture(scope="session")
+def incident_db_url(migrated_db: str) -> str:
+    return _login(migrated_db, "incident_svc_p8", "svc_incident")
+
+
+@pytest.fixture
+async def incident_app(incident_db_url: str, tpub: Path) -> AsyncIterator[FastAPI]:
+    app = build_incident(
+        IncidentSettings(
+            db_url_override=SecretStr(incident_db_url),
+            jwt_public_key_file=tpub,
+            relay_enabled=False,
+            environment="test",
+            db_pool_size=3,
+        ),  # type: ignore[call-arg]
+        publisher=InMemoryPublisher(),
+    )
+    yield app
+    await app.state.engine.dispose()
+
+
+@pytest.fixture
+def llm_app(tpub: Path) -> FastAPI:
+    return build_llm(
+        LlmSettings(
+            routing_file=LLM_CONFIG / "routing.test.yaml",
+            jwt_public_key_file=tpub,
+            record_usage=False,
+            cache_enabled=False,
+            environment="test",
+            log_json=False,
+        )  # type: ignore[call-arg]
+    )
+
+
+@pytest.fixture
+def agents_token_file(tmp_path: Path, tkeys: KeyPair) -> Path:
+    p = tmp_path / "agents_service_token.txt"
+    p.write_text(service_token_for(tkeys, "agents", "tools:invoke", "llm:invoke"))
+    return p
+
+
+@pytest.fixture
+async def agents_app(
+    tpub: Path, agents_token_file: Path, tools_app: FastAPI, llm_app: FastAPI
+) -> AsyncIterator[FastAPI]:
+    app = build_agents(
+        AgentSettings(
+            jwt_public_key_file=tpub,
+            service_token_file=agents_token_file,
+            tool_gateway_url="http://tools",
+            llm_gateway_url="http://llm",
+            environment="test",
+            log_json=False,
+        ),  # type: ignore[call-arg]
+        tool_transport=httpx.ASGITransport(app=tools_app),
+        llm_transport=httpx.ASGITransport(app=llm_app),
+    )
+    async with app.router.lifespan_context(app):
+        yield app
+
+
+@pytest.fixture
+def orch_token(tkeys: KeyPair) -> str:
+    return service_token_for(tkeys, "orchestrator", "agents:run", "evidence:write")
+
+
+@pytest.fixture
+async def runner(
+    orch_db_url: str, orch_token: str, agents_app: FastAPI, incident_app: FastAPI
+) -> AsyncIterator[Runner]:
+    settings = OrchSettings(
+        db_url_override=SecretStr(orch_db_url),
+        incident_service_url="http://incident",
+        agents_url="http://agents",
+        environment="test",
+        log_json=False,
+    )  # type: ignore[call-arg]
+    engine = create_async_engine(settings.sqlalchemy_url(), pool_size=2)
+    http = httpx.AsyncClient(
+        transport=HostRouter({"incident": incident_app, "agents": agents_app}), timeout=60
+    )
+    yield Runner(settings, async_sessionmaker(engine, expire_on_commit=False), http, orch_token)
+    await http.aclose()
+    await engine.dispose()
+
+
+@pytest.fixture
+async def incident(incident_app: FastAPI, tok: Tokens, planted: Planted) -> dict[str, Any]:
+    """A fresh incident on the planted service, detected 15 min into the planted logs."""
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=incident_app), base_url="http://incident"
+    ) as c:
+        r = await c.post(
+            "/v1/incidents",
+            json={
+                "title": "Checkout pool timeouts after deploy",
+                "severity": "SEV2",
+                "affected_services": [planted.svc],
+                "detected_at": (T0 + timedelta(minutes=15)).isoformat(),
+            },
+            headers={**tok.h("SRE"), "Idempotency-Key": secrets.token_hex(8)},
+        )
+    assert r.status_code == 201, r.text
+    return r.json()  # type: ignore[no-any-return]

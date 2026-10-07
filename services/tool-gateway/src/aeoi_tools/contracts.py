@@ -12,6 +12,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from aeoi_common.resilience import TransientError
+from aeoi_models.findings import EvidenceKind
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import Perm
 
@@ -54,6 +55,9 @@ class ToolSpec:
     side_effect: SideEffect
     handler: Handler
     dependency: str  # breaker/bulkhead key: one sick backend trips all tools that use it
+    # evidence ids are "<KIND>-<tool_call_id hex>-<n>" (aeoi_models.findings.EvidenceKind), so a
+    # finding can cite them directly and incident.evidence accepts them (key LIKE kind || '-%')
+    evidence_kind: str
     timeout_s: float = 5.0
     max_attempts: int = 2  # retries only for idempotent READs (enforced below)
     idempotent: bool = True
@@ -61,12 +65,16 @@ class ToolSpec:
     max_output_bytes: int = 256_000
     audit_fields: tuple[str, ...] = ()  # input fields copied into the audit event
     tags: tuple[str, ...] = field(default=())
+    # per-item kind when one tool returns mixed kinds (search_repository: commits + PRs)
+    item_kind: Callable[[dict[str, Any]], str] | None = None
 
     def __post_init__(self) -> None:
         if not self.name.replace("_", "").isalnum() or "_" not in self.name:
             raise ValueError(f"tool name must be snake_case verb_noun: {self.name}")
         if len(self.description) < 40:
             raise ValueError(f"{self.name}: description too short to guide a model")
+        if self.evidence_kind not in {k.value for k in EvidenceKind}:
+            raise ValueError(f"{self.name}: unknown evidence_kind {self.evidence_kind!r}")
         if not self.dependency:
             raise ValueError(f"{self.name}: dependency is required")
         if not self.permissions:

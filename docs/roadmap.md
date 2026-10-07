@@ -44,8 +44,8 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 - [x] Phase 4: FastAPI backend
 - [x] Phase 5: LLM Gateway
 - [x] Phase 6: RAG pipeline (baseline + sweep on the Mac; defaults adopted in ADR-016)
-- [ ] Phase 7: Tool Gateway — built; done when `make tools-smoke` and `make test-integration` pass on the Mac
-- [ ] Phase 8: First AI agent
+- [x] Phase 7: Tool Gateway
+- [ ] Phase 8: First AI agent — built; compare recorded on the Mac (valid, n=1); done when `make agent-smoke` all ✔ and `make test-integration` green on the Mac
 - [ ] Phase 9: LangGraph orchestration
 - [ ] Phase 10: Multi-agent investigation
 - [ ] Phase 11: Critic + Validation

@@ -98,6 +98,7 @@ class LLMClient(Protocol):
         metadata: CallMetadata | None = ...,
         schema_name: str = ...,
         timeout_s: float | None = ...,
+        use_cache: bool = ...,
     ) -> LLMResponse: ...
 
     async def embed(
@@ -187,6 +188,7 @@ class HttpLLMClient:
         metadata: CallMetadata | None = None,
         schema_name: str = "result",
         timeout_s: float | None = None,
+        use_cache: bool = True,
     ) -> LLMResponse:
         body = {
             "route": route,
@@ -196,6 +198,7 @@ class HttpLLMClient:
             "json_schema": json_schema,
             "schema_name": schema_name,
             "allow_fallback": allow_fallback,
+            "cache": use_cache,
             "metadata": (metadata or CallMetadata()).model_dump(mode="json"),
         }
         return LLMResponse.model_validate(

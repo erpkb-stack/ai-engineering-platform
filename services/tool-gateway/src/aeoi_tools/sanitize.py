@@ -14,6 +14,7 @@ The result is labelled `untrusted: true`. Prompt builders MUST wrap it with
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
@@ -44,8 +45,9 @@ class SanitizeReport:
         }
 
 
-def evidence_id(call_id: UUID, index: int) -> str:
-    return f"ev_{call_id.hex}_{index}"
+def evidence_id(kind: str, call_id: UUID, index: int) -> str:
+    """LOG-<call hex>-<n>: kind-prefixed (findings.EvidenceRef rule), traceable to the call."""
+    return f"{kind}-{call_id.hex}-{index}"
 
 
 def _clean_str(value: str, report: SanitizeReport, where: str, ev: str | None) -> str:
@@ -87,7 +89,13 @@ def _clean(value: Any, report: SanitizeReport, where: str, ev: str | None) -> An
 
 
 def sanitize(
-    data: dict[str, Any], *, call_id: UUID, max_items: int, max_bytes: int
+    data: dict[str, Any],
+    *,
+    call_id: UUID,
+    max_items: int,
+    max_bytes: int,
+    evidence_kind: str = "DOC",
+    item_kind: Callable[[dict[str, Any]], str] | None = None,
 ) -> tuple[dict[str, Any], list[str], SanitizeReport]:
     """`data` is the validated output model dumped in JSON mode. Returns (clean data,
     evidence ids, report). Never raises on content: worst case is an empty, truncated result."""
@@ -99,7 +107,8 @@ def sanitize(
         data["truncated"] = True
     clean_items = []
     for i, item in enumerate(items):
-        ev = evidence_id(call_id, i)
+        kind = item_kind(item) if item_kind and isinstance(item, dict) else evidence_kind
+        ev = evidence_id(kind, call_id, i)
         cleaned = _clean(item, report, "items", ev)
         if isinstance(cleaned, dict):
             cleaned["evidence_id"] = ev

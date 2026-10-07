@@ -32,6 +32,7 @@ class EvidenceKind(StrEnum):
     RUNBOOK = "RUNBOOK"
     INCIDENT = "INCIDENT"
     ALERT = "ALERT"
+    CATALOG = "CATALOG"  # service catalog facts (owner, tier, dependencies) - Phase 8
 
 
 class ConfidenceBand(StrEnum):

@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from aeoi_common.errors import (
@@ -19,6 +20,7 @@ from aeoi_common.ids import uuid7
 from aeoi_db.models.incident import Evidence, Feedback, Incident, IncidentEvent
 from aeoi_incident.domain import INVESTIGABLE, check_transition, decode_cursor, encode_cursor
 from aeoi_incident.events import stage_event
+from aeoi_models.api.agents import EvidenceBatch, EvidenceRetrievedPayload
 from aeoi_models.api.incidents import (
     FeedbackCreate,
     IncidentCreate,
@@ -260,6 +262,70 @@ async def evidence(session: AsyncSession, ref: UUID | int, kind: str | None) -> 
     if kind:
         stmt = stmt.where(Evidence.kind == kind)
     return list((await session.scalars(stmt.order_by(Evidence.created_at).limit(1000))).all())
+
+
+async def add_evidence(
+    session: AsyncSession, ref: UUID | int, batch: EvidenceBatch, who: Principal
+) -> tuple[int, int]:
+    """Store evidence an agent retrieved (Phase 8). Idempotent on (incident, evidence_key):
+    a redelivered batch inserts nothing and writes no second timeline entry or event.
+    Evidence keys are tool-gateway ids (KIND-<tool_call>-<n>): globally unique, traceable."""
+    incident = await load(session, ref)
+    rows = [
+        {
+            "id": uuid7(),
+            "incident_id": incident.id,
+            "evidence_key": it.evidence_key,
+            "kind": it.kind,
+            "source_system": it.source_system,
+            "title": it.title,
+            "excerpt": it.excerpt,
+            "content_sha256": it.content_sha256,
+            "observed_at": it.observed_at,
+            "retrieved_by": batch.agent,
+            "tool_call_id": it.tool_call_id,
+            "uri": it.uri,
+        }
+        for it in batch.items
+    ]
+    stmt = (
+        insert(Evidence)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=["incident_id", "evidence_key"])
+        .returning(Evidence.evidence_key)
+    )
+    inserted = list((await session.scalars(stmt)).all())
+    if inserted:
+        actor = f"agent:{batch.agent}"
+        session.add(
+            _event(
+                incident,
+                source="AGENT",
+                event_type="EvidenceRetrieved",
+                summary=batch.summary,
+                actor=actor,
+                payload={
+                    "evidence_keys": inserted[:50],
+                    "count": len(inserted),
+                    "investigation_id": str(batch.investigation_id or ""),
+                    "via": who.actor,
+                },
+            )
+        )
+        stage_event(
+            session,
+            event_type=EventType.EVIDENCE_RETRIEVED,
+            actor=actor,
+            incident_id=incident.id,
+            payload=EvidenceRetrievedPayload(
+                incident_id=incident.id,
+                agent=batch.agent,
+                investigation_id=batch.investigation_id,
+                evidence_keys=inserted[:200],
+            ),
+        )
+    await session.flush()
+    return len(rows), len(inserted)
 
 
 async def create_feedback(session: AsyncSession, data: FeedbackCreate, who: Principal) -> Feedback:

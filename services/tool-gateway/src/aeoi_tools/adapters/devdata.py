@@ -69,17 +69,22 @@ class DevDataAdapter:
             ),
             params,
         )
+        # top 50 codes + ONE exact total and distinct-code count (window functions over the
+        # grouped rows). Review finding: summing only the top 50 understated both numbers.
         counts = await self._rows(
             text(
-                f"SELECT coalesce(error_code, '(none)') AS code, count(*) AS n "  # noqa: S608
-                f"FROM devdata.log_events WHERE {where} GROUP BY 1 ORDER BY 2 DESC LIMIT 50"
+                "SELECT code, n, sum(n) OVER () AS total, count(*) OVER () AS codes FROM ("  # noqa: S608
+                f"SELECT coalesce(error_code, '(none)') AS code, count(*) AS n "
+                f"FROM devdata.log_events WHERE {where} GROUP BY 1) g ORDER BY n DESC LIMIT 50"
             ),
             params,
         )
-        total = sum(int(c["n"]) for c in counts)
+        total = int(counts[0]["total"]) if counts else 0
+        distinct = int(counts[0]["codes"]) if counts else 0
         return s.LogsOut(
             items=[s.LogItem(**r) for r in rows],
             total_matching=total,
+            distinct_codes=distinct,
             counts_by_error_code={str(c["code"]): int(c["n"]) for c in counts},
             truncated=total > len(rows),
         )

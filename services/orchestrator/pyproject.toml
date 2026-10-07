@@ -1,0 +1,28 @@
+[project]
+name = "aeoi-orchestrator"
+version = "0.1.0"
+description = "Investigation orchestrator (owns schema `orchestrator`). Phase 8: thin single-agent runner; Phase 9: LangGraph"
+requires-python = ">=3.12"
+dependencies = [
+    "aeoi-common",
+    "aeoi-models",
+    "aeoi-security",
+    "aeoi-observability",
+    "aeoi-db",
+    "httpx>=0.27",
+    "sqlalchemy[asyncio]>=2.0.36",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_orchestrator"]
+
+[tool.uv.sources]
+aeoi-common = { workspace = true }
+aeoi-models = { workspace = true }
+aeoi-security = { workspace = true }
+aeoi-observability = { workspace = true }
+aeoi-db = { workspace = true }

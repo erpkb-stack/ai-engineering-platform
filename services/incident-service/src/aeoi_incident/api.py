@@ -18,6 +18,7 @@ from aeoi_incident.config import Settings
 from aeoi_incident.db import session_dep
 from aeoi_incident.domain import parse_if_match, parse_incident_ref
 from aeoi_incident.idempotency import Result, run_idempotent, validate_key
+from aeoi_models.api.agents import EvidenceBatch, EvidenceBatchResult
 from aeoi_models.api.common import Page
 from aeoi_models.api.incidents import (
     EvidenceOut,
@@ -33,7 +34,7 @@ from aeoi_models.api.incidents import (
 )
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import Perm
-from aeoi_web.auth import require
+from aeoi_web.auth import require, require_scope
 
 router = APIRouter(prefix="/v1", tags=["incidents"])
 Session = Annotated[AsyncSession, Depends(session_dep)]
@@ -197,6 +198,22 @@ async def get_evidence(
 ) -> list[EvidenceOut]:
     rows = await service.evidence(session, parse_incident_ref(ref), kind)
     return [EvidenceOut.model_validate(r) for r in rows]
+
+
+@router.post("/incidents/{ref}/evidence", response_model=EvidenceBatchResult)
+async def add_evidence(
+    ref: str,
+    batch: EvidenceBatch,
+    session: Session,
+    who: Annotated[Principal, Depends(require_scope("evidence:write"))],
+) -> EvidenceBatchResult:
+    """Service-only (orchestrator). Users never write evidence: it must come from a recorded
+    tool call. Idempotent: resending the same batch is a no-op."""
+    async with session.begin():
+        received, inserted = await service.add_evidence(
+            session, parse_incident_ref(ref), batch, who
+        )
+    return EvidenceBatchResult(received=received, inserted=inserted)
 
 
 @router.post("/feedback", status_code=201, response_model=FeedbackOut)

@@ -25,6 +25,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         service-token ollama-pull run-llm stop-llm llm-smoke \
         rag-token docpack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
+        agents-tokens run-agents stop-agents agent-run agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -297,3 +298,46 @@ run-audit: ## Run the audit service on :8008
 
 tools-smoke: ## End-to-end tool checks (needs run-api, run-tools, run-audit; run-rag for knowledge)
 	@./scripts/smoke-phase7.sh
+
+# ---------- Agents + thin orchestrator runner (Phase 8) ----------
+AGENTS_PORT ?= 8003
+AGENTS_PIDS = { lsof -nP -t -iTCP:$(AGENTS_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
+INCIDENT ?=
+ROUTE ?=
+ORCH := uv run --quiet python -m aeoi_orchestrator
+
+agents-tokens: ## Mint dev service tokens: agents (tools+llm) and orchestrator (agents:run, evidence:write), 30 days
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service agents --scope tools:invoke \
+	  --scope llm:invoke --ttl-minutes 43200 > secrets/agents_service_token.txt
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service orchestrator --scope agents:run \
+	  --scope evidence:write --ttl-minutes 43200 > secrets/orchestrator_service_token.txt
+	@echo "wrote secrets/agents_service_token.txt and secrets/orchestrator_service_token.txt"
+
+stop-agents: ## Stop a running agents service (only if it really is ours)
+	@pids=$$($(AGENTS_PIDS)); \
+	if [ -z "$$pids" ]; then echo "port $(AGENTS_PORT) is free"; exit 0; fi; \
+	ps -o pid=,command= -p $$pids; \
+	if ps -o command= -p $$pids | grep -q aeoi_agents; then \
+	  kill $$(echo $$pids | tr ',' ' '); sleep 1; echo "stopped agents ($$pids)"; \
+	else echo "port $(AGENTS_PORT) is used by something else (above). Not killing it."; exit 1; fi
+
+run-agents: ## Run the agents worker on :8003 (needs run-tools, run-llm)
+	@pids=$$($(AGENTS_PIDS)); if [ -n "$$pids" ]; then \
+	  echo "port $(AGENTS_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
+	  echo "-> run: make stop-agents"; exit 1; fi
+	$(UVICORN) aeoi_agents.main:build_app --port $(AGENTS_PORT) --reload --reload-dir services/agents --reload-dir libs
+
+agent-run: ## Run the Log Analysis agent on an incident: make agent-run INCIDENT=INC-10001 [ROLE=SRE] [ROUTE=local|fast] [NOCACHE=1]
+	@test -n "$(INCIDENT)" || { echo "usage: make agent-run INCIDENT=INC-10001 [ROUTE=local|fast]"; exit 2; }
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE)) $(ORCH) run-log-agent $(INCIDENT) $(if $(ROUTE),--route $(ROUTE),) $(if $(NOCACHE),--no-cache,)
+
+agent-compare: ## Same incident, two models (local llama vs Claude Haiku): make agent-compare INCIDENT=INC-10001
+	@test -n "$(INCIDENT)" || { echo "usage: make agent-compare INCIDENT=INC-10001"; exit 2; }
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE)) $(ORCH) compare $(INCIDENT)
+
+agent-status: ## Investigations of an incident: make agent-status INCIDENT=INC-10001
+	@test -n "$(INCIDENT)" || { echo "usage: make agent-status INCIDENT=INC-10001"; exit 2; }
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE) 2>/dev/null) $(ORCH) status $(INCIDENT)
+
+agent-smoke: ## End-to-end Phase 8 check (needs dev, run-llm, run-tools, run-audit, run-agents)
+	@./scripts/smoke-phase8.sh

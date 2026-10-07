@@ -18,5 +18,6 @@
 | [ADR-014](ADR-014-llm-routing-and-fallback.md) | LLM routing policy, fallback and cost accounting in one gateway | Proposed |
 | [ADR-016](ADR-016-hybrid-retrieval.md) | Hybrid retrieval in one SQL statement, RRF fusion, eval-gated LLM rerank | Proposed |
 | [ADR-017](ADR-017-tool-gateway-authz-and-audit.md) | Tool Gateway: on-behalf-of authz (user ∩ agent allow-list), fail-closed audit via outbox | Proposed |
+| [ADR-018](ADR-018-first-agent-code-facts-llm-labels.md) | First agent: facts by code, labels by LLM, thin runner that records the trace | Proposed |
 
 Rules: Accepted ADRs are immutable (enforced by `.claude/hooks/protect-files.sh`). Use the `/adr` skill to supersede.

@@ -292,6 +292,8 @@ class ToolService:
                     call_id=call_id,
                     max_items=spec.max_items,
                     max_bytes=spec.max_output_bytes,
+                    evidence_kind=spec.evidence_kind,
+                    item_kind=spec.item_kind,
                 )
                 out.status, out.http_status = "OK", 200
                 out.data, out.evidence_ids, out.security = data, evidence, report.as_dict()

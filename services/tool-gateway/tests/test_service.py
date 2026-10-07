@@ -64,6 +64,7 @@ def spec(handler: Behaviour, **kw: Any) -> ToolSpec:
         "side_effect": SideEffect.READ,
         "handler": handler,
         "dependency": "fake",
+        "evidence_kind": "LOG",
         "timeout_s": 0.5,
         "max_attempts": 2,
     }
@@ -91,7 +92,7 @@ def last_call(db: FakeDB) -> Any:
 async def test_ok_is_recorded_with_audit_event_in_same_unit(fake_db: FakeDB) -> None:
     h = Behaviour()
     out = await svc(fake_db, spec(h)).invoke("echo_text", {"text": "hi"}, ctx("ENGINEER"))
-    assert out.status == "OK" and out.evidence_ids == [f"ev_{out.call_id.hex}_0"]
+    assert out.status == "OK" and out.evidence_ids == [f"LOG-{out.call_id.hex}-0"]
     row, ev = last_call(fake_db), fake_db.of("AuditOutbox")[-1]
     assert row.id == out.call_id and row.status == "OK" and row.input == {"text": "hi"}
     assert ev.event["details"]["tool_call_id"] == str(out.call_id)

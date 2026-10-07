@@ -8,6 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "aeoi-agents",
     "aeoi-api",
     "aeoi-audit",
     "aeoi-common",
@@ -17,9 +18,11 @@ members = [
     "aeoi-llm-gateway",
     "aeoi-models",
     "aeoi-observability",
+    "aeoi-orchestrator",
     "aeoi-rag",
     "aeoi-security",
     "aeoi-synth",
+    "aeoi-tool-client",
     "aeoi-tool-gateway",
     "aeoi-web",
 ]
@@ -34,6 +37,35 @@ dev = [
     { name = "ruff", specifier = ">=0.9" },
     { name = "types-jsonschema", specifier = ">=4.23" },
     { name = "types-pyyaml", specifier = ">=6.0" },
+]
+
+[[package]]
+name = "aeoi-agents"
+version = "0.1.0"
+source = { editable = "services/agents" }
+dependencies = [
+    { name = "aeoi-common" },
+    { name = "aeoi-db" },
+    { name = "aeoi-llm-client" },
+    { name = "aeoi-models" },
+    { name = "aeoi-observability" },
+    { name = "aeoi-security" },
+    { name = "aeoi-tool-client" },
+    { name = "aeoi-web" },
+    { name = "httpx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aeoi-common", editable = "libs/common" },
+    { name = "aeoi-db", editable = "libs/db" },
+    { name = "aeoi-llm-client", editable = "libs/llm-client" },
+    { name = "aeoi-models", editable = "libs/models" },
+    { name = "aeoi-observability", editable = "libs/observability" },
+    { name = "aeoi-security", editable = "libs/security" },
+    { name = "aeoi-tool-client", editable = "libs/tool-client" },
+    { name = "aeoi-web", editable = "libs/web" },
+    { name = "httpx", specifier = ">=0.27" },
 ]
 
 [[package]]
@@ -230,6 +262,31 @@ requires-dist = [
 ]
 
 [[package]]
+name = "aeoi-orchestrator"
+version = "0.1.0"
+source = { editable = "services/orchestrator" }
+dependencies = [
+    { name = "aeoi-common" },
+    { name = "aeoi-db" },
+    { name = "aeoi-models" },
+    { name = "aeoi-observability" },
+    { name = "aeoi-security" },
+    { name = "httpx" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aeoi-common", editable = "libs/common" },
+    { name = "aeoi-db", editable = "libs/db" },
+    { name = "aeoi-models", editable = "libs/models" },
+    { name = "aeoi-observability", editable = "libs/observability" },
+    { name = "aeoi-security", editable = "libs/security" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+]
+
+[[package]]
 name = "aeoi-rag"
 version = "0.1.0"
 source = { editable = "services/rag" }
@@ -288,6 +345,23 @@ dependencies = [
 requires-dist = [
     { name = "aeoi-common", editable = "libs/common" },
     { name = "aeoi-db", editable = "libs/db" },
+]
+
+[[package]]
+name = "aeoi-tool-client"
+version = "0.1.0"
+source = { editable = "libs/tool-client" }
+dependencies = [
+    { name = "aeoi-models" },
+    { name = "httpx" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aeoi-models", editable = "libs/models" },
+    { name = "httpx", specifier = ">=0.27" },
+    { name = "pydantic", specifier = ">=2.9" },
 ]
 
 [[package]]

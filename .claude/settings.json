@@ -52,7 +52,9 @@
       "Bash(make rag-bench)",
       "Bash(make tools-smoke)",
       "Bash(make stop-tools)",
-      "Bash(make stop-audit)"
+      "Bash(make stop-audit)",
+      "Bash(make agent-smoke)",
+      "Bash(make stop-agents)"
     ],
     "ask": [
       "Bash(docker compose up *)",
