@@ -1,0 +1,133 @@
+{
+  "kind": "agent-model-comparison",
+  "caveat": "ONE incident, one run per model: an anecdote, not an eval. Do not quote as a quality number; quote latency/cost/repair counts with n=1.",
+  "environment": {
+    "git_commit": "5d666d3",
+    "host": "C02XR9SYJG5H",
+    "machine": "x86_64",
+    "incident": "INC-10001"
+  },
+  "facts_identical": true,
+  "valid_comparison": true,
+  "route_chains": {
+    "local": [
+      "llama3.2:3b"
+    ],
+    "fast": [
+      "claude-haiku-4-5-20251001",
+      "llama3.2:3b"
+    ]
+  },
+  "runs": [
+    {
+      "route": "local",
+      "status": "COMPLETE",
+      "investigation_id": "01a1140e-6f3a-721b-ab64-47d67165599c",
+      "model": "llama3.2:3b",
+      "fallback_used": false,
+      "cached": false,
+      "llm_error": null,
+      "llm_latency_ms": 112045,
+      "agent_latency_ms": 112591,
+      "input_tokens": 518,
+      "output_tokens": 225,
+      "cost_usd": "0.000000",
+      "schema_repairs": 0,
+      "degraded": null,
+      "label_quality": {
+        "clusters_sent": 5,
+        "labels_accepted": 5,
+        "citations_dropped": 0,
+        "unknown_cluster_ids": 0
+      },
+      "labels": {
+        "c1": {
+          "label": "DB connection pool timeouts",
+          "category": "resource_exhaustion",
+          "by": "llm"
+        },
+        "c2": {
+          "label": "Resource not found",
+          "category": "dependency_timeout",
+          "by": "llm"
+        },
+        "c3": {
+          "label": "Job scheduled",
+          "category": "unknown",
+          "by": "llm"
+        },
+        "c4": {
+          "label": "Health check ok",
+          "category": "auth",
+          "by": "llm"
+        },
+        "c5": {
+          "label": "Batch processed",
+          "category": "unknown",
+          "by": "llm"
+        }
+      },
+      "facts": [
+        "checkout-api: 208 WARN-or-worse log lines from 2026-10-02 08:50:00Z to 2026-10-02 10:20:00Z, 2 distinct error code(s) plus lines without a code.",
+        "checkout-api: 203 WARN-or-worse lines with error_code ERR_POOL_TIMEOUT; first seen 2026-10-02 09:50:10Z, last seen 2026-10-02 10:19:56Z.",
+        "checkout-api: 3 WARN-or-worse lines with no error code; first seen 2026-10-02 09:09:32Z, last seen 2026-10-02 09:32:55Z.",
+        "checkout-api: 2 WARN-or-worse lines with error_code ERR_NOT_FOUND; first seen 2026-10-02 09:19:47Z, last seen 2026-10-02 09:53:33Z."
+      ]
+    },
+    {
+      "route": "fast",
+      "status": "COMPLETE",
+      "investigation_id": "01a11410-2a47-79e5-b514-68f9dc7766c1",
+      "model": "claude-haiku-4-5-20251001",
+      "fallback_used": false,
+      "cached": false,
+      "llm_error": null,
+      "llm_latency_ms": 2574,
+      "agent_latency_ms": 2945,
+      "input_tokens": 1451,
+      "output_tokens": 272,
+      "cost_usd": "0.002811",
+      "schema_repairs": 0,
+      "degraded": null,
+      "label_quality": {
+        "clusters_sent": 5,
+        "labels_accepted": 5,
+        "citations_dropped": 0,
+        "unknown_cluster_ids": 0
+      },
+      "labels": {
+        "c1": {
+          "label": "JDBC connection pool timeout",
+          "category": "dependency_timeout",
+          "by": "llm"
+        },
+        "c2": {
+          "label": "Not found errors",
+          "category": "bad_request",
+          "by": "llm"
+        },
+        "c3": {
+          "label": "Job scheduled",
+          "category": "unknown",
+          "by": "llm"
+        },
+        "c4": {
+          "label": "Health check ok",
+          "category": "unknown",
+          "by": "llm"
+        },
+        "c5": {
+          "label": "Batch processed",
+          "category": "unknown",
+          "by": "llm"
+        }
+      },
+      "facts": [
+        "checkout-api: 208 WARN-or-worse log lines from 2026-10-02 08:50:00Z to 2026-10-02 10:20:00Z, 2 distinct error code(s) plus lines without a code.",
+        "checkout-api: 203 WARN-or-worse lines with error_code ERR_POOL_TIMEOUT; first seen 2026-10-02 09:50:10Z, last seen 2026-10-02 10:19:56Z.",
+        "checkout-api: 3 WARN-or-worse lines with no error code; first seen 2026-10-02 09:09:32Z, last seen 2026-10-02 09:32:55Z.",
+        "checkout-api: 2 WARN-or-worse lines with error_code ERR_NOT_FOUND; first seen 2026-10-02 09:19:47Z, last seen 2026-10-02 09:53:33Z."
+      ]
+    }
+  ]
+}

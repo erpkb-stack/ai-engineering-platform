@@ -121,7 +121,7 @@ def test_sanitize_redacts_flags_and_assigns_evidence_ids() -> None:
     blob = json.dumps(out)
     assert "bob@northwind.example" not in blob and "ghp_" not in blob and "k-123" not in blob
     assert out["items"][2]["attrs"]["retries"] == 3  # numbers are not secrets
-    assert ev == [f"ev_{call.hex}_{i}" for i in range(3)]
+    assert ev == [f"DOC-{call.hex}-{i}" for i in range(3)]
     assert [i["evidence_id"] for i in out["items"]] == ev
     assert report.injection_flags and report.injection_flags[0]["evidence_id"] == ev[1]
     assert "IGNORE ALL" in out["items"][1]["message"]  # flagged, NOT hidden: it is evidence

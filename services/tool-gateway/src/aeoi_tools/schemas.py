@@ -52,7 +52,7 @@ class In(BaseModel):
 
 
 class Item(BaseModel):
-    evidence_id: str = Field(default="", max_length=64, description="assigned by the gateway")
+    evidence_id: str = Field(default="", max_length=80, description="assigned by the gateway")
 
 
 class Out(BaseModel):
@@ -119,13 +119,14 @@ class LogItem(Item):
     ts: datetime
     level: str
     message: str
-    error_code: str | None = None
+    error_code: str | None = None  # log DATA: untrusted, may hold any text
     trace_id: str | None = None
 
 
 class LogsOut(Out):
     items: list[LogItem] = Field(default_factory=list, max_length=200)
-    total_matching: int = 0
+    total_matching: int = 0  # exact, whole window
+    distinct_codes: int = 0  # exact; counts_by_error_code holds only the top 50
     counts_by_error_code: dict[str, int] = Field(default_factory=dict)
 
 

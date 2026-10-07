@@ -3,7 +3,8 @@
 [tool.uv.workspace]
 members = [
     "libs/*", "scripts/synth", "services/api", "services/incident-service", "services/llm-gateway",
-    "services/rag", "services/tool-gateway", "services/audit",
+    "services/rag", "services/tool-gateway", "services/audit", "services/agents",
+    "services/orchestrator",
 ]
 
 [tool.uv]
@@ -32,7 +33,7 @@ force-exclude = true  # also when pre-commit passes file names explicitly
 known-first-party = [
     "aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth",
     "aeoi_web", "aeoi_api", "aeoi_incident", "aeoi_llm", "aeoi_llm_client", "aeoi_rag", "aeoi_tools",
-    "aeoi_audit", "tests",
+    "aeoi_audit", "aeoi_tool_client", "aeoi_agents", "aeoi_orchestrator", "tests",
 ]
 
 [tool.ruff.lint]
@@ -74,7 +75,7 @@ mypy_path = [
 packages = [
     "aeoi_common", "aeoi_models", "aeoi_security", "aeoi_observability", "aeoi_db", "aeoi_synth",
     "aeoi_web", "aeoi_api", "aeoi_incident", "aeoi_llm", "aeoi_llm_client", "aeoi_rag",
-    "aeoi_tools", "aeoi_audit",
+    "aeoi_tools", "aeoi_audit", "aeoi_tool_client", "aeoi_agents", "aeoi_orchestrator",
 ]
 
 [[tool.mypy.overrides]]
@@ -90,7 +91,8 @@ warn_required_dynamic_aliases = true
 [tool.pytest.ini_options]
 testpaths = [
     "tests", "libs", "scripts/synth", "services/api", "services/incident-service",
-    "services/llm-gateway", "services/rag", "services/tool-gateway", "services/audit",
+    "services/llm-gateway", "services/rag", "services/tool-gateway", "services/audit", "services/agents",
+    "services/orchestrator",
 ]
 addopts = "--import-mode=importlib -ra --strict-markers --strict-config -m 'not integration and not eval and not e2e'"
 asyncio_mode = "auto"

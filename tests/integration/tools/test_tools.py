@@ -64,7 +64,7 @@ async def test_search_logs_counts_redacts_flags_and_records(
     blob = json.dumps(data)
     assert "hunter2" not in blob and "AKIA" not in blob and "ops@northwind" not in blob
     assert body["untrusted"] is True and body["security"]["injection_flags"]
-    assert body["evidence_ids"][0] == f"ev_{UUID(body['tool_call_id']).hex}_0"
+    assert body["evidence_ids"][0] == f"LOG-{UUID(body['tool_call_id']).hex}-0"
     rec = row(owner, body["tool_call_id"])
     assert rec["status"] == "OK" and rec["agent_name"] is None
     assert rec["output_summary"]["items"] == len(data["items"])

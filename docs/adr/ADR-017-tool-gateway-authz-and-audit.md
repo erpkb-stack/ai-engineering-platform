@@ -55,6 +55,14 @@ hold even when the agent is fully compromised. Questions to answer:
     breaker (busy ≠ broken), one deadline for all attempts, per-attempt timeouts count as breaker
     failures, retries only for READ tools. Shared code moved to `aeoi_common.resilience`.
 
+### Amendment (Phase 8, ADR-018)
+Evidence ids changed from `ev_<call>_<n>` to **`<KIND>-<tool_call_hex>-<n>`** (kind per tool,
+per item for mixed tools: search_repository → COMMIT/PR, search_docs → DOC/RUNBOOK). Reason: the
+findings model (`EvidenceRef`) and `incident.evidence` both require a kind prefix, and an agent
+must be able to cite a gateway id without translation. New kind `CATALOG` (migration 0017).
+`search_logs` now returns an exact `total_matching` and `distinct_codes` for the window
+(the top-50 per-code list alone understated both; found in the Phase 8 review).
+
 ## Alternatives
 | Option | Why not |
 |---|---|

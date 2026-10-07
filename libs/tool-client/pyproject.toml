@@ -1,0 +1,16 @@
+[project]
+name = "aeoi-tool-client"
+version = "0.1.0"
+description = "The ONLY way agents reach external systems: a thin client for services/tool-gateway"
+requires-python = ">=3.12"
+dependencies = ["httpx>=0.27", "pydantic>=2.9", "aeoi-models"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_tool_client"]
+
+[tool.uv.sources]
+aeoi-models = { workspace = true }

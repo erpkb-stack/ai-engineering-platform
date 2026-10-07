@@ -587,6 +587,7 @@ Change vs spec: added `prompts/` (prompt versioning needs a home) and `knowledge
 | ADR-014 | LLM routing policy, fallback and cost accounting in one gateway | Proposed (Phase 5) |
 | ADR-016 | Hybrid retrieval in one SQL statement, RRF fusion, eval-gated LLM rerank | Proposed (Phase 6) |
 | ADR-017 | Tool Gateway: on-behalf-of authz (user ∩ agent allow-list), fail-closed audit via outbox | Proposed (Phase 7) |
+| ADR-018 | First agent: facts by code, labels by LLM, thin runner that records the trace | Proposed (Phase 8) |
 | ADR-015 *(planned)* | Evidence-rubric confidence bands instead of LLM percentages | to write in Phase 11 |
 
 ## 28. Development roadmap

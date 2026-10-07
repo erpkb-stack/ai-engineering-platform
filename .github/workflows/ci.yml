@@ -95,6 +95,12 @@ jobs:
             for i in $(seq 1 30); do curl -sf localhost:$p/health/live > /dev/null && break; sleep 1; done
           done
           ./scripts/smoke-phase7.sh || { tail -n 80 tools.log audit.log api.log; exit 1; }
+      - name: Log Analysis agent smoke (agents + thin orchestrator runner; FAKE model)
+        run: |
+          make agents-tokens
+          uv run uvicorn --factory aeoi_agents.main:build_app --port 8003 > agents.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf localhost:8003/health/live > /dev/null && break; sleep 1; done
+          ./scripts/smoke-phase8.sh || { tail -n 80 agents.log tools.log incident.log; exit 1; }
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200
