@@ -338,6 +338,11 @@ class ToolService:
                 "latency_ms": out.latency_ms,
                 "investigation_id": str(ctx.investigation_id) if ctx.investigation_id else None,
                 "approval_id": str(ctx.approval_id) if ctx.approval_id else None,
+                # ADR-019: which grant let a service act for this user (None = user's own token)
+                "delegation_grant": (
+                    str(ctx.user.delegation.grant_id) if ctx.user.delegation else None
+                ),
+                "delegated_to": ctx.user.delegation.actor if ctx.user.delegation else None,
                 "args": audit_input,
             },
         )

@@ -3,12 +3,14 @@
 Order of checks on every route: authenticate (401) -> rate limit (429) -> permission (403)
 -> validate body (422) -> forward. Unauthorised requests never reach internal services.
 
-Spec endpoints that belong to later phases (approvals, agents, trace, metrics) are added by
-those phases - not stubbed here, so the OpenAPI never lies. Search/documents: Phase 6.
+Spec endpoints that belong to later phases (approvals, metrics) are added by those phases -
+not stubbed here, so the OpenAPI never lies. Search/documents: Phase 6. Investigations
+(start, agents, trace, cancel): Phase 9, served by the orchestrator (ADR-019).
 """
 
 from __future__ import annotations
 
+import json
 from typing import Annotated
 from uuid import UUID
 
@@ -28,6 +30,11 @@ from aeoi_models.api.incidents import (
     IncidentPatch,
     InvestigationAccepted,
     TimelineEntry,
+)
+from aeoi_models.api.investigations import (
+    CancelInvestigation,
+    InvestigationOut,
+    InvestigationTrace,
 )
 from aeoi_models.api.search import DocumentOut, SearchRequest, SearchResponse
 from aeoi_models.api.tools import ToolInfo, ToolInvokeRequest, ToolResult
@@ -93,6 +100,13 @@ Tools = Annotated[Upstream, Depends(tools)]
 
 def audit(request: Request) -> Upstream:
     return request.app.state.upstreams["audit"]  # type: ignore[no-any-return]
+
+
+def orchestrator(request: Request) -> Upstream:
+    return request.app.state.upstreams["orchestrator"]  # type: ignore[no-any-return]
+
+
+Orchestrator = Annotated[Upstream, Depends(orchestrator)]
 
 
 Audit = Annotated[Upstream, Depends(audit)]
@@ -170,10 +184,76 @@ async def patch_incident(
 async def investigate(
     ref: str,
     request: Request,
-    up: Incidents,
+    up: Orchestrator,
     _: Annotated[Principal, Depends(guard(Perm.INVESTIGATIONS_RUN))],
 ) -> Response:
-    return await up.forward(request, f"/v1/incidents/{ref}/investigate", body=b"")
+    """Starts an investigation (orchestrator, Phase 9): 202 + Location of its status.
+    The orchestrator marks the incident INVESTIGATING as the caller (incident-service)."""
+    body = json.dumps({"incident": ref}).encode()
+    return await up.forward(
+        request, "/v1/investigations", body=body, content_type="application/json"
+    )
+
+
+@router.get(
+    "/incidents/{ref}/investigations",
+    response_model=list[InvestigationOut],
+    tags=["investigations"],
+)
+async def incident_investigations(
+    ref: str,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+) -> Response:
+    """The agents that ran for an incident, with status, model, latency, cost."""
+    return await up.forward(request, f"/v1/incidents/{ref}/investigations")
+
+
+@router.get(
+    "/investigations/{investigation_id}",
+    response_model=InvestigationOut,
+    tags=["investigations"],
+)
+async def get_investigation(
+    investigation_id: UUID,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+) -> Response:
+    return await up.forward(request, f"/v1/investigations/{investigation_id}")
+
+
+@router.get(
+    "/investigations/{investigation_id}/trace",
+    response_model=InvestigationTrace,
+    tags=["investigations"],
+)
+async def investigation_trace(
+    investigation_id: UUID,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+) -> Response:
+    """Agent executions with model, prompt version, tokens, cost and the scrubbed messages."""
+    return await up.forward(request, f"/v1/investigations/{investigation_id}/trace")
+
+
+@router.post(
+    "/investigations/{investigation_id}/cancel",
+    response_model=InvestigationOut,
+    tags=["investigations"],
+)
+async def cancel_investigation(
+    investigation_id: UUID,
+    body: CancelInvestigation,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.INVESTIGATIONS_RUN))],
+) -> Response:
+    return await up.forward(
+        request, f"/v1/investigations/{investigation_id}/cancel", body=_json(body)
+    )
 
 
 @router.get("/incidents/{ref}/timeline", response_model=list[TimelineEntry], tags=["incidents"])

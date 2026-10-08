@@ -19,6 +19,13 @@ class RagAdapter:
         self._base = base_url.rstrip("/")
 
     async def _post(self, path: str, body: dict[str, Any], ctx: ToolContext) -> Any:
+        if ctx.user.delegation is not None:
+            # rag verifies the user as a PRIMARY bearer; delegated tokens are OBO-only by
+            # design (ADR-019). Fail explicitly until rag gets an OBO path (Phase 10).
+            raise ToolExecutionError(
+                "knowledge tools do not accept delegated calls yet (ADR-019, Phase 10)",
+                status=501,
+            )
         headers = {"Authorization": f"Bearer {ctx.user_token}"}
         if ctx.correlation_id:
             headers[CORRELATION_HEADER] = ctx.correlation_id

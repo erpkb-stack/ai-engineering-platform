@@ -79,12 +79,16 @@ must be able to cite a gateway id without translation. New kind `CATALOG` (migra
   after is acceptable; the result is withheld if recording fails. CONSEQUENTIAL tools (Phase 16)
   must record intent *before* executing.
 - **Forwarding the user's JWT** means the OBO token's lifetime bounds an investigation. Phase 8/9
-  must handle expiry (refresh via the orchestrator, or token exchange).
+  must handle expiry (refresh via the orchestrator, or token exchange). **Phase 9: token
+  exchange (ADR-019)** - investigation-bound delegated tokens in the OBO slot.
 - **Rate limits are in memory** (per replica). Phase 19 moves them to Redis.
 - **Context ids are claims.** `incident_id`, `investigation_id`, `task_id` in the request are
   stored as given; nothing checks that the user works on that incident yet. So an engineer
   could attach calls to another incident's trace. Phase 9 (the orchestrator issues
   investigation ids) and Phase 16 (incident assignment) close this.
+  **Phase 9 update (ADR-019):** for DELEGATED calls this is closed - the token carries `inv`
+  and `inc`, and the gateway refuses a call claiming other ids. A user's own token (manual
+  mode, or the Phase 8 path) still asserts ids freely until Phase 16.
 - **`audit:read_incident` is treated as `read_own`** until assignment data exists: an
   `incident_id` parameter only narrows. (Found in review: as first written, the parameter
   widened an IC's scope to every actor of any incident.)

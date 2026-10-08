@@ -19,7 +19,7 @@ ROLE ?= SRE
 comma := ,
 UVICORN := uv run uvicorn --factory --log-level warning
 
-.PHONY: help doctor setup lint fmt typecheck test cov check hooks ports up down ps logs \
+.PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init clean test-integration \
         db-users token run-incident run-api dev smoke \
         service-token ollama-pull run-llm stop-llm llm-smoke \
@@ -48,7 +48,17 @@ setup: ## One-time: Python env, git hooks, .env, local secrets
 	@[ -f secrets/jwt_private.pem ] || { openssl genrsa -out secrets/jwt_private.pem 2048 2>/dev/null; \
 	  openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem 2>/dev/null; \
 	  chmod 600 secrets/jwt_private.pem; chmod 644 secrets/jwt_public.pem; echo "created dev JWT keypair"; }
+	@$(MAKE) --no-print-directory delegation-keys
 	@echo "setup done -> next: make check && make up"
+
+delegation-keys: ## Phase 9: separate key pair for delegated tokens (ADR-019); idempotent
+	@mkdir -p secrets && chmod 700 secrets
+	@# SEPARATE from the user-token keys on purpose: only the api (STS) signs with it, and a
+	@# delegated token is accepted only in the on-behalf-of slot, never as a bearer.
+	@[ -f secrets/delegation_private.pem ] || { openssl genrsa -out secrets/delegation_private.pem 2048 2>/dev/null; \
+	  openssl rsa -in secrets/delegation_private.pem -pubout -out secrets/delegation_public.pem 2>/dev/null; \
+	  chmod 600 secrets/delegation_private.pem; chmod 644 secrets/delegation_public.pem; \
+	  echo "created delegation keypair (secrets/delegation_*.pem)"; }
 
 # ---------- code quality ----------
 lint: ## Ruff lint + format check
@@ -299,18 +309,18 @@ run-audit: ## Run the audit service on :8008
 tools-smoke: ## End-to-end tool checks (needs run-api, run-tools, run-audit; run-rag for knowledge)
 	@./scripts/smoke-phase7.sh
 
-# ---------- Agents + thin orchestrator runner (Phase 8) ----------
+# ---------- Agents (Phase 8) + orchestrator service (Phase 9) ----------
 AGENTS_PORT ?= 8003
 AGENTS_PIDS = { lsof -nP -t -iTCP:$(AGENTS_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 INCIDENT ?=
 ROUTE ?=
 ORCH := uv run --quiet python -m aeoi_orchestrator
 
-agents-tokens: ## Mint dev service tokens: agents (tools+llm) and orchestrator (agents:run, evidence:write), 30 days
+agents-tokens: ## Mint dev service tokens: agents (tools+llm) and orchestrator (agents:run, evidence:write, delegation:create), 30 days
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service agents --scope tools:invoke \
 	  --scope llm:invoke --ttl-minutes 43200 > secrets/agents_service_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service orchestrator --scope agents:run \
-	  --scope evidence:write --ttl-minutes 43200 > secrets/orchestrator_service_token.txt
+	  --scope evidence:write --scope delegation:create --ttl-minutes 43200 > secrets/orchestrator_service_token.txt
 	@echo "wrote secrets/agents_service_token.txt and secrets/orchestrator_service_token.txt"
 
 stop-agents: ## Stop a running agents service (only if it really is ours)
@@ -326,6 +336,27 @@ run-agents: ## Run the agents worker on :8003 (needs run-tools, run-llm)
 	  echo "port $(AGENTS_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
 	  echo "-> run: make stop-agents"; exit 1; fi
 	$(UVICORN) aeoi_agents.main:build_app --port $(AGENTS_PORT) --reload --reload-dir services/agents --reload-dir libs
+
+ORCH_PORT ?= 8002
+ORCH_PIDS = { lsof -nP -t -iTCP:$(ORCH_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
+
+run-orch: ## Run the orchestrator service on :8002 (needs dev, run-agents; resumes RUNNING investigations on start)
+	@pids=$$($(ORCH_PIDS)); if [ -n "$$pids" ]; then \
+	  echo "port $(ORCH_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
+	  echo "-> run: make stop-orch"; exit 1; fi
+	@[ -f secrets/delegation_public.pem ] || { echo "missing delegation keys - run: make delegation-keys (then restart make dev)"; exit 1; }
+	$(UVICORN) aeoi_orchestrator.main:build_app --port $(ORCH_PORT) --reload --reload-dir services/orchestrator --reload-dir libs
+
+stop-orch: ## Stop the orchestrator (RUNNING investigations stay RUNNING and resume on the next run-orch)
+	@pids=$$($(ORCH_PIDS)); \
+	if [ -z "$$pids" ]; then echo "port $(ORCH_PORT) is free"; exit 0; fi; \
+	ps -o pid=,command= -p $$pids; \
+	if ps -o command= -p $$pids | grep -q aeoi_orchestrator; then \
+	  kill $$(echo $$pids | tr ',' ' '); sleep 1; echo "stopped orchestrator ($$pids)"; \
+	else echo "port $(ORCH_PORT) is used by something else (above). Not killing it."; exit 1; fi
+
+orch-smoke: ## End-to-end Phase 9 check incl. a crash + resume (needs dev, run-llm, run-tools, run-audit, run-agents, run-orch)
+	@./scripts/smoke-phase9.sh
 
 agent-run: ## Run the Log Analysis agent on an incident: make agent-run INCIDENT=INC-10001 [ROLE=SRE] [ROUTE=local|fast] [NOCACHE=1]
 	@test -n "$(INCIDENT)" || { echo "usage: make agent-run INCIDENT=INC-10001 [ROUTE=local|fast]"; exit 2; }

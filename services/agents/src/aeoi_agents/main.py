@@ -65,7 +65,14 @@ def build_app(
         version=__version__,
         routers=[router],
         authenticator=Authenticator(
-            settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
+            settings.jwt_public_key_file.read_text(),
+            settings.jwt_issuer,
+            settings.jwt_audience,
+            delegation_public_key=(
+                settings.delegation_public_key_file.read_text()
+                if settings.delegation_public_key_file.is_file()
+                else None
+            ),
         ),
         # stateless worker: ready = process up. A dead tool/LLM gateway shows up per task
         # (FAILED / degraded), not as "take every worker out of the load balancer".

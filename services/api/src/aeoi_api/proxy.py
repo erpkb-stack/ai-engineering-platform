@@ -30,8 +30,17 @@ class Upstream:
         self.name = name
         self.client = client
 
-    async def forward(self, request: Request, path: str, *, body: bytes | None = None) -> Response:
+    async def forward(
+        self,
+        request: Request,
+        path: str,
+        *,
+        body: bytes | None = None,
+        content_type: str | None = None,
+    ) -> Response:
         headers = {k: v for k, v in request.headers.items() if k.lower() in FORWARD_REQUEST_HEADERS}
+        if content_type is not None:  # the api built the body itself (e.g. investigate)
+            headers["content-type"] = content_type
         headers[CORRELATION_HEADER] = get_correlation_id() or ""
         attempts = 2 if request.method == "GET" else 1
         for attempt in range(1, attempts + 1):

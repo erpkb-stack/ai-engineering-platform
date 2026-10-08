@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Phase 8 smoke: Log Analysis agent end to end on the seeded demo (checkout-api, DEPLOY-4821).
-# Needs running: make dev (api+incident), make run-llm, make run-tools, make run-audit, make run-agents.
+# Needs running: make dev (api+incident), make run-llm, make run-tools, make run-audit, make run-agents,
+# and (Phase 9) make run-orch: `agent-run` now goes through the orchestrator service.
 # macOS bash 3.2 compatible. Exit 1 on any failure. ROUTE=local|fast picks the model route.
 set -u
 API="${AEOI_API_URL:-http://localhost:8000}"
@@ -11,7 +12,7 @@ warn() { echo "! $1"; note=$((note+1)); }
 json() { python3 -c "import sys,json; d=json.load(sys.stdin); print($1)"; }
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
-for pair in "api 8000" "incident 8001" "agents 8003" "llm-gateway 8005" "tool-gateway 8006"; do
+for pair in "api 8000" "incident 8001" "orchestrator 8002" "agents 8003" "llm-gateway 8005" "tool-gateway 8006"; do
   set -- $pair
   code=$(curl -s -o /dev/null -w '%{http_code}' "localhost:$2/health/live")
   [ "$code" = "200" ] && ok "$1 up" || { bad "$1 not running on :$2"; exit 1; }
@@ -55,8 +56,10 @@ PY
   grep -q "SUCCEEDED" "$TMP/trace.txt" && ok "trace row: $(cat "$TMP/trace.txt")" || bad "trace row missing: $(cat "$TMP/trace.txt")"
 fi
 
-if make -s agent-run INCIDENT="$KEY" ROLE=MANAGER > "$TMP/mgr.txt" 2>&1; then bad "MANAGER run should FAIL (no logs:read)"
-else grep -q "missing_permission" "$TMP/mgr.txt" && ok "MANAGER -> FAILED missing_permission (no facts from nothing)" || bad "MANAGER: $(head -c 200 "$TMP/mgr.txt")"; fi
+# Phase 9: a MANAGER is refused BEFORE any agent runs (no investigations:run); the agent-level
+# "missing_permission -> FAILED, no facts" case is an integration test now.
+if make -s agent-run INCIDENT="$KEY" ROLE=MANAGER > "$TMP/mgr.txt" 2>&1; then bad "MANAGER run should be refused"
+else grep -q "investigations:run" "$TMP/mgr.txt" && ok "MANAGER refused before any agent runs (no investigations:run)" || bad "MANAGER: $(head -c 200 "$TMP/mgr.txt")"; fi
 
 echo; echo "passed=$pass failed=$fail notes=$note   incident=$KEY"
 [ "$fail" = "0" ]

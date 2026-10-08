@@ -100,7 +100,7 @@ async def _context(
         )
     auth: Authenticator = request.app.state.auth
     try:
-        user = auth.verify(obo)
+        user = auth.verify_obo(obo)  # user token, or a delegated token (ADR-019)
     except AuthError as exc:
         # 403, not 401: the CALLER's own token is fine; a 401 would make it refresh and retry
         raise _ServiceDeniedError(
@@ -109,6 +109,21 @@ async def _context(
     if user.is_service:
         raise _ServiceDeniedError(
             403, DenyReason.INVALID_ON_BEHALF_OF, "On-behalf-of must be a USER token."
+        )
+    if user.delegation is not None and (
+        ids.get("investigation_id") != user.delegation.investigation_id
+        or ids.get("incident_id") != user.delegation.incident_id
+    ):
+        # a delegated token is bound to ONE investigation of ONE incident: it cannot be spent
+        # on another incident's trace or on a call that claims none (ADR-017 gap, ADR-019;
+        # review finding: binding only the investigation left incident_id a free claim).
+        # task_id stays a claim INSIDE that investigation (it only labels the record).
+        raise _ServiceDeniedError(
+            403,
+            DenyReason.DELEGATION_SCOPE_MISMATCH,
+            f"Delegated token is bound to investigation {user.delegation.investigation_id} of "
+            f"incident {user.delegation.incident_id}; this call claims investigation "
+            f"{ids.get('investigation_id')} of incident {ids.get('incident_id')}.",
         )
     service = principal.name
     if not agent_name or not request.app.state.service.policy.may_assert(service, agent_name):

@@ -117,6 +117,10 @@ TRUNCATE_ORDER = [
     "devdata.deployments",
     "devdata.pull_requests",
     "devdata.commits",
+    # Phase 9: grants reference users; a reload replaces every user, so their grants (and the
+    # grants' history) go too. Otherwise `make db-seed` fails after the first investigation.
+    "identity.delegation_events",
+    "identity.delegation_grants",
     "identity.user_groups",
     "identity.user_roles",
     "identity.users",

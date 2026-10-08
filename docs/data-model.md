@@ -57,13 +57,15 @@ erDiagram
   EVAL_RUNS ||--o{ EVALUATIONS : scores
   EVAL_CASES ||--o{ EVALUATIONS : scored
 ```
-Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, `tool_calls.incident_id/approval_id`, `evidence.tool_call_id`, `audit_events.incident_id`, and every `service_key`.
+Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, `investigations.delegation_grant_id`, `delegation_grants.investigation_id/incident_id`, `tool_calls.incident_id/approval_id`, `evidence.tool_call_id`, `audit_events.incident_id`, and every `service_key`.
 
 ## Tables
 
 ### `identity`
 | Table | Purpose | Columns |
 |---|---|---|
+| `delegation_events` | Append-only history of every grant create / issue / deny / revoke (ADR-019; no FK, svc_api cannot UPDATE/DELETE) | 8 |
+| `delegation_grants` | A service may act for ONE user in ONE investigation of ONE incident until expires_at (ADR-019, Phase 9) | 11 |
 | `groups` | Access groups (e.g. security-team). Documents list the groups allowed to read them. | 2 |
 | `permissions` | Permission strings checked by routes and the Tool Gateway | 2 |
 | `role_permissions` | Role → permission matrix (architecture.md §15) | 2 |
@@ -90,7 +92,8 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | Table | Purpose | Columns |
 |---|---|---|
 | `agent_executions` | What an agent actually did: model, prompt version, tokens, latency, cost (Feature 12). | 17 |
-| `investigations` | One AI investigation run with budget and outcome | 9 |
+| `checkpoint_blobs` / `checkpoint_migrations` / `checkpoint_writes` / `checkpoints` | LangGraph `AsyncPostgresSaver` tables, DDL owned by Alembic (0018), thread_id = investigation id (ADR-019) | 6 / 1 / 9 / 7 |
+| `investigations` | One AI investigation run with budget and outcome; Phase 9 adds delegation_grant_id, deadline_at, error | 12 |
 | `messages` | Scrubbed LLM conversation turns of an execution (debugging/replay; NOT in traces). | 7 |
 | `tasks` | One unit of agent work (an AgentTask event). Idempotent on idempotency_key. | 12 |
 
@@ -151,6 +154,8 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `devdata.ix_pull_requests_merge_commit_sha` | serves: "PR that produced commit X" (release risk analysis) |
 | `eval.ix_eval_runs_dataset_id_started_at` | serves: "runs of dataset X, newest first" (A/B comparison picker) |
 | `eval.ix_evaluations_case_id` | serves: FK lookup + "how did case X score across runs" |
+| `identity.ix_delegation_events_grant_id_created_at` | serves: ordered history of one grant |
+| `identity.ix_delegation_grants_user_id` | serves: grants of a user (revoke on deactivation, admin view); supports the FK |
 | `identity.ix_role_permissions_permission_name` | serves: "which roles grant permission X" (PK covers role -> permissions) |
 | `identity.ix_user_groups_group_name` | serves: "members of group X" (ACL audits); PK covers user -> groups at login |
 | `identity.ix_user_roles_role_name` | serves: "who has role X" (e.g. list incident commanders); PK covers user -> roles |

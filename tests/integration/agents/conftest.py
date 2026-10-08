@@ -1,25 +1,28 @@
 # ruff: noqa: F811  - fixtures imported from tools/conftest are re-used as parameters below
-"""Phase 8 end-to-end fixtures: incident-service, tool-gateway, audit, llm-gateway (fake
-providers), agents and the orchestrator runner - all in-process, real Postgres, each with its
-own least-privilege login. Only the model is fake (the Mac run uses real ones)."""
+"""End-to-end fixtures (Phase 8 + 9): incident-service, tool-gateway, audit, llm-gateway (fake
+providers), agents, the api (as token exchange) and the orchestrator SERVICE - all in-process,
+real Postgres, each with its own least-privilege login. Only the model is fake."""
 
 from __future__ import annotations
 
 import secrets
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
+from uuid import UUID, uuid4
 
 import httpx
 import psycopg
 import pytest
 from fastapi import FastAPI
 from pydantic import SecretStr
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from aeoi_agents.config import Settings as AgentSettings
 from aeoi_agents.main import build_app as build_agents
+from aeoi_api.config import Settings as ApiSettings
+from aeoi_api.main import build_app as build_api
 from aeoi_db.config import database_url, libpq_dsn
 from aeoi_db.users import ensure_login
 from aeoi_incident.config import Settings as IncidentSettings
@@ -28,7 +31,7 @@ from aeoi_incident.main import build_app as build_incident
 from aeoi_llm.config import Settings as LlmSettings
 from aeoi_llm.main import build_app as build_llm
 from aeoi_orchestrator.config import Settings as OrchSettings
-from aeoi_orchestrator.runner import Runner
+from aeoi_orchestrator.main import build_app as build_orch
 from aeoi_security.testing import KeyPair, service_token_for
 
 # re-use the Phase 7 fixtures (importing a fixture into a conftest registers it here)
@@ -40,8 +43,11 @@ from tests.integration.tools.conftest import (  # noqa: F401
     audit_db_url,
     audit_token_file,
     catalog_file,
+    dpriv,
+    dpub,
     owner,
     planted,
+    skeys,
     stub_rag,
     tkeys,
     tok,
@@ -77,6 +83,11 @@ class HostRouter(httpx.AsyncBaseTransport):
 @pytest.fixture(scope="session")
 def orch_db_url(migrated_db: str) -> str:
     return _login(migrated_db, "orch_svc_test", "svc_orchestrator")
+
+
+@pytest.fixture(scope="session")
+def api_db_url(migrated_db: str) -> str:
+    return _login(migrated_db, "api_svc_test", "svc_api")
 
 
 @pytest.fixture(scope="session")
@@ -123,11 +134,12 @@ def agents_token_file(tmp_path: Path, tkeys: KeyPair) -> Path:
 
 @pytest.fixture
 async def agents_app(
-    tpub: Path, agents_token_file: Path, tools_app: FastAPI, llm_app: FastAPI
+    tpub: Path, dpub: Path, agents_token_file: Path, tools_app: FastAPI, llm_app: FastAPI
 ) -> AsyncIterator[FastAPI]:
     app = build_agents(
         AgentSettings(
             jwt_public_key_file=tpub,
+            delegation_public_key_file=dpub,
             service_token_file=agents_token_file,
             tool_gateway_url="http://tools",
             llm_gateway_url="http://llm",
@@ -143,27 +155,101 @@ async def agents_app(
 
 @pytest.fixture
 def orch_token(tkeys: KeyPair) -> str:
-    return service_token_for(tkeys, "orchestrator", "agents:run", "evidence:write")
+    return service_token_for(
+        tkeys, "orchestrator", "agents:run", "evidence:write", "delegation:create"
+    )
 
 
 @pytest.fixture
-async def runner(
-    orch_db_url: str, orch_token: str, agents_app: FastAPI, incident_app: FastAPI
-) -> AsyncIterator[Runner]:
-    settings = OrchSettings(
-        db_url_override=SecretStr(orch_db_url),
-        incident_service_url="http://incident",
-        agents_url="http://agents",
-        environment="test",
-        log_json=False,
-    )  # type: ignore[call-arg]
-    engine = create_async_engine(settings.sqlalchemy_url(), pool_size=2)
-    http = httpx.AsyncClient(
-        transport=HostRouter({"incident": incident_app, "agents": agents_app}), timeout=60
+async def api_app(api_db_url: str, tpub: Path, dpriv: Path) -> AsyncIterator[FastAPI]:
+    """The api, here only as the token exchange (STS, ADR-019)."""
+    app = build_api(
+        ApiSettings(
+            jwt_public_key_file=tpub,
+            db_url_override=SecretStr(api_db_url),
+            delegation_private_key_file=dpriv,
+            environment="test",
+            log_json=False,
+        )  # type: ignore[call-arg]
     )
-    yield Runner(settings, async_sessionmaker(engine, expire_on_commit=False), http, orch_token)
-    await http.aclose()
-    await engine.dispose()
+    async with app.router.lifespan_context(app):
+        yield app
+
+
+class People:
+    """Users in identity.users: the STS trusts the DIRECTORY, not the token's role claims."""
+
+    def __init__(self, owner: psycopg.Connection, tok: Tokens) -> None:
+        self.owner = owner
+        self.tok = tok
+
+    def add(self, *roles: str, active: bool = True) -> UUID:
+        uid = uuid4()
+        self.owner.execute(
+            "INSERT INTO identity.users (id, external_subject, email, display_name, is_active) "
+            "VALUES (%s, %s, %s, 'Test User', %s)",
+            (uid, f"oidc|test-{uid}", f"{uid}@northwind.example", active),
+        )
+        for role in roles:
+            self.owner.execute(
+                "INSERT INTO identity.user_roles (user_id, role_name) VALUES (%s, %s)", (uid, role)
+            )
+        return uid
+
+    def token(self, uid: UUID, *claimed_roles: str) -> str:
+        """A valid user token for `uid` (the roles it CLAIMS may differ from the directory)."""
+        return self.tok.user(claimed_roles[0] if claimed_roles else "SRE", user_id=uid)
+
+
+@pytest.fixture
+def people(owner: psycopg.Connection, tok: Tokens) -> People:
+    return People(owner, tok)
+
+
+OrchFactory = Callable[..., Any]
+
+
+@pytest.fixture
+def make_orch(
+    orch_db_url: str,
+    orch_token: str,
+    tpub: Path,
+    agents_app: FastAPI,
+    incident_app: FastAPI,
+    api_app: FastAPI,
+) -> OrchFactory:
+    """`async with make_orch(**settings) as app:` = one orchestrator PROCESS (lifespan: pool
+    open, optional resume on start; exit = shutdown, rows stay RUNNING). Call it twice in one
+    test to simulate a restart. `transport` wraps the default host router."""
+
+    @asynccontextmanager
+    async def factory(
+        transport: httpx.AsyncBaseTransport | None = None, **overrides: Any
+    ) -> AsyncIterator[FastAPI]:
+        settings = OrchSettings(
+            db_url_override=SecretStr(orch_db_url),
+            jwt_public_key_file=tpub,
+            incident_service_url="http://incident",
+            agents_url="http://agents",
+            api_url="http://api",
+            environment="test",
+            log_json=False,
+            **{"resume_on_startup": False, **overrides},
+        )  # type: ignore[call-arg]
+        app = build_orch(
+            settings,
+            transport=transport
+            or HostRouter({"incident": incident_app, "agents": agents_app, "api": api_app}),
+            service_token=orch_token,
+        )
+        async with app.router.lifespan_context(app):
+            yield app
+
+    return factory
+
+
+def hosts(incident_app: FastAPI, agents_app: FastAPI, api_app: FastAPI) -> dict[str, FastAPI]:
+    return {"incident": incident_app, "agents": agents_app, "api": api_app}
 
 
 @pytest.fixture

@@ -5,7 +5,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -109,3 +119,73 @@ class UserGroup(Base):
     added_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
+
+
+DELEGATION_EVENTS = ("CREATED", "ISSUED", "DENIED", "REVOKED")
+
+
+class DelegationGrant(Base):
+    """A service may act for a user, for ONE investigation, until expires_at (ADR-019).
+
+    The grant is not a credential: tokens are minted from it on request, each time after
+    re-reading the user's roles. Revoked on finish/cancel, or when the user loses access.
+    """
+
+    __tablename__ = "delegation_grants"
+    __table_args__ = (
+        CheckConstraint("expires_at > created_at", name="expires_after_created"),
+        CheckConstraint(
+            "(revoked_at IS NULL) = (revoked_reason IS NULL)", name="revoked_has_reason"
+        ),
+        CheckConstraint("tokens_issued >= 0", name="tokens_issued_non_negative"),
+        CheckConstraint("actor LIKE 'service:%'", name="actor_is_service"),
+        # serves: "grants of user X" (revoke all on deactivation; FK cascade on user delete)
+        Index("ix_delegation_grants_user_id", "user_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    # RESTRICT, not CASCADE (review finding): an FK cascade runs as the table owner, so a
+    # DELETE on users would silently erase grants - and with them who acted for whom.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.users.id", ondelete="RESTRICT"), nullable=False
+    )
+    actor: Mapped[str] = mapped_column(String(120), nullable=False)
+    # the incident the investigation is about (soft ref): delegated tokens are bound to it too
+    incident_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    # one grant per investigation (soft ref: orchestrator schema); also the exchange's
+    # idempotency key
+    investigation_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False, unique=True
+    )
+    created_at: Mapped[datetime] = created_at_col()
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    revoked_reason: Mapped[str | None] = mapped_column(Text)
+    last_issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    tokens_issued: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
+
+class DelegationEvent(Base):
+    """Append-only history of every create / issue / deny / revoke (migration 0018 revokes
+    UPDATE/DELETE). DENIED rows may have no grant (an exchange that never created one).
+    No foreign keys: nothing - not even a cascade - can delete history from here."""
+
+    __tablename__ = "delegation_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event IN (" + ", ".join(f"'{e}'" for e in DELEGATION_EVENTS) + ")",
+            name="event_valid",
+        ),
+        # serves: history of one grant, in order
+        Index("ix_delegation_events_grant_id_created_at", "grant_id", "created_at"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    # soft ref on purpose (no FK, review finding): the history must outlive the grant row
+    grant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    investigation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    actor: Mapped[str] = mapped_column(String(120), nullable=False)
+    event: Mapped[str] = mapped_column(String(12), nullable=False)
+    detail: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = created_at_col()

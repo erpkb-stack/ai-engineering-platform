@@ -23,6 +23,7 @@ SERVICE_LOGINS: dict[str, str] = {
     "tools_svc": "svc_tool_gateway",
     "audit_svc": "svc_audit",
     "orch_svc": "svc_orchestrator",
+    "api_svc": "svc_api",  # Phase 9: identity schema only (token exchange, ADR-019)
 }
 
 

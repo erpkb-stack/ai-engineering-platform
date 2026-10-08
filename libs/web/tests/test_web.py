@@ -122,3 +122,37 @@ async def test_live_ok_but_ready_degraded(client: httpx.AsyncClient) -> None:
     r = await client.get("/health/ready")
     assert r.status_code == 503
     assert r.json()["checks"]["db"].startswith("fail")
+
+
+# ---------------------------------------------------------------- delegation (ADR-019)
+def test_verify_obo_accepts_user_and_delegated_but_primary_does_not() -> None:
+    from uuid import uuid4
+
+    from aeoi_security.auth import AuthError
+    from aeoi_security.testing import (
+        delegated_token_for,
+        generate_keypair,
+        service_token_for,
+        token_for,
+    )
+    from aeoi_web.auth import Authenticator
+
+    user_keys, sts_keys = generate_keypair(), generate_keypair()
+    auth = Authenticator(
+        user_keys.public_pem,
+        "aeoi-dev-issuer",
+        "aeoi-api",
+        delegation_public_key=sts_keys.public_pem,
+    )
+    inv = uuid4()
+    delegated = delegated_token_for(sts_keys, "SRE", investigation_id=inv)
+    assert auth.verify_obo(token_for(user_keys, "SRE")).delegation is None
+    p = auth.verify_obo(delegated)
+    assert p.delegation is not None and p.delegation.investigation_id == inv
+    with pytest.raises(AuthError):
+        auth.verify(delegated)  # never a primary bearer
+    with pytest.raises(AuthError):
+        auth.verify_obo(service_token_for(user_keys, "agents", "tools:invoke"))
+    no_sts = Authenticator(user_keys.public_pem, "aeoi-dev-issuer", "aeoi-api")
+    with pytest.raises(AuthError):
+        no_sts.verify_obo(delegated)  # a service without the key refuses delegated tokens

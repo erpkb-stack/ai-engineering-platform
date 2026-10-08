@@ -104,11 +104,13 @@ class EvidenceOut(BaseModel):
 
 
 class InvestigationAccepted(BaseModel):
-    """202 body: the investigation runs asynchronously (orchestrator, Phase 9)."""
+    """202 body: the investigation runs asynchronously. Phase 9: the orchestrator answers
+    `/investigate` and adds the investigation it started (poll `GET /investigations/{id}`)."""
 
     request_id: UUID
     incident_id: UUID
     status: str = "REQUESTED"
+    investigation_id: UUID | None = None
 
 
 class FeedbackTarget(StrEnum):

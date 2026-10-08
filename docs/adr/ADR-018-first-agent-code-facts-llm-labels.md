@@ -81,6 +81,8 @@ Phase 8 builds the first real agent, the one every later agent copies. The open 
 
 ## Consequences
 - Phase 9: the runner's steps become graph nodes; `investigation/task/execution` rows unchanged.
+  **Done (ADR-019):** `runner.py` is gone; the "cancel RUNNING after 2× deadline" heal became
+  resume-from-checkpoint; the user's JWT became an investigation-bound delegated token.
 - Phase 10: every new agent follows this pattern (code facts, LLM labels/interpretation,
   validated citations, notes for the uncitable, budget + deadline, prompt pinned by sha).
 - Phase 11: the Critic reads facts + evidence rows, never another agent's prose.

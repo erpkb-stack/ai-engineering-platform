@@ -76,6 +76,26 @@ def tpub(tmp_path_factory: pytest.TempPathFactory, tkeys: KeyPair) -> Path:
 
 
 @pytest.fixture(scope="session")
+def skeys() -> KeyPair:
+    """The STS (delegation) key pair - separate from user tokens on purpose (ADR-019)."""
+    return generate_keypair()
+
+
+@pytest.fixture(scope="session")
+def dpub(tmp_path_factory: pytest.TempPathFactory, skeys: KeyPair) -> Path:
+    p = tmp_path_factory.mktemp("skeys") / "delegation_public.pem"
+    p.write_text(skeys.public_pem)
+    return p
+
+
+@pytest.fixture(scope="session")
+def dpriv(tmp_path_factory: pytest.TempPathFactory, skeys: KeyPair) -> Path:
+    p = tmp_path_factory.mktemp("skeys_priv") / "delegation_private.pem"
+    p.write_text(skeys.private_pem)
+    return p
+
+
+@pytest.fixture(scope="session")
 def tools_db_url(migrated_db: str) -> str:
     return _login(migrated_db, "tools_svc_test", "svc_tool_gateway")
 
@@ -93,7 +113,7 @@ def planted(migrated_db: str) -> Planted:
         repo=f"northwind/tg-{tag}",
         deploy_key=f"DEPLOY-9{int(tag, 16) % 10**8}",
         sha=("ab" + tag + "0" * 40)[:40],
-        twin_prefix="fedcba9",
+        twin_prefix="f" + tag,  # unique per instance: several conftests import this fixture
         pr_number=4242,
     )
     with psycopg.connect(libpq_dsn(database=migrated_db), autocommit=True) as c:
@@ -229,10 +249,12 @@ def tools_settings(db_url: str, pub: Path, catalog: Path, token_file: Path, **kw
 @pytest.fixture
 async def tools_app(
     tools_db_url: str, tpub: Path, catalog_file: Path, audit_token_file: Path,
-    stub_rag: StubRag, audit_app: FastAPI,
+    stub_rag: StubRag, audit_app: FastAPI, dpub: Path,
 ) -> AsyncIterator[FastAPI]:  # fmt: skip
     app = build_tools(
-        tools_settings(tools_db_url, tpub, catalog_file, audit_token_file),
+        tools_settings(
+            tools_db_url, tpub, catalog_file, audit_token_file, delegation_public_key_file=dpub
+        ),
         rag_transport=httpx.ASGITransport(app=make_stub_rag(stub_rag)),
         audit_transport=httpx.ASGITransport(app=audit_app),
     )

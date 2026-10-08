@@ -1,7 +1,12 @@
-"""CLI (Phase 8). The user token comes from $AEOI_USER_TOKEN (make agent-run mints a dev one).
+"""CLI over the orchestrator SERVICE (Phase 9). Needs `make run-orch` on :8002.
+The user token comes from $AEOI_USER_TOKEN (the make targets mint a dev one).
 
-python -m aeoi_orchestrator run-log-agent INC-10001 [--start ISO --end ISO] [--route local|fast]
+python -m aeoi_orchestrator run-log-agent INC-10001 [--route local|fast] [--no-cache]
 python -m aeoi_orchestrator compare INC-10001 [--routes local,fast]   # same task, two models
+python -m aeoi_orchestrator status INC-10001
+python -m aeoi_orchestrator cancel <investigation_id> --reason "..."
+python -m aeoi_orchestrator resume <investigation_id>
+python -m aeoi_orchestrator repost-evidence <investigation_id>   # direct DB + service token
 """
 
 from __future__ import annotations
@@ -11,37 +16,108 @@ import asyncio
 import json
 import os
 import platform
+import secrets
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 import httpx
-import jwt
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from aeoi_db.config import find_repo_root
+from aeoi_models.api.agents import AgentRunResult, EvidenceItem
 from aeoi_observability import configure_logging
 from aeoi_orchestrator.config import Settings
-from aeoi_orchestrator.runner import Runner, RunnerError, RunSummary
+
+POLL_S = 2.0
 
 
-def _dt(value: str | None) -> datetime | None:
+class CliError(Exception):
+    pass
+
+
+def _dt(value: str | None) -> str | None:
     if value is None:
         return None
     dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if dt.tzinfo is None:
         raise SystemExit("--start/--end need a timezone, e.g. 2026-10-02T09:00:00Z")
-    return dt
+    return dt.isoformat()
 
 
-def _print(summary: RunSummary) -> None:
-    r = summary.result
-    print(
-        f"\n{summary.incident_key}  investigation={summary.investigation_id}  status={summary.status}"
+def _base() -> str:
+    return os.environ.get("AEOI_ORCH_URL", "http://localhost:8002").rstrip("/")
+
+
+def _client(token: str) -> httpx.Client:
+    return httpx.Client(
+        base_url=_base(),
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=30.0,
+        trust_env=False,
     )
-    if summary.error:
-        print(f"  error: {summary.error}")
+
+
+def _check(r: httpx.Response, *ok: int) -> Any:
+    if r.status_code not in ok:
+        try:
+            detail = r.json().get("detail", r.text)
+        except ValueError:
+            detail = r.text
+        raise CliError(f"HTTP {r.status_code}: {str(detail)[:400]}")
+    return r.json() if r.content else {}
+
+
+def _start_and_wait(
+    c: httpx.Client, incident: str, body_extra: dict[str, Any], timeout_s: float
+) -> tuple[dict[str, Any], AgentRunResult | None]:
+    try:
+        r = c.post(
+            "/v1/investigations",
+            json={"incident": incident, **body_extra},
+            headers={"Idempotency-Key": f"cli-{secrets.token_hex(8)}"},
+        )
+    except httpx.TransportError as exc:
+        raise CliError(
+            f"orchestrator unreachable at {_base()} ({type(exc).__name__}): is `make run-orch` running?"
+        ) from exc
+    accepted = _check(r, 202)
+    inv_id = accepted["investigation_id"]
+    print(f"  started investigation {inv_id} (polling every {POLL_S:.0f}s) ", end="", flush=True)
+    deadline = time.monotonic() + timeout_s
+    inv: dict[str, Any] = {}
+    while time.monotonic() < deadline:
+        try:
+            inv = _check(c.get(f"/v1/investigations/{inv_id}"), 200)
+        except httpx.TransportError:
+            # the orchestrator restarting is the Phase 9 crash/resume demo: keep waiting
+            print("(orchestrator down, waiting)", end="", flush=True)
+            time.sleep(POLL_S)
+            continue
+        if inv["status"] != "RUNNING":
+            break
+        print(".", end="", flush=True)
+        time.sleep(POLL_S)
+    print()
+    if inv.get("status") == "RUNNING":
+        raise CliError(f"still RUNNING after {timeout_s:.0f}s: `status {incident}` to follow it")
+    trace = _check(c.get(f"/v1/investigations/{inv_id}/trace"), 200)
+    result = None
+    for e in trace["executions"]:
+        if e["agent"] == "log_analysis" and e["output"]:
+            result = AgentRunResult.model_validate(e["output"])
+    return inv, result
+
+
+def _print(inv: dict[str, Any], r: AgentRunResult | None) -> None:
+    print(f"\ninvestigation={inv['investigation_id']}  status={inv['status']}")
+    if inv.get("error"):
+        print(f"  error: {inv['error']}")
+    for t in inv.get("tasks", []):
+        if t["attempt"] > 1:
+            print(f"  ⚠ task {t['agent']} ran {t['attempt']} times (resumed after a crash)")
     if r is None:
         return
     t = r.trace
@@ -80,81 +156,37 @@ def _print(summary: RunSummary) -> None:
             f"   {c.id} [{c.labelled_by}] {c.label}  ({c.category}, {c.count_window or '?'} in "
             f"window, {c.count_sampled} sampled){flag}"
         )
-    print(f"  evidence stored: {summary.evidence_inserted} new")
+    print(f"  evidence stored: {inv.get('evidence_inserted')} new")
 
 
-async def _runner(settings: Settings) -> tuple[Runner, Any]:
-    engine = create_async_engine(settings.sqlalchemy_url(), pool_size=settings.db_pool_size)
-    sessions = async_sessionmaker(engine, expire_on_commit=False)
-    http = httpx.AsyncClient(timeout=30.0, trust_env=False)
-    token = settings.service_token_file.read_text().strip()
-    return Runner(settings, sessions, http, token), (engine, http)
+def _timeout() -> float:
+    return Settings().investigation_deadline_s + 30
 
 
-async def _close(handles: Any) -> None:
-    engine, http = handles
-    await http.aclose()
-    await engine.dispose()
-
-
-def _requested_by(token: str) -> str:
-    """Who asked, for the investigation row. Read WITHOUT verifying: this string is a label;
-    the token itself is verified by every service it is sent to (incident, agents, tools)."""
-    try:
-        claims = jwt.decode(token, options={"verify_signature": False})
-        return f"user:{claims['uid']}"
-    except (jwt.PyJWTError, KeyError):
-        return "user:unknown"
-
-
-def _git() -> str:
-    try:
-        out = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607 - dev CLI, git on PATH
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=find_repo_root(),
-        )
-        return out.stdout.strip() or "unknown"
-    except OSError:
-        return "unknown"
-
-
-async def run_one(args: argparse.Namespace, user_token: str) -> int:
-    runner, handles = await _runner(Settings())
-    try:
-        summary = await runner.run_log_analysis(
-            args.incident,
-            user_token,
-            start=_dt(args.start),
-            end=_dt(args.end),
-            llm_route=args.route,
-            llm_cache=not args.no_cache,
-            requested_by=_requested_by(user_token),
-        )
-    except RunnerError as exc:
-        print(f"✘ {exc}", file=sys.stderr)
-        return 1
-    finally:
-        await _close(handles)
+def run_one(args: argparse.Namespace, token: str) -> int:
+    extra: dict[str, Any] = {"llm_cache": not args.no_cache}
+    if args.route:
+        extra["llm_route"] = args.route
+    if args.start:
+        extra |= {"start": _dt(args.start), "end": _dt(args.end)}
+    with _client(token) as c:
+        inv, result = _start_and_wait(c, args.incident, extra, _timeout())
     if args.json:
-        print(summary.result.model_dump_json(indent=2) if summary.result else "{}")
+        print(result.model_dump_json(indent=2) if result else "{}")
     else:
-        _print(summary)
-    return 0 if summary.status == "COMPLETE" else 1
+        _print(inv, result)
+    return 0 if inv["status"] == "COMPLETE" else 1
 
 
-def _row(route: str, s: RunSummary) -> dict[str, Any]:
-    r = s.result
+def _row(route: str, inv: dict[str, Any], r: AgentRunResult | None) -> dict[str, Any]:
     if r is None:
-        return {"route": route, "status": s.status, "error": s.error}
+        return {"route": route, "status": inv["status"], "error": inv.get("error")}
     t = r.trace
     llm = t.llm_calls[-1] if t.llm_calls else None
     return {
         "route": route,
-        "status": s.status,
-        "investigation_id": str(s.investigation_id),
+        "status": inv["status"],
+        "investigation_id": inv["investigation_id"],
         "model": t.model,
         "fallback_used": llm.fallback_used if llm else None,
         "cached": t.cached,
@@ -199,8 +231,7 @@ def _usable_chains(gateway: dict[str, Any], routes: list[str]) -> dict[str, list
 def _route_chains(routes: list[str]) -> dict[str, Any] | None:
     """Ask the llm-gateway which models each route resolves to (dev preflight; uses the agents
     token, which has llm:invoke). None = could not check."""
-    root = find_repo_root()
-    token_file = root / "secrets" / "agents_service_token.txt"
+    token_file = find_repo_root() / "secrets" / "agents_service_token.txt"
     url = os.environ.get("AEOI_ORCH_LLM_GATEWAY_URL", "http://localhost:8005")
     try:
         r = httpx.get(
@@ -219,7 +250,21 @@ def _route_chains(routes: list[str]) -> dict[str, Any] | None:
         return None
 
 
-async def compare(args: argparse.Namespace, user_token: str) -> int:
+def _git() -> str:
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607 - dev CLI, git on PATH
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=find_repo_root(),
+        )
+        return out.stdout.strip() or "unknown"
+    except OSError:
+        return "unknown"
+
+
+def compare(args: argparse.Namespace, token: str) -> int:
     routes = [r.strip() for r in args.routes.split(",")]
     info = _route_chains(routes)
     chains = None if info is None else info["chains"]
@@ -245,33 +290,22 @@ async def compare(args: argparse.Namespace, user_token: str) -> int:
             )
             return 2
     rows = []
-    for route in routes:
-        runner, handles = await _runner(Settings())
-        try:
-            s = await runner.run_log_analysis(
-                args.incident,
-                user_token,
-                start=_dt(args.start),
-                end=_dt(args.end),
-                llm_route=route.strip(),
-                llm_cache=False,  # a cache hit is not a model run: never compare cached answers
-                requested_by=_requested_by(user_token),
-            )
-        except RunnerError as exc:
-            print(f"✘ {route}: {exc}", file=sys.stderr)
-            return 1
-        finally:
-            await _close(handles)
-        _print(s)
-        if s.result is None:  # infrastructure failure, not a model result: nothing to compare
-            print(
-                f"\n✘ {route}: the run produced no result ({s.error}). Stopped before the next\n"
-                "  route; no comparison file written. Check that make run-agents, run-tools,\n"
-                "  run-llm and dev are all running, then retry.",
-                file=sys.stderr,
-            )
-            return 1
-        rows.append(_row(route.strip(), s))
+    with _client(token) as c:
+        for route in routes:
+            extra: dict[str, Any] = {"llm_route": route, "llm_cache": False}  # never compare cache
+            if args.start:
+                extra |= {"start": _dt(args.start), "end": _dt(args.end)}
+            inv, result = _start_and_wait(c, args.incident, extra, _timeout())
+            _print(inv, result)
+            if result is None:  # infrastructure failure, not a model result: nothing to compare
+                print(
+                    f"\n✘ {route}: the run produced no result ({inv.get('error')}). Stopped before\n"
+                    "  the next route; no comparison file written. Check that run-orch, run-agents,\n"
+                    "  run-tools, run-llm and dev are all running, then retry.",
+                    file=sys.stderr,
+                )
+                return 1
+            rows.append(_row(route, inv, result))
     facts_equal = _facts_equal(rows)
     models = [r.get("model") for r in rows]
     valid = (
@@ -306,8 +340,8 @@ async def compare(args: argparse.Namespace, user_token: str) -> int:
         json.dumps(
             {
                 "kind": "agent-model-comparison",
-                "caveat": "ONE incident, one run per model: an anecdote, not an eval. Do not quote as a "
-                "quality number; quote latency/cost/repair counts with n=1.",
+                "caveat": "ONE incident, one run per model: an anecdote, not an eval. Do not quote "
+                "as a quality number; quote latency/cost/repair counts with n=1.",
                 "environment": {
                     "git_commit": _git(),
                     "host": platform.node(),
@@ -327,41 +361,103 @@ async def compare(args: argparse.Namespace, user_token: str) -> int:
     return 0 if facts_equal and all(r["status"] == "COMPLETE" for r in rows) else 1
 
 
-async def status(args: argparse.Namespace, user_token: str) -> int:
-    runner, handles = await _runner(Settings())
-    try:
-        rows = await runner.status(await runner.incident_id(args.incident, user_token))
-    except RunnerError as exc:
-        print(f"✘ {exc}", file=sys.stderr)
-        return 1
-    finally:
-        await _close(handles)
+def _utc(iso: str) -> str:
+    """Display in UTC. Mac finding (Phase 8 facts, again here): slicing an ISO string with a
+    -05:00 offset and appending 'Z' prints local time labelled as UTC - 5 hours wrong."""
+    return datetime.fromisoformat(iso).astimezone(UTC).strftime("%Y-%m-%d %H:%M:%SZ")
+
+
+def status(args: argparse.Namespace, token: str) -> int:
+    with _client(token) as c:
+        rows = _check(c.get(f"/v1/incidents/{args.incident}/investigations"), 200)
     if not rows:
         print("no investigations")
-    for r in rows:
-        print(
-            f"{r['started_at']}  {r['status']:<10} task={r['task'] or '-':<9} "
-            f"{r['seconds'] if r['seconds'] is not None else '…'}s  route={r['route'] or '-'} "
-            f"model={r['model'] or '-'}  {r['investigation']}"
+    for inv in rows:
+        secs = (
+            int(
+                (
+                    datetime.fromisoformat(inv["finished_at"])
+                    - datetime.fromisoformat(inv["started_at"])
+                ).total_seconds()
+            )
+            if inv["finished_at"]
+            else None
         )
-        for key in ("degraded", "error"):
-            if r[key]:
-                print(f"    {key}: {r[key]}")
+        tasks = ", ".join(
+            f"{t['agent']}={t['status']}" + (f"(x{t['attempt']})" if t["attempt"] > 1 else "")
+            for t in inv["tasks"]
+        )
+        route = (inv.get("plan") or {}).get("route") or "-"
+        print(
+            f"{_utc(inv['started_at'])}  {inv['status']:<10} {secs if secs is not None else '…'}s"
+            f"  route={route}  {tasks or 'no tasks'}  {inv['investigation_id']}"
+        )
+        if inv["status"] == "RUNNING" and inv.get("graph_next"):
+            print(f"    next step: {', '.join(inv['graph_next'])}")
+        if inv.get("error"):
+            print(f"    error: {inv['error']}")
+        for t in inv["tasks"]:
+            if t.get("degraded"):
+                print(f"    degraded ({t['agent']}): {t['degraded']}")
+    return 0
+
+
+def control(args: argparse.Namespace, token: str) -> int:
+    with _client(token) as c:
+        if args.cmd == "cancel":
+            inv = _check(
+                c.post(
+                    f"/v1/investigations/{args.investigation_id}/cancel",
+                    json={"reason": args.reason},
+                ),
+                200,
+            )
+        else:
+            inv = _check(c.post(f"/v1/investigations/{args.investigation_id}/resume"), 200)
+    print(f"{inv['investigation_id']}  status={inv['status']}  next={inv.get('graph_next')}")
     return 0
 
 
 async def repost(args: argparse.Namespace) -> int:
-    from uuid import UUID
+    """Retry the evidence POST of a FAILED investigation from its recorded batches."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    runner, handles = await _runner(Settings())
-    try:
-        n = await runner.repost_evidence(UUID(args.investigation_id))
-    except RunnerError as exc:
-        print(f"✘ {exc}", file=sys.stderr)
-        return 1
-    finally:
-        await _close(handles)
-    print(f"✔ evidence re-posted: {n} new row(s)")
+    from aeoi_orchestrator.clients import CallError, IncidentClient
+    from aeoi_orchestrator.store import Store
+
+    settings = Settings()
+    engine = create_async_engine(settings.sqlalchemy_url(), pool_size=1)
+    store = Store(async_sessionmaker(engine, expire_on_commit=False))
+    inv_id = UUID(args.investigation_id)
+    async with httpx.AsyncClient(timeout=30.0, trust_env=False) as http:
+        incidents = IncidentClient(
+            http, settings.incident_service_url, settings.service_token_file.read_text().strip()
+        )
+        try:
+            inv = await store.get(inv_id)
+            if inv is None:
+                print("✘ unknown investigation", file=sys.stderr)
+                return 1
+            inserted = 0
+            for t in await store.tasks(inv_id):
+                if t["status"] != "SUCCEEDED":
+                    continue
+                items = [
+                    EvidenceItem.model_validate(e) for e in await store.evidence_of(t["task_id"])
+                ]
+                if items:
+                    inserted += await incidents.post_evidence(
+                        str(inv.incident_id), inv_id, t["agent"], items, f"{t['agent']}: repost"
+                    )
+            reopened = await store.complete_after_repost(inv_id)
+        except CallError as exc:
+            print(f"✘ {exc}", file=sys.stderr)
+            return 1
+        finally:
+            await engine.dispose()
+    print(
+        f"✔ evidence re-posted: {inserted} new row(s){'; investigation now COMPLETE' if reopened else ''}"
+    )
     return 0
 
 
@@ -372,8 +468,13 @@ def main(argv: list[str] | None = None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = p.add_subparsers(dest="cmd", required=True)
-    st = sub.add_parser("status", help="investigations of an incident (needs AEOI_USER_TOKEN)")
+    st = sub.add_parser("status", help="investigations of an incident")
     st.add_argument("incident")
+    for name in ("cancel", "resume"):
+        cp = sub.add_parser(name)
+        cp.add_argument("investigation_id")
+        if name == "cancel":
+            cp.add_argument("--reason", default="cancelled from the CLI")
     rp = sub.add_parser("repost-evidence", help="retry the evidence POST of an investigation")
     rp.add_argument("investigation_id")
     for name in ("run-log-agent", "compare"):
@@ -391,21 +492,24 @@ def main(argv: list[str] | None = None) -> int:
             sp.add_argument("--routes", default="local,fast")
             sp.add_argument("--allow-same-model", action="store_true")
     args = p.parse_args(argv)
-    if args.cmd == "status":
-        token = os.environ.get("AEOI_USER_TOKEN", "").strip()
-        configure_logging("orchestrator", level="WARNING", json_output=False)
-        return asyncio.run(status(args, token))
+    configure_logging("orchestrator", level="WARNING", json_output=False)
     if args.cmd == "repost-evidence":
-        configure_logging("orchestrator", level="WARNING", json_output=False)
         return asyncio.run(repost(args))
     token = os.environ.get("AEOI_USER_TOKEN", "").strip()
     if not token:
-        print("set AEOI_USER_TOKEN (make agent-run does it for you)", file=sys.stderr)
+        print("set AEOI_USER_TOKEN (the make targets do it for you)", file=sys.stderr)
         return 2
-    configure_logging("orchestrator", level="WARNING", json_output=False)
-    if args.cmd == "run-log-agent":
-        return asyncio.run(run_one(args, token))
-    return asyncio.run(compare(args, token))
+    try:
+        if args.cmd == "run-log-agent":
+            return run_one(args, token)
+        if args.cmd == "compare":
+            return compare(args, token)
+        if args.cmd == "status":
+            return status(args, token)
+        return control(args, token)
+    except CliError as exc:
+        print(f"✘ {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
