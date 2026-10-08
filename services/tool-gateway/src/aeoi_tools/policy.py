@@ -38,6 +38,7 @@ class DenyReason(StrEnum):
     SERVICE_WITHOUT_USER = "service_without_user"
     UNTRUSTED_AGENT_ASSERTION = "untrusted_agent_assertion"
     INVALID_ON_BEHALF_OF = "invalid_on_behalf_of"
+    DELEGATION_SCOPE_MISMATCH = "delegation_scope_mismatch"
 
 
 @dataclass(frozen=True)

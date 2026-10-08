@@ -108,7 +108,14 @@ def build_app(
         version=__version__,
         routers=[router],
         authenticator=Authenticator(
-            settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
+            settings.jwt_public_key_file.read_text(),
+            settings.jwt_issuer,
+            settings.jwt_audience,
+            delegation_public_key=(
+                settings.delegation_public_key_file.read_text()
+                if settings.delegation_public_key_file.is_file()
+                else None
+            ),
         ),
         # Ready = we can RECORD calls. rag/audit being down degrades some tools / delays
         # audit delivery; it must not take every tool out of the load balancer.

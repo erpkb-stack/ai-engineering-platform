@@ -8,6 +8,10 @@ Hard rules:
 - Algorithm is pinned (RS256). `alg=none` and HS256-with-public-key confusion are rejected.
 - `exp`, `iat`, `iss`, `aud`, `sub` are required.
 - Identity comes ONLY from the verified token, never from a request body or header.
+
+Delegated tokens (ADR-019) are a second, separate kind: issued by the api's token exchange
+(`iss=aeoi-sts`, `aud=aeoi-internal`, own key pair), bound to one investigation, accepted ONLY
+in the on-behalf-of slot (`verify_delegated_token`), never as a primary bearer.
 """
 
 from __future__ import annotations
@@ -25,10 +29,23 @@ ALGORITHM = "RS256"
 DEFAULT_ISSUER = "aeoi-dev-issuer"
 DEFAULT_AUDIENCE = "aeoi-api"
 SERVICE_PREFIX = "service:"
+DELEGATION_ISSUER = "aeoi-sts"
+DELEGATION_AUDIENCE = "aeoi-internal"
+DELEGATED_TOKEN_USE = "delegated"  # noqa: S105 - claim value, not a secret
 
 
 class AuthError(Exception):
     """Token missing/invalid. Maps to HTTP 401 (never leak *why* to the client)."""
+
+
+@dataclass(frozen=True)
+class Delegation:
+    """Present when a USER principal came from a delegated token (ADR-019)."""
+
+    grant_id: UUID
+    investigation_id: UUID
+    incident_id: UUID  # review finding: binding the investigation alone left incident_id a claim
+    actor: str  # e.g. service:orchestrator - who acts for the user (RFC 8693 `act.sub`)
 
 
 @dataclass(frozen=True)
@@ -41,6 +58,7 @@ class Principal:
     groups: frozenset[str]
     permissions: frozenset[Perm] = field(default_factory=frozenset)
     scopes: frozenset[str] = field(default_factory=frozenset)  # service principals only
+    delegation: Delegation | None = None  # set only by verify_delegated_token
 
     @property
     def is_service(self) -> bool:
@@ -75,6 +93,10 @@ def verify_token(
         )
     except jwt.PyJWTError as exc:
         raise AuthError(type(exc).__name__) from exc
+    if claims.get("token_use") == DELEGATED_TOKEN_USE or "act" in claims:
+        # defence in depth: even if keys/issuers were misconfigured to overlap, a delegated
+        # token is never a primary bearer credential (ADR-019)
+        raise AuthError("delegated token used as a bearer")
     try:
         subject = str(claims["sub"])
         if subject.startswith(SERVICE_PREFIX):
@@ -103,6 +125,105 @@ def verify_token(
         )
     except (KeyError, ValueError, TypeError) as exc:
         raise AuthError("malformed claims") from exc
+
+
+def verify_delegated_token(
+    token: str,
+    *,
+    public_key: str,
+    issuer: str = DELEGATION_ISSUER,
+    audience: str = DELEGATION_AUDIENCE,
+    # small on purpose: the token lives 5 min, revocation cannot reach issued tokens, so clock
+    # skew allowance directly extends the after-revoke window (review finding)
+    leeway_s: int = 5,
+) -> Principal:
+    """A delegated USER principal, or AuthError. Every binding claim is required: a token
+    without `inv`/`grt`/`act` is not a delegated token, whatever else it carries."""
+    try:
+        claims: dict[str, Any] = jwt.decode(
+            token,
+            public_key,
+            algorithms=[ALGORITHM],
+            issuer=issuer,
+            audience=audience,
+            leeway=leeway_s,
+            options={
+                "require": ["exp", "iat", "iss", "aud", "sub", "uid", "inv", "inc", "grt", "act"]
+            },
+        )
+    except jwt.PyJWTError as exc:
+        raise AuthError(type(exc).__name__) from exc
+    try:
+        if claims.get("token_use") != DELEGATED_TOKEN_USE:
+            raise ValueError("not a delegated token")
+        subject = str(claims["sub"])
+        if subject.startswith(SERVICE_PREFIX):
+            raise ValueError("a service cannot be delegated")
+        act = claims["act"]
+        actor = str(act["sub"]) if isinstance(act, dict) else ""
+        if not actor.startswith(SERVICE_PREFIX):
+            raise ValueError("actor must be a service")
+        roles = frozenset(str(r) for r in claims.get("roles", []))
+        return Principal(
+            subject=subject,
+            user_id=UUID(str(claims["uid"])),
+            email=str(claims.get("email", "")),
+            name=str(claims.get("name", "")),
+            roles=roles,
+            groups=frozenset(str(g) for g in claims.get("groups", [])),
+            permissions=permissions_for(roles),
+            delegation=Delegation(
+                grant_id=UUID(str(claims["grt"])),
+                investigation_id=UUID(str(claims["inv"])),
+                incident_id=UUID(str(claims["inc"])),
+                actor=actor,
+            ),
+        )
+    except (KeyError, ValueError, TypeError) as exc:
+        raise AuthError("malformed delegated claims") from exc
+
+
+def issue_delegated_token(
+    *,
+    private_key: str,
+    subject: str,
+    user_id: UUID,
+    email: str,
+    name: str,
+    roles: list[str],
+    groups: list[str],
+    actor: str,
+    investigation_id: UUID,
+    incident_id: UUID,
+    grant_id: UUID,
+    expires_at: datetime,
+    now: datetime | None = None,
+    issuer: str = DELEGATION_ISSUER,
+    audience: str = DELEGATION_AUDIENCE,
+) -> str:
+    """Token-exchange output (the api's STS, ADR-019). Callers bound `expires_at`."""
+    issued = now or datetime.now(UTC)
+    if expires_at <= issued:
+        raise ValueError("expires_at must be in the future")
+    payload = {
+        "iss": issuer,
+        "aud": audience,
+        "sub": subject,
+        "uid": str(user_id),
+        "email": email,
+        "name": name,
+        "roles": roles,
+        "groups": groups,
+        "act": {"sub": actor},
+        "inv": str(investigation_id),
+        "inc": str(incident_id),
+        "grt": str(grant_id),
+        "token_use": DELEGATED_TOKEN_USE,
+        "iat": int(issued.timestamp()),
+        "exp": int(expires_at.timestamp()),
+        "jti": str(uuid4()),
+    }
+    return jwt.encode(payload, private_key, algorithm=ALGORITHM)
 
 
 def issue_token(

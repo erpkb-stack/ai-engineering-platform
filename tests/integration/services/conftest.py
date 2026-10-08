@@ -79,11 +79,44 @@ async def client(incident_app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
         yield c
 
 
+class FakeOrchestrator(httpx.AsyncBaseTransport):
+    """Records what the api forwards to the orchestrator (Phase 9); answers like it does.
+    The real orchestrator path is tested end to end in tests/integration/agents."""
+
+    def __init__(self) -> None:
+        self.requests: list[httpx.Request] = []
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        await request.aread()
+        self.requests.append(request)
+        inv = "01a11400-0000-7000-8000-000000000001"
+        return httpx.Response(
+            202,
+            json={
+                "request_id": "01a11400-0000-7000-8000-000000000002",
+                "incident_id": "01a11400-0000-7000-8000-000000000003",
+                "status": "RUNNING",
+                "investigation_id": inv,
+            },
+            headers={"Location": f"/v1/investigations/{inv}"},
+        )
+
+
 @pytest.fixture
-async def api_client(incident_app: FastAPI, pubfile: Path) -> AsyncIterator[httpx.AsyncClient]:
+def fake_orchestrator() -> FakeOrchestrator:
+    return FakeOrchestrator()
+
+
+@pytest.fixture
+async def api_client(
+    incident_app: FastAPI, pubfile: Path, fake_orchestrator: FakeOrchestrator
+) -> AsyncIterator[httpx.AsyncClient]:
     api = build_api(
         ApiSettings(jwt_public_key_file=pubfile, environment="test"),  # type: ignore[arg-type]
-        transports={"incident-service": httpx.ASGITransport(app=incident_app)},
+        transports={
+            "incident-service": httpx.ASGITransport(app=incident_app),
+            "orchestrator": fake_orchestrator,
+        },
         limiter=InMemoryTokenBucket(rate_per_s=100, burst=100),
     )
     async with httpx.AsyncClient(

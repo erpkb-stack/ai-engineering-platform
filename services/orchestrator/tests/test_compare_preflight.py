@@ -37,3 +37,10 @@ def test_facts_equal_needs_facts() -> None:
     assert not _facts_equal([{"facts": ["a"]}, {"facts": ["b"]}])
     assert not _facts_equal([{"status": "FAILED"}, {"status": "FAILED"}])
     assert not _facts_equal([{"facts": []}, {"facts": []}])
+
+
+def test_status_times_are_utc_not_local_labelled_z() -> None:
+    from aeoi_orchestrator.__main__ import _utc
+
+    assert _utc("2026-10-06T23:34:01-05:00") == "2026-10-07 04:34:01Z"
+    assert _utc("2026-10-07T04:34:01+00:00") == "2026-10-07 04:34:01Z"

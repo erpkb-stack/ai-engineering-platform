@@ -9,7 +9,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from aeoi_common.errors import ForbiddenError, UnauthorizedError
-from aeoi_security.auth import AuthError, Principal, verify_token
+from aeoi_security.auth import AuthError, Principal, verify_delegated_token, verify_token
 from aeoi_security.rbac import Perm
 
 _bearer = HTTPBearer(auto_error=False)
@@ -18,15 +18,38 @@ _bearer = HTTPBearer(auto_error=False)
 class Authenticator:
     """Holds the verification key/issuer/audience; stored on app.state.auth."""
 
-    def __init__(self, public_key: str, issuer: str, audience: str) -> None:
+    def __init__(
+        self,
+        public_key: str,
+        issuer: str,
+        audience: str,
+        *,
+        delegation_public_key: str | None = None,
+    ) -> None:
         self.public_key = public_key
         self.issuer = issuer
         self.audience = audience
+        # None = this service does not accept delegated tokens at all (ADR-019)
+        self.delegation_public_key = delegation_public_key
 
     def verify(self, token: str) -> Principal:
+        """PRIMARY bearer: user or service tokens from the IdP. Never a delegated token."""
         return verify_token(
             token, public_key=self.public_key, issuer=self.issuer, audience=self.audience
         )
+
+    def verify_obo(self, token: str) -> Principal:
+        """The on-behalf-of slot (next to an authenticated SERVICE token): a USER principal
+        from a user token or, if configured, a delegated token. Services are refused."""
+        try:
+            user = self.verify(token)
+        except AuthError:
+            if self.delegation_public_key is None:
+                raise
+            user = verify_delegated_token(token, public_key=self.delegation_public_key)
+        if user.is_service:
+            raise AuthError("on-behalf-of must be a user")
+        return user
 
 
 async def current_principal(

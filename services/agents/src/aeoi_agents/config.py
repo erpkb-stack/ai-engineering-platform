@@ -42,6 +42,10 @@ class Settings(BaseServiceSettings):
     service_name: str = "agents"
     port: int = 8003
     jwt_public_key_file: Path = Field(default_factory=lambda: _secret("jwt_public.pem"))
+    # ADR-019: delegated tokens are accepted in the on-behalf-of slot only if this file exists
+    delegation_public_key_file: Path = Field(
+        default_factory=lambda: _secret("delegation_public.pem")
+    )
     jwt_issuer: str = "aeoi-dev-issuer"
     jwt_audience: str = "aeoi-api"
 

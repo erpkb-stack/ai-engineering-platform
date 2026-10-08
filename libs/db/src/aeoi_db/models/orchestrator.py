@@ -1,6 +1,10 @@
 """orchestrator schema - owner: orchestrator. Investigations, agent tasks and executions.
 
-LangGraph's own checkpoint tables are created by its PostgresSaver (Phase 9), not here.
+Phase 9 (ADR-019): LangGraph's checkpoint tables are declared here too, column for column as
+langgraph-checkpoint-postgres creates them, so Alembic owns the DDL (single stream, no CREATE
+privilege at runtime) and `make db-check` sees no drift. The saver's `setup()` is never
+called; migration 0018 records its migration versions as applied, and a test fails if a new
+library version adds a migration we have not mirrored.
 """
 
 from __future__ import annotations
@@ -16,6 +20,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     SmallInteger,
     String,
@@ -66,6 +71,11 @@ class Investigation(Base):
     spent_usd: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, server_default="0")
     started_at: Mapped[datetime] = created_at_col()
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 9: identity.delegation_grants.id (soft ref, other schema); null for Phase 8 rows
+    delegation_grant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # whole-investigation deadline: resume after it = FAILED, not a late run
+    deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
 
 
 class Task(Base):
@@ -154,3 +164,63 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = created_at_col()
+
+
+# ---------------------------------------------------------------- LangGraph checkpoints
+# Mirrors langgraph.checkpoint.postgres.base.MIGRATIONS (v0-v9). Names are the library's:
+# its queries use them unqualified (search_path=orchestrator on the saver's connections).
+CHECKPOINT_MIGRATIONS = 10
+
+
+class CheckpointMigration(Base):
+    __tablename__ = "checkpoint_migrations"
+    __table_args__ = {"schema": SCHEMA}
+    v: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+
+class Checkpoint(Base):
+    __tablename__ = "checkpoints"
+    __table_args__ = (
+        Index("checkpoints_thread_id_idx", "thread_id"),
+        {"schema": SCHEMA},
+    )
+    thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    checkpoint_ns: Mapped[str] = mapped_column(Text, primary_key=True, server_default="")
+    checkpoint_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    parent_checkpoint_id: Mapped[str | None] = mapped_column(Text)
+    type: Mapped[str | None] = mapped_column(Text)
+    checkpoint: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    metadata_: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSONB, nullable=False, server_default=EMPTY_JSON
+    )
+
+
+class CheckpointBlob(Base):
+    __tablename__ = "checkpoint_blobs"
+    __table_args__ = (
+        Index("checkpoint_blobs_thread_id_idx", "thread_id"),
+        {"schema": SCHEMA},
+    )
+    thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    checkpoint_ns: Mapped[str] = mapped_column(Text, primary_key=True, server_default="")
+    channel: Mapped[str] = mapped_column(Text, primary_key=True)
+    version: Mapped[str] = mapped_column(Text, primary_key=True)
+    type: Mapped[str] = mapped_column(Text, nullable=False)
+    blob: Mapped[bytes | None] = mapped_column(LargeBinary)
+
+
+class CheckpointWrite(Base):
+    __tablename__ = "checkpoint_writes"
+    __table_args__ = (
+        Index("checkpoint_writes_thread_id_idx", "thread_id"),
+        {"schema": SCHEMA},
+    )
+    thread_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    checkpoint_ns: Mapped[str] = mapped_column(Text, primary_key=True, server_default="")
+    checkpoint_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    task_id: Mapped[str] = mapped_column(Text, primary_key=True)
+    idx: Mapped[int] = mapped_column(Integer, primary_key=True)
+    channel: Mapped[str] = mapped_column(Text, nullable=False)
+    type: Mapped[str | None] = mapped_column(Text)
+    blob: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    task_path: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
