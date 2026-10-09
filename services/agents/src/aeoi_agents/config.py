@@ -36,6 +36,42 @@ class LogAgentBudget(BaseServiceSettings):
     min_time_for_llm_s: float = 10.0
 
 
+class MetricsBudget(BaseServiceSettings):
+    """Metrics agent (code only, no LLM - ADR-020)."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AEOI_AGENTS_METRICS_", extra="ignore", frozen=True
+    )
+
+    # 9 metrics x 2 services; the gateway burst is 20 per (user, tool) - stay below it
+    max_tool_calls: int = 18
+    baseline_min: int = 120  # baseline = this many minutes BEFORE the window
+    max_points: int = 300  # 1-minute buckets for a <= 5 h query
+    z_threshold: float = 4.0
+    min_shift_buckets: int = 3
+    max_facts: int = 20
+    task_deadline_s: float = 60.0
+
+
+class DeploymentBudget(BaseServiceSettings):
+    model_config = SettingsConfigDict(env_prefix="AEOI_AGENTS_DEPLOY_", extra="ignore", frozen=True)
+
+    lookback_h: int = 6  # a deploy hours before the window can still be the cause
+    max_deploys_per_service: int = 5
+    max_config_diffs: int = 6
+    task_deadline_s: float = 60.0
+
+
+class KnowledgeBudget(BaseServiceSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="AEOI_AGENTS_KNOWLEDGE_", extra="ignore", frozen=True
+    )
+
+    runbooks_k: int = 3
+    docs_k: int = 3
+    task_deadline_s: float = 60.0
+
+
 class Settings(BaseServiceSettings):
     model_config = SettingsConfigDict(env_prefix="AEOI_AGENTS_", extra="ignore", frozen=True)
 

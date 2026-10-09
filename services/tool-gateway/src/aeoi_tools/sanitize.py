@@ -14,6 +14,7 @@ The result is labelled `untrusted: true`. Prompt builders MUST wrap it with
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -50,7 +51,17 @@ def evidence_id(kind: str, call_id: UUID, index: int) -> str:
     return f"{kind}-{call_id.hex}-{index}"
 
 
+# A canonical UUID is an IDENTIFIER: it can hold no secret, PII or instruction, and the PII
+# scrubber mangled some (Phase 10 finding: "00000000-0000-0000-..." became "[CARD]..." and the
+# knowledge agent could not parse the document id). Exact shape only - nothing around it.
+_UUID = re.compile(
+    r"\A[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\Z"
+)
+
+
 def _clean_str(value: str, report: SanitizeReport, where: str, ev: str | None) -> str:
+    if _UUID.match(value):
+        return value
     # NUL: Postgres JSONB rejects \u0000, so one NUL would make the RECORD fail (-> no audit row).
     value = value.replace("\x00", "")
     # Redact BEFORE truncating: a cut through the middle of a token would leave a prefix that

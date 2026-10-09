@@ -11,8 +11,20 @@ from fastapi import FastAPI
 
 from aeoi_agents import __version__
 from aeoi_agents.api import router
-from aeoi_agents.config import LogAgentBudget, Settings
+from aeoi_agents.config import (
+    DeploymentBudget,
+    KnowledgeBudget,
+    LogAgentBudget,
+    MetricsBudget,
+    Settings,
+)
+from aeoi_agents.deployment.agent import DeploymentAgent
+from aeoi_agents.deployment.agent import Deps as DeployDeps
+from aeoi_agents.knowledge.agent import Deps as KnowledgeDeps
+from aeoi_agents.knowledge.agent import KnowledgeAgent
 from aeoi_agents.log_analysis.agent import Deps, LogAnalysisAgent
+from aeoi_agents.metrics.agent import Deps as MetricsDeps
+from aeoi_agents.metrics.agent import MetricsAgent
 from aeoi_llm_client import HttpLLMClient, LLMClient
 from aeoi_tool_client import HttpToolClient, ToolClient
 from aeoi_web import Authenticator, create_app
@@ -86,4 +98,11 @@ def build_app(
     app.state.log_agent = LogAnalysisAgent(
         Deps(tools=tool_client, llm=llm_client, budget=budget or LogAgentBudget())
     )
+    # Phase 10 (ADR-020): code-only agents - no LLM client is passed to them at all
+    app.state.agents = {
+        "log_analysis": app.state.log_agent,
+        "metrics": MetricsAgent(MetricsDeps(tools=tool_client, budget=MetricsBudget())),
+        "deployment": DeploymentAgent(DeployDeps(tools=tool_client, budget=DeploymentBudget())),
+        "knowledge": KnowledgeAgent(KnowledgeDeps(tools=tool_client, budget=KnowledgeBudget())),
+    }
     return app

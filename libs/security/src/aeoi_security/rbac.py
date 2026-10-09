@@ -7,6 +7,7 @@ services can authorise locally from token roles without a DB round trip per requ
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import StrEnum
 
 
@@ -89,3 +90,28 @@ def permissions_for(roles: list[str] | tuple[str, ...] | frozenset[str]) -> froz
         except ValueError:
             continue
     return frozenset(perms)
+
+
+# Who may READ stored evidence of each kind (ADR-020). Reading the incident is not enough:
+# a MANAGER may read incidents but not raw log lines. Unknown kind -> nobody (default deny).
+EVIDENCE_KIND_PERMS: dict[str, Perm] = {
+    "LOG": Perm.LOGS_READ,
+    "TRACE": Perm.LOGS_READ,
+    "METRIC": Perm.METRICS_READ,
+    "DEPLOY": Perm.DEPLOYS_READ,
+    "CONFIG": Perm.DEPLOYS_READ,
+    "COMMIT": Perm.CODE_READ,
+    "PR": Perm.CODE_READ,
+    # pointers only (no text) - the text is re-read through rag with the reader's own groups
+    "DOC": Perm.DOCS_READ,
+    "RUNBOOK": Perm.RUNBOOKS_READ,
+    "INCIDENT": Perm.INCIDENTS_READ,
+    "ALERT": Perm.INCIDENTS_READ,
+    "CATALOG": Perm.INCIDENTS_READ,
+}
+
+
+def may_read_evidence(has: Callable[[Perm], bool], kind: str) -> bool:
+    """`has` = Principal.has. Unknown kinds are never readable."""
+    needed = EVIDENCE_KIND_PERMS.get(kind)
+    return needed is not None and has(needed)

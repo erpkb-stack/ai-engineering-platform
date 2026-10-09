@@ -47,7 +47,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 - [x] Phase 7: Tool Gateway
 - [ ] Phase 8: First AI agent — built; compare recorded on the Mac (2 valid runs); done when `make agent-smoke` all ✔ and `make test-integration` green on the Mac
 - [ ] Phase 9: LangGraph orchestration — built (orchestrator service, checkpoints, resume, delegation tokens); done when `make orch-smoke` + the crash/resume check pass on the Mac
-- [ ] Phase 10: Multi-agent investigation
+- [ ] Phase 10: Multi-agent investigation — built (metrics/deployment/knowledge code-only agents, PARTIAL, rag OBO, evidence by kind; ADR-020); done when `make multi-smoke` all ✔ + the 4-agent crash/resume check pass on the Mac (after Phase 9 is ticked)
 - [ ] Phase 11: Critic + Validation
 - [ ] Phase 12: Incident timeline + postmortem
 - [ ] Phase 13: Historical incident intelligence

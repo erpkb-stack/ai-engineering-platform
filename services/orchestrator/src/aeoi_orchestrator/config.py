@@ -11,6 +11,7 @@ from sqlalchemy.engine import make_url
 
 from aeoi_common.settings import BaseServiceSettings
 from aeoi_db.config import find_repo_root, service_database_url
+from aeoi_models.api.agents import AgentName
 
 
 def _secret(name: str) -> Path:
@@ -43,6 +44,8 @@ class Settings(BaseServiceSettings):
     window_before_min: int = 60
     window_after_min: int = 30
     budget_usd: Decimal = Decimal("0.50")
+    # Phase 10 (ADR-020): the agents every investigation runs, in parallel (Send per agent)
+    agents: tuple[AgentName, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
     task_deadline_s: float = 180.0  # > agents' task deadline (150 s): one agent call
     # the whole investigation, all retries and resumes included; past it = FAILED
     investigation_deadline_s: float = 900.0

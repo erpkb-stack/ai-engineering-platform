@@ -1,4 +1,4 @@
-"""HTTP API. Phase 8: synchronous task endpoint called by the orchestrator runner.
+"""HTTP API. One synchronous task endpoint per agent, called by the orchestrator.
 [Phase 18] the same handler is driven by an AgentTask Kafka consumer instead.
 
 Caller = SERVICE token with scope `agents:run` + `X-On-Behalf-Of: Bearer <user JWT>`.
@@ -14,8 +14,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request
 
 from aeoi_common.correlation import get_correlation_id
-from aeoi_common.errors import ForbiddenError
-from aeoi_models.api.agents import AgentRunResult, LogAnalysisTask
+from aeoi_common.errors import ForbiddenError, NotFoundError
+from aeoi_models.api.agents import AgentName, AgentRunResult, AgentTask
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 from aeoi_security.auth import AuthError, Principal
 from aeoi_web import require_scope
@@ -44,9 +44,14 @@ def _user_token(request: Request, investigation_id: UUID | None, incident_id: UU
     return token.strip()
 
 
-@router.post("/log_analysis/run", response_model=AgentRunResult)
-async def run_log_analysis(task: LogAnalysisTask, request: Request, _: Caller) -> AgentRunResult:
+@router.post("/{agent}/run", response_model=AgentRunResult)
+async def run_agent(
+    agent: AgentName, task: AgentTask, request: Request, _: Caller
+) -> AgentRunResult:
+    """`agent` is a closed Literal: an unknown name is a 422, never a dynamic lookup."""
     user_token = _user_token(request, task.investigation_id, task.incident_id)
-    agent = request.app.state.log_agent
-    result: AgentRunResult = await agent.run(task, user_token, get_correlation_id())
+    worker = request.app.state.agents.get(agent)
+    if worker is None:  # pragma: no cover - every AgentName is registered in main.py
+        raise NotFoundError(f"agent {agent} is not deployed here")
+    result: AgentRunResult = await worker.run(task, user_token, get_correlation_id())
     return result

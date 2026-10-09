@@ -186,6 +186,7 @@ def make_stub_rag(stub: StubRag) -> FastAPI:
     @app.post("/v1/search")
     async def search(request: Request) -> dict[str, Any]:
         stub.seen.append({"path": "/v1/search", "auth": request.headers.get("authorization"),
+                          "obo": request.headers.get("x-on-behalf-of"),
                           "body": await request.json()})  # fmt: skip
         return {
             "embedding_model": "fake",
@@ -202,7 +203,8 @@ def make_stub_rag(stub: StubRag) -> FastAPI:
     @app.post("/v1/incidents/search")
     async def incidents(request: Request) -> list[dict[str, Any]]:
         stub.seen.append({"path": "/v1/incidents/search",
-                          "auth": request.headers.get("authorization")})  # fmt: skip
+                          "auth": request.headers.get("authorization"),
+                          "obo": request.headers.get("x-on-behalf-of")})  # fmt: skip
         return [{
             "incident_key": "INC-1001", "title": "Pool exhaustion", "summary": "s",
             "root_cause": "N+1 query", "root_cause_category": "code", "remediation": "rollback",
@@ -235,13 +237,19 @@ async def audit_app(audit_db_url: str, tpub: Path) -> AsyncIterator[FastAPI]:
 def audit_token_file(tmp_path: Path, tkeys: KeyPair) -> Path:
     p = tmp_path / "tools_audit_token.txt"
     p.write_text(service_token_for(tkeys, "tool-gateway", "audit:write"))
+    # the gateway's rag identity (ADR-020) lives next to it, like secrets/ on the Mac
+    (tmp_path / "tools_rag_token.txt").write_text(
+        service_token_for(tkeys, "tool-gateway", "rag:obo")
+    )
     return p
 
 
 def tools_settings(db_url: str, pub: Path, catalog: Path, token_file: Path, **kw: Any) -> Settings:
+    rag_token = token_file.parent / "tools_rag_token.txt"  # written by audit_token_file
     return Settings(
         db_url_override=SecretStr(db_url), jwt_public_key_file=pub, catalog_file=catalog,
         audit_token_file=token_file, relay_enabled=False, environment="test", log_json=False,
+        rag_token_file=kw.pop("rag_token_file", rag_token),
         rag_url="http://rag.internal:8004", egress_allowlist=["rag.internal:8004"], **kw,
     )  # type: ignore[call-arg]  # fmt: skip
 

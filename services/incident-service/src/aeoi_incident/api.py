@@ -33,7 +33,7 @@ from aeoi_models.api.incidents import (
     TimelineEntry,
 )
 from aeoi_security.auth import Principal
-from aeoi_security.rbac import Perm
+from aeoi_security.rbac import EVIDENCE_KIND_PERMS, Perm, may_read_evidence
 from aeoi_web.auth import require, require_scope
 
 router = APIRouter(prefix="/v1", tags=["incidents"])
@@ -193,10 +193,13 @@ async def get_timeline(
 async def get_evidence(
     ref: str,
     session: Session,
-    _: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+    who: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
     kind: Annotated[str | None, Query(pattern=r"^[A-Z]{2,10}$")] = None,
 ) -> list[EvidenceOut]:
-    rows = await service.evidence(session, parse_incident_ref(ref), kind)
+    # each kind needs the permission of the tool that produced it (a MANAGER may read the
+    # incident but not its raw log lines). Hidden kinds are simply absent.
+    readable = [k for k in EVIDENCE_KIND_PERMS if may_read_evidence(who.has, k)]
+    rows = await service.evidence(session, parse_incident_ref(ref), kind, readable)
     return [EvidenceOut.model_validate(r) for r in rows]
 
 

@@ -1,6 +1,7 @@
 """CLI over the orchestrator SERVICE (Phase 9). Needs `make run-orch` on :8002.
 The user token comes from $AEOI_USER_TOKEN (the make targets mint a dev one).
 
+python -m aeoi_orchestrator investigate INC-10001 [--agents metrics,deployment] [--no-cache]
 python -m aeoi_orchestrator run-log-agent INC-10001 [--route local|fast] [--no-cache]
 python -m aeoi_orchestrator compare INC-10001 [--routes local,fast]   # same task, two models
 python -m aeoi_orchestrator status INC-10001
@@ -27,7 +28,7 @@ from uuid import UUID
 import httpx
 
 from aeoi_db.config import find_repo_root
-from aeoi_models.api.agents import AgentRunResult, EvidenceItem
+from aeoi_models.api.agents import AgentRunResult
 from aeoi_observability import configure_logging
 from aeoi_orchestrator.config import Settings
 
@@ -105,10 +106,35 @@ def _start_and_wait(
         raise CliError(f"still RUNNING after {timeout_s:.0f}s: `status {incident}` to follow it")
     trace = _check(c.get(f"/v1/investigations/{inv_id}/trace"), 200)
     result = None
+    others: dict[str, AgentRunResult] = {}
     for e in trace["executions"]:
-        if e["agent"] == "log_analysis" and e["output"]:
-            result = AgentRunResult.model_validate(e["output"])
+        if not e["output"]:
+            continue
+        out = AgentRunResult.model_validate(e["output"])
+        if e["agent"] == "log_analysis":
+            result = out
+        else:
+            others[e["agent"]] = out
+    inv["_others"] = others  # printed by _print (Phase 10 agents); not part of the API
     return inv, result
+
+
+def _print_other(agent: str, r: AgentRunResult) -> None:
+    """Phase 10 code-only agents: no model, so no labels/tokens - just facts and what backs them."""
+    t = r.trace
+    print(
+        f"\n  agent {agent} v{t.agent_version}  (code only, no model)  "
+        f"tool calls={len(t.tool_calls)}  latency={t.latency_ms} ms"
+    )
+    if r.degraded:
+        print(f"  DEGRADED: {r.degraded}")
+    for f in r.facts:
+        print(f"   - {f.statement}  [{', '.join(e.evidence_id[:14] + '…' for e in f.evidence)}]")
+    for ref in r.references:
+        flag = "  ⚠ untrusted text flagged" if ref.untrusted_content_flagged else ""
+        print(f"   ref {ref.kind} rank {ref.rank} document {ref.document_id}{flag}")
+    for n in r.notes:
+        print(f"   · note: {n}")
 
 
 def _print(inv: dict[str, Any], r: AgentRunResult | None) -> None:
@@ -118,8 +144,11 @@ def _print(inv: dict[str, Any], r: AgentRunResult | None) -> None:
     for t in inv.get("tasks", []):
         if t["attempt"] > 1:
             print(f"  ⚠ task {t['agent']} ran {t['attempt']} times (resumed after a crash)")
+    for agent, other in sorted((inv.get("_others") or {}).items()):
+        _print_other(agent, other)
     if r is None:
         return
+    print()
     t = r.trace
     llm = t.llm_calls[-1] if t.llm_calls else None
     print(
@@ -165,6 +194,8 @@ def _timeout() -> float:
 
 def run_one(args: argparse.Namespace, token: str) -> int:
     extra: dict[str, Any] = {"llm_cache": not args.no_cache}
+    if args.agents:
+        extra["agents"] = args.agents.split(",")
     if args.route:
         extra["llm_route"] = args.route
     if args.start:
@@ -292,7 +323,12 @@ def compare(args: argparse.Namespace, token: str) -> int:
     rows = []
     with _client(token) as c:
         for route in routes:
-            extra: dict[str, Any] = {"llm_route": route, "llm_cache": False}  # never compare cache
+            # never compare a cache hit; only the agent that HAS a model (Phase 10)
+            extra: dict[str, Any] = {
+                "llm_route": route,
+                "llm_cache": False,
+                "agents": ["log_analysis"],
+            }
             if args.start:
                 extra |= {"start": _dt(args.start), "end": _dt(args.end)}
             inv, result = _start_and_wait(c, args.incident, extra, _timeout())
@@ -423,6 +459,7 @@ async def repost(args: argparse.Namespace) -> int:
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
     from aeoi_orchestrator.clients import CallError, IncidentClient
+    from aeoi_orchestrator.salvage import post_recorded_evidence
     from aeoi_orchestrator.store import Store
 
     settings = Settings()
@@ -438,17 +475,11 @@ async def repost(args: argparse.Namespace) -> int:
             if inv is None:
                 print("✘ unknown investigation", file=sys.stderr)
                 return 1
-            inserted = 0
-            for t in await store.tasks(inv_id):
-                if t["status"] != "SUCCEEDED":
-                    continue
-                items = [
-                    EvidenceItem.model_validate(e) for e in await store.evidence_of(t["task_id"])
-                ]
-                if items:
-                    inserted += await incidents.post_evidence(
-                        str(inv.incident_id), inv_id, t["agent"], items, f"{t['agent']}: repost"
-                    )
+            _, inserted, error = await post_recorded_evidence(
+                store, incidents, inv_id, inv.incident_id, "repost"
+            )
+            if error:
+                raise CallError(error)
             reopened = await store.complete_after_repost(inv_id)
         except CallError as exc:
             print(f"✘ {exc}", file=sys.stderr)
@@ -456,7 +487,8 @@ async def repost(args: argparse.Namespace) -> int:
         finally:
             await engine.dispose()
     print(
-        f"✔ evidence re-posted: {inserted} new row(s){'; investigation now COMPLETE' if reopened else ''}"
+        f"✔ evidence re-posted: {inserted} new row(s)"
+        + (f"; investigation now {reopened}" if reopened else "")
     )
     return 0
 
@@ -477,12 +509,14 @@ def main(argv: list[str] | None = None) -> int:
             cp.add_argument("--reason", default="cancelled from the CLI")
     rp = sub.add_parser("repost-evidence", help="retry the evidence POST of an investigation")
     rp.add_argument("investigation_id")
-    for name in ("run-log-agent", "compare"):
+    for name in ("investigate", "run-log-agent", "compare"):
         sp = sub.add_parser(name)
         sp.add_argument("incident", help="INC-10001 or the incident uuid")
         sp.add_argument("--start")
         sp.add_argument("--end")
-        if name == "run-log-agent":
+        if name == "investigate":
+            sp.add_argument("--agents", help="comma list; default = every configured agent")
+        if name in ("investigate", "run-log-agent"):
             sp.add_argument("--route", choices=["fast", "local", "reasoning"])
             sp.add_argument("--json", action="store_true")
             sp.add_argument(
@@ -500,7 +534,10 @@ def main(argv: list[str] | None = None) -> int:
         print("set AEOI_USER_TOKEN (the make targets do it for you)", file=sys.stderr)
         return 2
     try:
-        if args.cmd == "run-log-agent":
+        if args.cmd == "run-log-agent":  # Phase 8/9 behaviour: the one agent with a model
+            args.agents = "log_analysis"
+            return run_one(args, token)
+        if args.cmd == "investigate":
             return run_one(args, token)
         if args.cmd == "compare":
             return compare(args, token)

@@ -93,7 +93,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 |---|---|---|
 | `agent_executions` | What an agent actually did: model, prompt version, tokens, latency, cost (Feature 12). | 17 |
 | `checkpoint_blobs` / `checkpoint_migrations` / `checkpoint_writes` / `checkpoints` | LangGraph `AsyncPostgresSaver` tables, DDL owned by Alembic (0018), thread_id = investigation id (ADR-019) | 6 / 1 / 9 / 7 |
-| `investigations` | One AI investigation run with budget and outcome; Phase 9 adds delegation_grant_id, deadline_at, error | 12 |
+| `investigations` | One AI investigation run with budget and outcome; Phase 9 adds delegation_grant_id, deadline_at, error; Phase 10 (0019) adds status PARTIAL (some agents failed, named in `error`) | 12 |
 | `messages` | Scrubbed LLM conversation turns of an execution (debugging/replay; NOT in traces). | 7 |
 | `tasks` | One unit of agent work (an AgentTask event). Idempotent on idempotency_key. | 12 |
 

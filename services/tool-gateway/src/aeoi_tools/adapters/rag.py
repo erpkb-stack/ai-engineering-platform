@@ -1,32 +1,47 @@
-"""Knowledge tools via the rag service. The USER's token is forwarded, so rag applies the
-user's group ACL in SQL. The gateway never searches with its own identity (a service token
-has no groups in rag and sees nothing - no confused deputy)."""
+"""Knowledge tools via the rag service, ON BEHALF OF the user (ADR-020).
+
+Bearer = the gateway's own service token (scope `rag:obo`); X-On-Behalf-Of = the caller's
+on-behalf-of token, unchanged: a user token or an investigation's delegated token. rag
+verifies both and filters by the USER's groups in SQL. The gateway's identity alone sees
+nothing (rag refuses a service bearer without the header - no confused deputy).
+One path for both token types: Phase 9's "user token as rag's bearer" path is gone, so a
+delegated token is never presented as a bearer anywhere (ADR-019 rule)."""
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import httpx
 
 from aeoi_common.correlation import CORRELATION_HEADER
+from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 from aeoi_tools import schemas as s
 from aeoi_tools.contracts import ToolContext, ToolExecutionError, ToolUnavailableError
 
 
 class RagAdapter:
-    def __init__(self, client: httpx.AsyncClient, base_url: str) -> None:
+    def __init__(
+        self,
+        client: httpx.AsyncClient,
+        base_url: str,
+        service_token: Callable[[], Awaitable[str]],
+    ) -> None:
         self._client = client
         self._base = base_url.rstrip("/")
+        self._service_token = service_token
 
     async def _post(self, path: str, body: dict[str, Any], ctx: ToolContext) -> Any:
-        if ctx.user.delegation is not None:
-            # rag verifies the user as a PRIMARY bearer; delegated tokens are OBO-only by
-            # design (ADR-019). Fail explicitly until rag gets an OBO path (Phase 10).
+        try:
+            own = await self._service_token()
+        except OSError as exc:
             raise ToolExecutionError(
-                "knowledge tools do not accept delegated calls yet (ADR-019, Phase 10)",
-                status=501,
-            )
-        headers = {"Authorization": f"Bearer {ctx.user_token}"}
+                "knowledge tools need the gateway's rag token: run make tools-tokens", status=503
+            ) from exc
+        headers = {
+            "Authorization": f"Bearer {own}",
+            ON_BEHALF_OF_HEADER: f"Bearer {ctx.user_token}",
+        }
         if ctx.correlation_id:
             headers[CORRELATION_HEADER] = ctx.correlation_id
         try:

@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -22,7 +22,13 @@ LlmRoute = Literal["fast", "local", "reasoning"]
 MAX_WINDOW = timedelta(hours=24)
 
 
-class LogAnalysisTask(BaseModel):
+AgentName = Literal["log_analysis", "metrics", "deployment", "knowledge"]
+AGENT_NAMES: tuple[str, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
+
+
+class AgentTask(BaseModel):
+    """One task for one agent (Phase 10: the same contract for every agent)."""
+
     model_config = ConfigDict(extra="forbid")
 
     incident_id: UUID
@@ -38,6 +44,10 @@ class LogAnalysisTask(BaseModel):
         default=True,
         description="false = force a real model call (comparisons: a cache hit is not a model run)",
     )
+    # Phase 10: context some agents need. Both are USER-SUPPLIED incident data (untrusted):
+    # the title is only used as a retrieval query, never placed in a prompt.
+    incident_title: str | None = Field(default=None, max_length=300)
+    detected_at: datetime | None = None
 
     @model_validator(mode="after")
     def _window(self) -> Self:
@@ -48,8 +58,11 @@ class LogAnalysisTask(BaseModel):
         return self
 
 
+LogAnalysisTask = AgentTask  # Phase 8 name, kept for callers and tests
+
+
 class EvidenceItem(BaseModel):
-    """What incident-service stores in incident.evidence (only evidence a fact cites)."""
+    """What incident-service stores in incident.evidence (evidence a fact or reference cites)."""
 
     evidence_key: EvidenceId
     kind: str = Field(max_length=16)
@@ -165,6 +178,65 @@ class LabelQuality(BaseModel):
     unknown_cluster_ids: int = 0
 
 
+class MetricAnomaly(BaseModel):
+    """A metric that left its own baseline (robust z-score in CODE, metrics agent)."""
+
+    service_key: str
+    metric: str
+    kind: Literal[
+        "shift", "transient"
+    ]  # shift = sustained to the window end; transient = recovered
+    direction: Literal["up", "down"]
+    onset: datetime  # first anomalous bucket
+    last_anomalous: datetime
+    baseline_median: float
+    baseline_scale: float  # 1.4826 * MAD, floored (see anomaly.py)
+    peak_value: float
+    peak_at: datetime
+    peak_z: float
+    anomalous_buckets: int
+    bucket_seconds: int
+    evidence_ids: list[EvidenceId] = Field(min_length=1, max_length=1)
+
+
+class ConfigChangeOut(BaseModel):
+    key: str
+    before: Any = None
+    after: Any = None
+
+
+class DeployChange(BaseModel):
+    """A deployment of an incident service near the window (deployment agent, code only)."""
+
+    deploy_key: str
+    service_key: str
+    version: str
+    status: str
+    started_at: datetime
+    finished_at: datetime | None = None
+    commit_sha: str
+    deployed_by: str
+    config_changes: list[ConfigChangeOut] = Field(default_factory=list, max_length=100)
+    minutes_before_detection: float | None = Field(
+        default=None, description="detected_at - started_at in minutes; negative = after"
+    )
+    evidence_ids: list[EvidenceId] = Field(min_length=1, max_length=2)
+
+
+class KnowledgeRef(BaseModel):
+    """A POINTER to a retrieved runbook/doc chunk. Deliberately no title and no text: rag ACLs
+    are per GROUP, and anyone who can read the incident would otherwise see text from groups
+    they are not in. Readers open it through rag with their own token (ADR-020)."""
+
+    kind: Literal["RUNBOOK", "DOC"]
+    document_id: UUID
+    chunk_id: UUID
+    rank: int
+    tool: str
+    evidence_id: EvidenceId
+    untrusted_content_flagged: bool = False
+
+
 class AgentRunResult(BaseModel):
     status: Literal["SUCCEEDED", "FAILED"]
     degraded: str | None = Field(default=None, description="set when part of the agent was skipped")
@@ -175,6 +247,9 @@ class AgentRunResult(BaseModel):
         description="observations with no citable evidence (e.g. 'no error lines'); never facts",
     )
     clusters: list[LogCluster] = Field(default_factory=list)
+    anomalies: list[MetricAnomaly] = Field(default_factory=list, max_length=50)
+    changes: list[DeployChange] = Field(default_factory=list, max_length=30)
+    references: list[KnowledgeRef] = Field(default_factory=list, max_length=20)
     evidence: list[EvidenceItem] = Field(default_factory=list)
     label_quality: LabelQuality = Field(default_factory=LabelQuality)
     trace: AgentTrace

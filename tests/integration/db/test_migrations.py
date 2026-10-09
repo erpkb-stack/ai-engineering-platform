@@ -34,3 +34,27 @@ def test_round_trip_with_data_present(migrated_db: str) -> None:
     cfg = alembic_config(database_url(database=migrated_db).render_as_string(hide_password=False))
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
+
+
+def test_0019_downgrade_records_partial_as_failed(migrated_db: str) -> None:
+    """PARTIAL does not exist before 0019. Downgrade makes it FAILED (never COMPLETE: a source
+    was missing) and says so in `error`; nothing is silently rewritten."""
+    import psycopg
+
+    from aeoi_db.config import libpq_dsn
+
+    cfg = alembic_config(database_url(database=migrated_db).render_as_string(hide_password=False))
+    with psycopg.connect(libpq_dsn(database=migrated_db), autocommit=True) as c:
+        inv = c.execute(
+            "INSERT INTO orchestrator.investigations (id, incident_id, status, requested_by, "
+            "budget_usd, error) VALUES (gen_random_uuid(), gen_random_uuid(), 'PARTIAL', 'user:x', "
+            "1, 'missing sources - knowledge: rag down') RETURNING id"
+        ).fetchone()[0]
+        command.downgrade(cfg, "0018")
+        status, error = c.execute(
+            "SELECT status, error FROM orchestrator.investigations WHERE id=%s", (inv,)
+        ).fetchone()
+        command.upgrade(cfg, "head")
+        c.execute("DELETE FROM orchestrator.investigations WHERE id=%s", (inv,))
+    assert status == "FAILED"
+    assert error == "[was PARTIAL, downgraded by 0019] missing sources - knowledge: rag down"

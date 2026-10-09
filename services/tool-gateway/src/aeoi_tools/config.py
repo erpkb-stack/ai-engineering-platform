@@ -42,6 +42,8 @@ class Settings(BaseServiceSettings):
     )
     catalog_file: Path = Field(default_factory=lambda: _here("data", "generated", "catalog.json"))
     rag_url: str = "http://localhost:8004"
+    # ADR-020: the gateway's identity towards rag (scope rag:obo), always WITH the user's token
+    rag_token_file: Path = Field(default_factory=lambda: _secret("tools_rag_token.txt"))
     # host:port the HTTP-backed tools may reach. Nothing else, ever (no proxies either).
     egress_allowlist: list[str] = ["localhost:8004"]
     http_timeout_s: float = 10.0

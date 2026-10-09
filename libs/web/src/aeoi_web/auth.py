@@ -13,6 +13,8 @@ from aeoi_security.auth import AuthError, Principal, verify_delegated_token, ver
 from aeoi_security.rbac import Perm
 
 _bearer = HTTPBearer(auto_error=False)
+# same value as aeoi_models.api.tools.ON_BEHALF_OF_HEADER (this lib must not import models)
+ON_BEHALF_OF_HEADER = "X-On-Behalf-Of"
 
 
 class Authenticator:
@@ -93,6 +95,48 @@ def require_scope(scope: str) -> Callable[[Principal], Awaitable[Principal]]:
         if not principal.is_service or scope not in principal.scopes:
             raise ForbiddenError(f"Requires a service token with scope '{scope}'.")
         return principal
+
+    return _check
+
+
+def require_acting_user(
+    perm: Perm, obo_scope: str, *, allow_delegated: bool = True
+) -> Callable[..., Awaitable[Principal]]:
+    """Dependency: the USER this request acts for, holding `perm` (ADR-020).
+
+    - a user token as the bearer: that user (unchanged behaviour);
+    - a SERVICE token with `obo_scope` + `X-On-Behalf-Of: Bearer <user or delegated token>`:
+      the on-behalf-of user (`Authenticator.verify_obo`, so a delegated token is accepted
+      here and only here);
+    - a service token without the scope, or without the header: 403. A service never acts as
+      itself on user data (no confused deputy). A delegated token as the bearer: 401.
+    `allow_delegated=False`: only a USER token in the on-behalf-of slot (an endpoint the
+    investigation flow never needs - least privilege for the delegated token, review finding).
+    """
+
+    async def _check(
+        request: Request, principal: Annotated[Principal, Depends(current_principal)]
+    ) -> Principal:
+        user = principal
+        if principal.is_service:
+            if obo_scope not in principal.scopes:
+                raise ForbiddenError(f"Service calls need scope '{obo_scope}'.")
+            raw = request.headers.get(ON_BEHALF_OF_HEADER, "")
+            scheme, _, token = raw.partition(" ")
+            if scheme.lower() != "bearer" or not token.strip():
+                raise ForbiddenError(f"{ON_BEHALF_OF_HEADER}: Bearer <user token> is required.")
+            auth: Authenticator = request.app.state.auth
+            try:
+                user = auth.verify_obo(token.strip())
+            except AuthError as exc:
+                raise ForbiddenError("On-behalf-of token is invalid.") from exc
+            if user.delegation is not None and not allow_delegated:
+                raise ForbiddenError("Delegated tokens are not accepted on this endpoint.")
+            request.state.via = principal.actor
+        if not user.has(perm):
+            raise ForbiddenError(f"Missing permission '{perm}'.")
+        request.state.principal = user
+        return user
 
     return _check
 

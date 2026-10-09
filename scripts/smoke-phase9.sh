@@ -13,7 +13,8 @@ warn() { echo "! $1"; note=$((note+1)); }
 json() { python3 -c "import sys,json; d=json.load(sys.stdin); print($1)"; }
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
-for pair in "api 8000" "incident 8001" "orchestrator 8002" "agents 8003" "llm-gateway 8005" "tool-gateway 8006"; do
+# Phase 10: the product path runs all four agents, so knowledge needs rag (:8004) too
+for pair in "api 8000" "incident 8001" "orchestrator 8002" "agents 8003" "rag 8004" "llm-gateway 8005" "tool-gateway 8006"; do
   set -- $pair
   code=$(curl -s -o /dev/null -w '%{http_code}' "localhost:$2/health/live")
   [ "$code" = "200" ] && ok "$1 up" || { bad "$1 not running on :$2"; exit 1; }
@@ -48,9 +49,9 @@ json "', '.join(t['agent']+'='+t['status']+' x'+str(t['attempt'])+' '+str(t['mod
 n=$(json "d.get('evidence_inserted') or 0" < "$TMP/inv.json"); [ "$n" -gt 0 ] && ok "$n evidence rows stored" || bad "no evidence stored"
 
 curl -s "$API/api/v1/investigations/$INV/trace" -H "Authorization: Bearer $SRE" > "$TMP/trace.json"
-json "d['executions'][0]['model']+' prompt v'+str(d['executions'][0]['prompt_version'])+' msgs='+str(len(d['executions'][0]['messages']))" < "$TMP/trace.json" > "$TMP/t.txt" 2>/dev/null \
+json "[e['model']+' prompt v'+str(e['prompt_version'])+' msgs='+str(len(e['messages'])) for e in d['executions'] if e['agent']=='log_analysis'][0]" < "$TMP/trace.json" > "$TMP/t.txt" 2>/dev/null \
   && ok "trace: $(cat "$TMP/t.txt")" || bad "trace missing"
-json "' '.join(f['statement'] for f in d['executions'][0]['output']['facts'])" < "$TMP/trace.json" 2>/dev/null | grep -q ERR_POOL_TIMEOUT \
+json "' '.join(f['statement'] for e in d['executions'] if e['agent']=='log_analysis' for f in e['output']['facts'])" < "$TMP/trace.json" 2>/dev/null | grep -q ERR_POOL_TIMEOUT \
   && ok "facts name ERR_POOL_TIMEOUT" || bad "no ERR_POOL_TIMEOUT fact"
 grep -q '"labelled_by": *"llm"\|"labelled_by":"llm"' "$TMP/trace.json" && ok "model labels present" || warn "no model labels (degraded run? see the trace)"
 

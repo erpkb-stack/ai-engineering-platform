@@ -50,3 +50,21 @@ def test_start_window_needs_both_ends_with_timezones() -> None:
         )
     with pytest.raises(ValidationError):
         StartInvestigation(incident="INC-1", extra="x")  # type: ignore[call-arg]
+
+
+# ------------------------------------------------------------------ Phase 10 outcome (ADR-020)
+def _r(agent: str, status: str = "SUCCEEDED", error: str | None = None) -> dict[str, object]:
+    return {"agent": agent, "status": status, "error": error}
+
+
+def test_outcome_complete_partial_failed() -> None:
+    from aeoi_orchestrator.graph import outcome
+
+    assert outcome([_r("log_analysis"), _r("metrics")], None) == ("COMPLETE", None)
+    status, error = outcome([_r("log_analysis"), _r("knowledge", "FAILED", "rag down")], None)
+    assert status == "PARTIAL" and error and "knowledge: rag down" in error
+    assert outcome([_r("metrics", "FAILED", "x")], None)[0] == "FAILED"
+    assert outcome([], None) == ("FAILED", "no tasks ran")
+    # evidence that was not stored: FAILED (repost-evidence repairs it), even if all agents ran
+    status, error = outcome([_r("metrics")], "metrics: evidence was not stored")
+    assert status == "FAILED" and error and "evidence was not stored" in error

@@ -1,4 +1,4 @@
-"""The investigation graph (ADR-019). Phase 9 has one agent; the shape is for many.
+"""The investigation graph (ADR-019, ADR-020). Phase 10: four agents in parallel.
 
     START -> plan --(Send per task)--> run_agent --> collect_evidence -> finalize -> END
 
@@ -11,6 +11,10 @@ again, so every node is idempotent (see store.py):
                     tool calls, task attempt + 1. That is recorded, not hidden.)
 - collect_evidence: the evidence endpoint is idempotent per evidence key
 - finalize:         only moves a RUNNING investigation
+
+Outcome (ADR-020): every task SUCCEEDED -> COMPLETE; some failed -> PARTIAL (the evidence that
+was found is kept, and the missing sources are named); none succeeded -> FAILED. A failed
+agent never fails its siblings: each Send branch records its own result.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ import structlog
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
-from aeoi_models.api.agents import EvidenceItem, LogAnalysisTask
+from aeoi_models.api.agents import AgentTask, EvidenceItem
 from aeoi_orchestrator.clients import AgentsClient, CallError, IncidentClient
 from aeoi_orchestrator.config import Settings
 from aeoi_orchestrator.delegation import DelegationClient, DelegationError
@@ -44,6 +48,7 @@ class InvestigationState(TypedDict, total=False):
     window: dict[str, str]  # start, end (ISO, UTC)
     llm_route: str | None
     llm_cache: bool
+    agents: list[str]  # Phase 10; absent in a Phase 9 checkpoint -> the configured set
     grant_id: str
     tasks: list[dict[str, Any]]
     results: Annotated[list[dict[str, Any]], operator.add]  # one per task (fan-in reducer)
@@ -65,17 +70,53 @@ def task_id_for(investigation_id: str, agent: str, attempt_slot: int = 1) -> UUI
     return uuid5(NAMESPACE_URL, f"aeoi:investigation:{investigation_id}:{agent}:{attempt_slot}")
 
 
+def _task(payload: dict[str, Any], t: dict[str, Any], task_id: UUID) -> AgentTask:
+    inp = t["input"]
+    return AgentTask(
+        incident_id=UUID(payload["incident"]["id"]),
+        investigation_id=UUID(payload["investigation_id"]),
+        task_id=task_id,
+        service_keys=inp["service_keys"],
+        start=datetime.fromisoformat(inp["start"]),
+        end=datetime.fromisoformat(inp["end"]),
+        llm_route=inp.get("llm_route"),
+        llm_cache=inp.get("llm_cache", True),
+        incident_title=(inp.get("incident_title") or "")[:300] or None,
+        detected_at=datetime.fromisoformat(inp["detected_at"]) if inp.get("detected_at") else None,
+    )
+
+
+def outcome(results: list[dict[str, Any]], evidence_error: str | None) -> tuple[str, str | None]:
+    """COMPLETE / PARTIAL / FAILED (ADR-020). Evidence that was not stored is FAILED, not
+    PARTIAL: `repost-evidence` repairs it, and a repaired run then becomes COMPLETE/PARTIAL."""
+    failed = [f"{r['agent']}: {r.get('error') or r['status']}" for r in results
+              if r["status"] != "SUCCEEDED"]  # fmt: skip
+    ok = len(results) - len(failed)
+    if evidence_error:
+        return "FAILED", "; ".join([*failed, evidence_error])
+    if not results:
+        return "FAILED", "no tasks ran"
+    if ok == 0:
+        return "FAILED", "; ".join(failed)
+    if failed:
+        return "PARTIAL", "missing sources - " + "; ".join(failed)
+    return "COMPLETE", None
+
+
 def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     s = deps.settings
 
     async def plan(state: InvestigationState) -> dict[str, Any]:
         inv = state["investigation_id"]
-        services = list(state["incident"].get("services") or [])[:3]
+        incident = state["incident"]
+        services = list(incident.get("services") or [])[:3]
+        # The plan is CODE (ADR-020): every configured agent runs. An LLM planner choosing
+        # among 4 cheap, read-only agents would cost a model call to save a few tool calls.
         tasks = [
             {
-                "task_id": str(task_id_for(inv, LOG_AGENT)),
-                "agent": LOG_AGENT,
-                "idempotency_key": f"{inv}:{LOG_AGENT}:1",
+                "task_id": str(task_id_for(inv, agent)),
+                "agent": agent,
+                "idempotency_key": f"{inv}:{agent}:1",
                 "deadline_s": s.task_deadline_s,
                 "input": {
                     "service_keys": services,
@@ -83,10 +124,12 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
                     "end": state["window"]["end"],
                     "llm_route": state.get("llm_route"),
                     "llm_cache": state.get("llm_cache", True),
+                    "incident_title": incident.get("title"),
+                    "detected_at": incident.get("detected_at"),
                 },
             }
+            for agent in (state.get("agents") or s.agents)
         ]
-        # [Phase 10] metrics / deployment / code / rag / historical agents join here
         await deps.store.plan_tasks(UUID(inv), tasks)
         return {"tasks": tasks}
 
@@ -107,16 +150,16 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
             return {"results": [done]}
         attempt = await deps.store.start_task(task_id, s.task_deadline_s)
         started = datetime.now(UTC)
-        task = LogAnalysisTask(
-            incident_id=UUID(payload["incident"]["id"]),
-            investigation_id=UUID(payload["investigation_id"]),
-            task_id=task_id,
-            service_keys=t["input"]["service_keys"],
-            start=datetime.fromisoformat(t["input"]["start"]),
-            end=datetime.fromisoformat(t["input"]["end"]),
-            llm_route=t["input"].get("llm_route"),
-            llm_cache=t["input"].get("llm_cache", True),
-        )
+        try:
+            task = _task(payload, t, task_id)
+        except (ValueError, KeyError, TypeError) as exc:
+            # a bad task must fail ITS branch, not the investigation (review finding)
+            summary = await deps.store.record(
+                task_id, t["agent"], None, f"invalid task: {str(exc)[:300]}", started,
+                datetime.now(UTC),
+            )  # fmt: skip
+            summary["attempt"] = attempt
+            return {"results": [summary]}
         result = None
         error: str | None = None
         for retry in range(RETRIES + 1):
@@ -124,7 +167,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
             # FAILED that resume would reuse forever (review finding)
             try:
                 token = await deps.delegation.token(UUID(payload["grant_id"]))
-                result = await deps.agents.run_log_analysis(task, token)
+                result = await deps.agents.run(t["agent"], task, token)
                 error = None
                 break
             except DelegationError as exc:
@@ -175,17 +218,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     async def finalize(state: InvestigationState) -> dict[str, Any]:
         inv = UUID(state["investigation_id"])
         results = state.get("results", [])
-        problems = [
-            f"{r['agent']}: {r.get('error') or r['status']}"
-            for r in results
-            if (r["status"] != "SUCCEEDED")
-        ]
-        if state.get("evidence", {}).get("error"):
-            problems.append(state["evidence"]["error"])
-        if not results:
-            problems.append("no tasks ran")
-        status = "COMPLETE" if not problems else "FAILED"
-        error = "; ".join(problems) or None
+        status, error = outcome(results, state.get("evidence", {}).get("error"))
         # revoke BEFORE finish (review finding): a crash between them must not leave a live
         # grant behind a finished row. A crash after revoke re-runs finalize; revoke is
         # idempotent and nothing after run_agent needs a token.

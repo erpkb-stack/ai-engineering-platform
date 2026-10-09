@@ -80,6 +80,7 @@ def build_app(
         delegation,
         settings.max_concurrent_investigations,
         settings.investigation_deadline_s,
+        incidents=incidents,
     )
 
     @asynccontextmanager

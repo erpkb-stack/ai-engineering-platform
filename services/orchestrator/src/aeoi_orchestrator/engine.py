@@ -6,8 +6,10 @@
        the same RUNNING investigation - the one-RUNNING index does not prevent that.
 
 Outcomes, by cause:
-- graph finished          -> finalize wrote COMPLETE/FAILED and revoked the grant
-- deadline exceeded       -> FAILED, live tasks TIMED_OUT, grant revoked
+- graph finished          -> finalize wrote COMPLETE/PARTIAL/FAILED and revoked the grant
+- deadline exceeded       -> live tasks TIMED_OUT, grant revoked; the FINISHED tasks'
+                             evidence is posted (salvage) -> PARTIAL, or FAILED if none
+                             finished (review finding: one slow agent discarded the rest)
 - user cancel             -> CANCELLED, live tasks CANCELLED, grant revoked
 - process shutdown        -> rows stay RUNNING ON PURPOSE: the next start resumes them
 - unexpected exception    -> FAILED with the error, grant revoked (if the DB itself failed,
@@ -25,7 +27,9 @@ import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 
+from aeoi_orchestrator.clients import IncidentClient
 from aeoi_orchestrator.delegation import DelegationClient
+from aeoi_orchestrator.salvage import post_recorded_evidence
 from aeoi_orchestrator.store import Store
 
 log = structlog.get_logger(__name__)
@@ -39,8 +43,10 @@ class Engine:
         delegation: DelegationClient,
         max_concurrent: int,
         deadline_s: float,
+        incidents: IncidentClient | None = None,
     ) -> None:
         self.graph = graph
+        self.incidents = incidents
         self.store = store
         self.delegation = delegation
         self.deadline_s = deadline_s
@@ -84,6 +90,34 @@ class Engine:
             await self.delegation.revoke(grant_id, f"investigation FAILED: {error[:120]}")
         await self.store.finish(investigation_id, "FAILED", error, task_status=task_status)
 
+    async def _deadline(self, investigation_id: UUID, grant_id: UUID | None) -> None:
+        """Keep what finished: post the evidence of SUCCEEDED tasks, then PARTIAL (or FAILED
+        if nothing finished, or the evidence could not be stored - repost-evidence repairs)."""
+        reason = "investigation deadline exceeded"
+        inv = await self.store.get(investigation_id)
+        succeeded, error = 0, None
+        if inv is not None and self.incidents is not None:
+            succeeded, inserted, error = await post_recorded_evidence(
+                self.store, self.incidents, investigation_id, inv.incident_id, "salvaged"
+            )
+            await self.store.note_evidence(investigation_id, inserted, error)
+        if succeeded == 0 or error:
+            await self._fail(
+                investigation_id, reason + (f"; {error}" if error else ""), grant_id,
+                task_status="TIMED_OUT",
+            )  # fmt: skip
+            return
+        live = [t["agent"] for t in await self.store.tasks(investigation_id)
+                if t["status"] != "SUCCEEDED"]  # fmt: skip
+        if grant_id is not None:
+            await self.delegation.revoke(grant_id, "investigation PARTIAL: deadline")
+        await self.store.finish(
+            investigation_id,
+            "PARTIAL",
+            f"{reason} - missing sources: " + ", ".join(f"{a}: TIMED_OUT" for a in live),
+            task_status="TIMED_OUT",
+        )
+
     async def _run(self, investigation_id: UUID, graph_input: dict[str, Any]) -> None:
         async with self._sem:
             inv = await self.store.get(investigation_id)
@@ -115,12 +149,7 @@ class Engine:
                     self.graph.ainvoke(arg, cfg, durability="sync"), timeout=remaining
                 )
             except TimeoutError:
-                await self._fail(
-                    investigation_id,
-                    "investigation deadline exceeded",
-                    grant,
-                    task_status="TIMED_OUT",
-                )
+                await self._deadline(investigation_id, grant)
             except asyncio.CancelledError:
                 if investigation_id not in self._cancelling:
                     log.info(
