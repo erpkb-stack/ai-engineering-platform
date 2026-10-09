@@ -85,7 +85,14 @@ def build_app(
         version=__version__,
         routers=[router],
         authenticator=Authenticator(
-            settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
+            settings.jwt_public_key_file.read_text(),
+            settings.jwt_issuer,
+            settings.jwt_audience,
+            delegation_public_key=(
+                settings.delegation_public_key_file.read_text()
+                if settings.delegation_public_key_file.is_file()
+                else None
+            ),
         ),
         # The LLM gateway is NOT a readiness dependency: keyword search still works without it.
         readiness={"database": db_ready},

@@ -32,11 +32,15 @@ from aeoi_rag.rerank import LLMReranker
 from aeoi_rag.search import Retriever
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import Perm
-from aeoi_web import require
+from aeoi_web import require_acting_user
 
 log = structlog.get_logger(__name__)
 router = APIRouter(prefix="/v1", tags=["search"])
-Reader = Annotated[Principal, Depends(require(Perm.DOCS_READ))]
+# ADR-020: a user token, or the tool-gateway's service token (`rag:obo`) + the user's token
+# (or an investigation's delegated token) in X-On-Behalf-Of. Either way `principal` is the
+# USER, and their groups - never the service's - go into the SQL filter.
+RAG_OBO_SCOPE = "rag:obo"
+Reader = Annotated[Principal, Depends(require_acting_user(Perm.DOCS_READ, RAG_OBO_SCOPE))]
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -73,6 +77,10 @@ async def search(body: SearchRequest, principal: Reader, request: Request) -> Se
         "rag_search",
         retrieval_id=str(retrieval_id),
         actor=principal.actor,
+        via=getattr(request.state, "via", None),
+        delegation_grant=(
+            str(principal.delegation.grant_id) if principal.delegation is not None else None
+        ),
         query_sha=hashlib.sha256(body.query.encode()).hexdigest()[:16],
         query_len=len(body.query),
         mode=body.mode.value,
@@ -111,7 +119,14 @@ async def search(body: SearchRequest, principal: Reader, request: Request) -> Se
 
 
 @router.get("/documents/{document_id}", response_model=DocumentOut)
-async def get_document(document_id: UUID, principal: Reader, request: Request) -> DocumentOut:
+async def get_document(
+    document_id: UUID,
+    principal: Annotated[
+        Principal,
+        Depends(require_acting_user(Perm.DOCS_READ, RAG_OBO_SCOPE, allow_delegated=False)),
+    ],
+    request: Request,
+) -> DocumentOut:
     """404 - not 403 - when the caller may not see it: existence is information too."""
     sessions: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
     async with sessions() as s:
@@ -159,7 +174,9 @@ LIMIT :k
 @router.post("/incidents/search", response_model=list[HistoricalIncidentHit])
 async def search_incidents(
     body: IncidentSearchRequest,
-    principal: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+    principal: Annotated[
+        Principal, Depends(require_acting_user(Perm.INCIDENTS_READ, RAG_OBO_SCOPE))
+    ],
     request: Request,
 ) -> list[HistoricalIncidentHit]:
     """Keyword search over past incidents with the same group ACL rule as documents."""

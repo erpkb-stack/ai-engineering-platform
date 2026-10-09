@@ -15,6 +15,8 @@ record; reach a host outside the egress allow-list; drop (instead of flag) suspi
 - `registry.py` the 12 specs (11 READ + rollback) · `policy.py` decide() + agents.yaml model
 - `service.py` invoke pipeline, one-transaction recording · `sanitize.py` caps/redaction/flags/evidence ids
 - `relay.py` outbox → audit · `api.py` caller modes · `adapters/` devdata SQL, catalog JSON, rag HTTP, egress
+- rag calls (ADR-020): bearer = OUR `secrets/tools_rag_token.txt` (scope `rag:obo`, `make tools-tokens`), `X-On-Behalf-Of` = the caller's token unchanged (user or delegated). Never the user token as a bearer.
+- `sanitize.py`: a canonical UUID string skips the PII scrubber (it mangled digit-only ids)
 
 ## Adding a tool (`/new-tool` skill)
 1. Bounded input/output in `schemas.py` (the contract-lint test fails otherwise).

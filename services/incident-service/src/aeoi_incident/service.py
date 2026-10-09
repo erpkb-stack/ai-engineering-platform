@@ -256,9 +256,14 @@ async def timeline(session: AsyncSession, ref: UUID | int) -> list[IncidentEvent
     return list((await session.scalars(stmt)).all())
 
 
-async def evidence(session: AsyncSession, ref: UUID | int, kind: str | None) -> list[Evidence]:
+async def evidence(
+    session: AsyncSession, ref: UUID | int, kind: str | None, readable_kinds: list[str]
+) -> list[Evidence]:
+    """`readable_kinds` filters IN SQL (ADR-020): reading the incident is not reading its logs."""
     incident = await load(session, ref)
-    stmt = select(Evidence).where(Evidence.incident_id == incident.id)
+    stmt = select(Evidence).where(
+        Evidence.incident_id == incident.id, Evidence.kind.in_(readable_kinds)
+    )
     if kind:
         stmt = stmt.where(Evidence.kind == kind)
     return list((await session.scalars(stmt.order_by(Evidence.created_at).limit(1000))).all())

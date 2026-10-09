@@ -234,7 +234,8 @@ def make_orch(
             api_url="http://api",
             environment="test",
             log_json=False,
-            **{"resume_on_startup": False, **overrides},
+            # Phase 9 tests pin ONE agent (their counts assume it); Phase 10 tests pass agents=
+            **{"resume_on_startup": False, "agents": ("log_analysis",), **overrides},
         )  # type: ignore[call-arg]
         app = build_orch(
             settings,

@@ -6,6 +6,7 @@ from aeoi_web.auth import (
     CurrentPrincipal,
     current_principal,
     require,
+    require_acting_user,
     require_scope,
 )
 from aeoi_web.health import ReadinessCheck, health_router
@@ -21,5 +22,6 @@ __all__ = [
     "health_router",
     "problem_response",
     "require",
+    "require_acting_user",
     "require_scope",
 ]

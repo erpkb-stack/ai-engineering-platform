@@ -69,6 +69,8 @@ def rag_settings(rag_db_url: str, pubfile: Path) -> Settings:
     return Settings(
         db_url_override=SecretStr(rag_db_url),
         jwt_public_key_file=pubfile,
+        # never the repo's secrets/: tests that want delegated tokens set their own key
+        delegation_public_key_file=pubfile.parent / "no-delegation-key.pem",
         environment="test",
         log_json=False,
     )  # type: ignore[call-arg]

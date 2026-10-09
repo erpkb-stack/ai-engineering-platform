@@ -13,7 +13,7 @@ from uuid import UUID
 import httpx
 
 from aeoi_common.correlation import CORRELATION_HEADER, get_correlation_id
-from aeoi_models.api.agents import AgentRunResult, EvidenceBatch, EvidenceItem, LogAnalysisTask
+from aeoi_models.api.agents import AgentRunResult, AgentTask, EvidenceBatch, EvidenceItem
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 
 
@@ -122,10 +122,10 @@ class AgentsClient:
         self._service_token = service_token
         self._timeout = timeout_s
 
-    async def run_log_analysis(self, task: LogAnalysisTask, delegated_token: str) -> AgentRunResult:
+    async def run(self, agent: str, task: AgentTask, delegated_token: str) -> AgentRunResult:
         try:
             r = await self._http.post(
-                f"{self._base}/v1/agents/log_analysis/run",
+                f"{self._base}/v1/agents/{agent}/run",
                 content=task.model_dump_json(),
                 headers={
                     "Authorization": f"Bearer {self._service_token}",

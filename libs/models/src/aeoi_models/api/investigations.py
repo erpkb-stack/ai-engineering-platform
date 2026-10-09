@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from aeoi_models.api.agents import LlmRoute
+from aeoi_models.api.agents import MAX_WINDOW, AgentName, LlmRoute
 
 
 class StartInvestigation(BaseModel):
@@ -21,14 +21,21 @@ class StartInvestigation(BaseModel):
     llm_cache: bool = True
     start: datetime | None = None
     end: datetime | None = None
+    # Phase 10: run only these agents (must be a subset of the orchestrator's configured set).
+    # Model comparison runs only log_analysis: the other agents have no model to compare.
+    agents: list[AgentName] | None = Field(default=None, min_length=1, max_length=4)
 
     @model_validator(mode="after")
     def _window(self) -> StartInvestigation:
+        if self.agents is not None and len(set(self.agents)) != len(self.agents):
+            raise ValueError("agents must not repeat")
         if (self.start is None) != (self.end is None):
             raise ValueError("give both start and end, or neither")
         for v in (self.start, self.end):
             if v is not None and v.tzinfo is None:
                 raise ValueError("start/end need a timezone")
+        if self.start and self.end and not timedelta(0) < self.end - self.start <= MAX_WINDOW:
+            raise ValueError("window must be positive and at most 24h")
         return self
 
 

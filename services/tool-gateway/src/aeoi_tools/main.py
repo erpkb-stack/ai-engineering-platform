@@ -52,7 +52,7 @@ def build_app(
     registry = build_registry(
         CatalogAdapter(settings.catalog_file),
         DevDataAdapter(sessions),
-        RagAdapter(tool_http, settings.rag_url),
+        RagAdapter(tool_http, settings.rag_url, FileToken(settings.rag_token_file)),
     )
     policy = PolicyConfig.load(settings.agents_file, set(registry))
     service = ToolService(

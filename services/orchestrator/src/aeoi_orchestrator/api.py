@@ -153,6 +153,10 @@ async def start_investigation(
     detected = datetime.fromisoformat(incident["detected_at"])
     start = body.start or detected - timedelta(minutes=settings.window_before_min)
     end = body.end or detected + timedelta(minutes=settings.window_after_min)
+    agents = list(body.agents or settings.agents)
+    not_here = [a for a in agents if a not in settings.agents]
+    if not_here:
+        raise BadRequestError(f"agents not enabled on this orchestrator: {', '.join(not_here)}")
     investigation_id = uuid7()
     graph_input: dict[str, Any] = {
         "investigation_id": str(investigation_id),
@@ -161,6 +165,7 @@ async def start_investigation(
             "key": incident["key"],
             "services": services,
             "detected_at": incident["detected_at"],
+            "title": str(incident.get("title") or "")[:300],
         },
         "window": {
             "start": start.astimezone(UTC).isoformat(),
@@ -168,6 +173,7 @@ async def start_investigation(
         },
         "llm_route": body.llm_route,
         "llm_cache": body.llm_cache,
+        "agents": agents,
         "results": [],
     }
     try:
@@ -177,7 +183,7 @@ async def start_investigation(
             who.actor,
             settings.budget_usd,
             settings.investigation_deadline_s,
-            plan={"phase": 9, "agents": ["log_analysis"], "start_key": key},
+            plan={"phase": 10, "agents": agents, "start_key": key},
         )
     except AlreadyRunningError as exc:
         raise ConflictError(
@@ -249,8 +255,14 @@ async def get_investigation(
 
 
 # what an agent read, by agent: seeing its prompts/output needs the same permission
-# (review finding: the trace let incidents:read-only roles - MANAGER, ADMIN - read log lines)
-AGENT_CONTENT_PERMS: dict[str, Perm] = {"log_analysis": Perm.LOGS_READ}
+# (review finding: the trace let incidents:read-only roles - MANAGER, ADMIN - read log lines).
+# Knowledge output holds pointers only (no doc text), but which docs matched is still docs data.
+AGENT_CONTENT_PERMS: dict[str, frozenset[Perm]] = {
+    "log_analysis": frozenset({Perm.LOGS_READ}),
+    "metrics": frozenset({Perm.METRICS_READ}),
+    "deployment": frozenset({Perm.DEPLOYS_READ}),
+    "knowledge": frozenset({Perm.RUNBOOKS_READ, Perm.DOCS_READ}),
+}
 
 
 @router.get("/investigations/{investigation_id}/trace", response_model=InvestigationTrace)
@@ -259,8 +271,8 @@ async def get_trace(investigation_id: UUID, request: Request, who: Reader) -> In
     store: Store = request.app.state.store
     out = []
     for e in await store.trace(inv.id):
-        needed = AGENT_CONTENT_PERMS.get(e["agent"], Perm.LOGS_READ)  # unknown agent: strictest
-        if not who.has(needed):
+        needed = AGENT_CONTENT_PERMS.get(e["agent"])  # unknown agent: always redacted
+        if needed is None or not all(who.has(p) for p in needed):
             e = {**e, "messages": [], "output": {}, "redacted": True}
         out.append(ExecutionTraceOut(**e))
     return InvestigationTrace(investigation_id=inv.id, executions=out)

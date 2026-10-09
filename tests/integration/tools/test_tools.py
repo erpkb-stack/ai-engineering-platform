@@ -5,6 +5,7 @@ every call audited (allowed AND denied), security cases from .claude/rules/testi
 
 from __future__ import annotations
 
+import base64
 import json
 from datetime import timedelta
 from typing import Any
@@ -131,21 +132,31 @@ async def test_catalog(tools: httpx.AsyncClient, tok: Tokens, planted: Planted) 
     assert r.status_code == 422  # no full dumps
 
 
+def claims(jwt: str) -> dict[str, Any]:
+    """Unverified payload - only to check WHICH token was sent (rag verifies it for real)."""
+    body = jwt.split(".")[1]
+    return json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))  # type: ignore[no-any-return]
+
+
 async def test_knowledge_tools_forward_the_user_token(
     tools: httpx.AsyncClient, tok: Tokens, stub_rag: StubRag
 ) -> None:
+    """ADR-020: bearer = the GATEWAY's rag:obo token, on-behalf-of = the user's token. rag
+    filters by the on-behalf-of user's groups (tests/integration/rag/test_rag_obo.py)."""
     headers = tok.agent("ENGINEER")
     user_bearer = headers["X-On-Behalf-Of"]
     r = await call(tools, "search_runbooks", headers, agent_name="knowledge",
                    args={"query": "db pool exhausted"})  # fmt: skip
     assert r.status_code == 200, r.text
-    assert stub_rag.seen[-1]["auth"] == user_bearer  # NOT the service token
+    assert stub_rag.seen[-1]["obo"] == user_bearer
+    gateway = claims(stub_rag.seen[-1]["auth"].removeprefix("Bearer "))
+    assert gateway["sub"] == "service:tool-gateway" and gateway["scope"] == "rag:obo"
     assert stub_rag.seen[-1]["body"]["filters"] == {"sources": ["runbook"]}
     assert "oncall@northwind" not in r.text and r.json()["security"]["pii_redacted"]["EMAIL"] == 1
-    r = await call(
-        tools, "search_docs", tok.h("ENGINEER"), args={"query": "pool", "sources": ["pdf"]}
-    )
+    direct = tok.h("ENGINEER")  # a user calling the gateway directly: same OBO shape to rag
+    r = await call(tools, "search_docs", direct, args={"query": "pool", "sources": ["pdf"]})
     assert r.status_code == 200 and stub_rag.seen[-1]["body"]["filters"] == {"sources": ["pdf"]}
+    assert stub_rag.seen[-1]["obo"] == direct["Authorization"]
     r = await call(tools, "search_incidents", headers, agent_name="historical_incident",
                    args={"query": "pool exhaustion", "service_key": "checkout-api"})  # fmt: skip
     assert r.json()["data"]["items"][0]["incident_key"] == "INC-1001"

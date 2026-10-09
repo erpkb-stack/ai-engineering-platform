@@ -4,7 +4,9 @@
 and permission-aware hybrid retrieval (pgvector HNSW + Postgres FTS, RRF, optional LLM rerank). ADR-016.
 **Owns schema:** `rag` (documents, document_chunks; runbooks/historical_incidents are seeded here too)
 **Callers:** users via the api gateway (`/api/v1/search`, `/api/v1/documents/{id}`), perm `docs:read`.
-Agents (Phase 8) forward the USER's token. A service token alone has no groups → sees nothing.
+Phase 10 (ADR-020): the tool-gateway calls with its `rag:obo` service token + the user's or a
+DELEGATED token in X-On-Behalf-Of (`require_acting_user`); groups come from that user. A service
+token alone has no groups → 403. Delegated tokens: search endpoints only, never GET /documents.
 **Must never:** return a chunk without the permission filter IN the SQL; take groups from a request
 body; index a file without an explicit ACL; chunk a quarantined document; call a model SDK
 (embeddings/rerank go through `aeoi_llm_client`).

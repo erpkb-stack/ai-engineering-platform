@@ -38,6 +38,7 @@ INVESTIGATION_STATUSES = (
     "RUNNING",
     "AWAITING_REVIEW",
     "COMPLETE",
+    "PARTIAL",  # Phase 10: some agents failed, their sources are named in `error` (0019)
     "INCONCLUSIVE",
     "FAILED",
     "CANCELLED",

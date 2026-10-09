@@ -189,3 +189,14 @@ def test_secret_across_the_truncation_point_is_still_redacted() -> None:
         {"items": [{"m": text}]}, call_id=uuid4(), max_items=1, max_bytes=10**6
     )
     assert "ghp_" not in out["items"][0]["m"] and report.secrets_redacted == 1
+
+
+def test_uuids_are_identifiers_not_pii() -> None:
+    """Phase 10 regression: the PII scrubber turned a digit-only UUID into '[CARD]...', and the
+    knowledge agent could not parse the document id. Exact UUIDs pass; text around one does not."""
+    digits = "00000000-0000-0000-0000-000000000001"
+    data = {"items": [{"document_id": digits, "content": f"card 4111 1111 1111 1111 {digits}"}]}
+    out, _, report = sanitize(data, call_id=uuid4(), max_items=10, max_bytes=10_000)
+    assert out["items"][0]["document_id"] == digits
+    assert "4111 1111 1111 1111" not in out["items"][0]["content"]  # the scrubber still runs
+    assert report.pii_redacted

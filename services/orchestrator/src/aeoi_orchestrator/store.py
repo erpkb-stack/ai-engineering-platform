@@ -199,30 +199,41 @@ class Store:
             )
         return True
 
-    async def complete_after_repost(self, investigation_id: UUID) -> bool:
-        """FAILED only because evidence was not stored -> COMPLETE after a successful repost.
-        Any other failure stays FAILED (a repost cannot fix an agent that failed)."""
+    async def complete_after_repost(self, investigation_id: UUID) -> str | None:
+        """FAILED only because evidence was not stored -> COMPLETE (or PARTIAL, if some agents
+        failed) after a successful repost. Returns the new status, or None if unchanged. A
+        run where NO agent succeeded stays FAILED: a repost cannot fix an agent."""
         async with self.sessions() as s, s.begin():
             inv = await s.scalar(
                 select(Investigation).where(Investigation.id == investigation_id).with_for_update()
             )
             if inv is None or inv.status != "FAILED" or not (inv.plan or {}).get("evidence_error"):
-                return False
-            failed_tasks = await s.scalar(
-                select(func.count())
-                .select_from(Task)
-                .where(Task.investigation_id == investigation_id, Task.status != "SUCCEEDED")
+                return None
+            rows = (
+                await s.execute(
+                    select(Task.agent_name, Task.status, Task.error).where(
+                        Task.investigation_id == investigation_id
+                    )
+                )
+            ).all()
+            failed = [r for r in rows if r.status != "SUCCEEDED"]
+            if not rows or len(failed) == len(rows):
+                return None
+            inv.status = "PARTIAL" if failed else "COMPLETE"
+            inv.error = (
+                (
+                    "missing sources - "
+                    + "; ".join(f"{r.agent_name}: {r.error or r.status}" for r in failed)
+                )[:1000]
+                if failed
+                else None
             )
-            if failed_tasks:
-                return False
-            inv.status = "COMPLETE"
-            inv.error = None
             inv.plan = {
                 **inv.plan,
                 "evidence_error": None,
                 "reposted_at": datetime.now(UTC).isoformat(),
             }
-            return True
+            return str(inv.status)
 
     async def resumable(self) -> list[Resumable]:
         async with self.sessions() as s:

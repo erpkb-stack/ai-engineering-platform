@@ -123,7 +123,8 @@ with 0. Not fixed, documented below: revocation cannot reach tokens already issu
   [Prod] this is the corporate IdP's token-exchange endpoint, not our api.
 - **Knowledge tools (rag)** verify the user as a primary bearer; they refuse delegated calls
   until rag gets an OBO path (Phase 10, when the RAG agent arrives). Explicit DENIED, not a
-  silent failure.
+  silent failure. *[Phase 10: done - ADR-020 §C, the gateway's `rag:obo` token + the delegated
+  token in X-On-Behalf-Of.]*
 - **Background tasks live in one process.** A second orchestrator replica would also try to
   resume; the one-RUNNING-per-incident index does not stop two resumers. [Prod] lease
   (`SELECT … FOR UPDATE SKIP LOCKED` on the investigation) or Kafka partition ownership
@@ -131,7 +132,8 @@ with 0. Not fixed, documented below: revocation cannot reach tokens already issu
 - LangGraph adds `langchain-core` and ~40 transitive packages to the orchestrator only.
 
 ## Consequences
-- Phase 10 adds agents as more `Send` targets; the graph, rows and delegation stay.
+- Phase 10 adds agents as more `Send` targets; the graph, rows and delegation stay. *(Done:
+  ADR-020 - plus the PARTIAL outcome and evidence salvage at the deadline.)*
 - Phase 16 adds `interrupt()` for human approval; the checkpoint makes that resumable.
 - Phase 18 replaces the HTTP start with an `InvestigationRequested` consumer and the
   in-process task with a worker; the delegation exchange is unchanged.

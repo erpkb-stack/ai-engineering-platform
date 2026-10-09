@@ -25,7 +25,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         service-token ollama-pull run-llm stop-llm llm-smoke \
         rag-token docpack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents agent-run agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -273,10 +273,12 @@ AUDIT_PORT ?= 8008
 TOOLS_PIDS = { lsof -nP -t -iTCP:$(TOOLS_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 AUDIT_PIDS = { lsof -nP -t -iTCP:$(AUDIT_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 
-tools-tokens: ## Mint the tool-gateway -> audit service token (dev only, 30 days) into secrets/
+tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, -> rag: rag:obo), dev only, 30 days
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope audit:write \
 	  --ttl-minutes 43200 > secrets/tools_audit_token.txt
-	@echo "wrote secrets/tools_audit_token.txt (scope audit:write, 30 days)"
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope rag:obo \
+	  --ttl-minutes 43200 > secrets/tools_rag_token.txt
+	@echo "wrote secrets/tools_audit_token.txt (audit:write) and secrets/tools_rag_token.txt (rag:obo), 30 days"
 
 stop-tools: ## Stop a running tool-gateway (only if it really is ours)
 	@pids=$$($(TOOLS_PIDS)); \
@@ -358,9 +360,16 @@ stop-orch: ## Stop the orchestrator (RUNNING investigations stay RUNNING and res
 orch-smoke: ## End-to-end Phase 9 check incl. a crash + resume (needs dev, run-llm, run-tools, run-audit, run-agents, run-orch)
 	@./scripts/smoke-phase9.sh
 
+multi-smoke: ## End-to-end Phase 10 check: 4 agents in parallel (needs dev, run-llm, run-rag, run-tools, run-audit, run-agents, run-orch)
+	@./scripts/smoke-phase10.sh
+
 agent-run: ## Run the Log Analysis agent on an incident: make agent-run INCIDENT=INC-10001 [ROLE=SRE] [ROUTE=local|fast] [NOCACHE=1]
 	@test -n "$(INCIDENT)" || { echo "usage: make agent-run INCIDENT=INC-10001 [ROUTE=local|fast]"; exit 2; }
 	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE)) $(ORCH) run-log-agent $(INCIDENT) $(if $(ROUTE),--route $(ROUTE),) $(if $(NOCACHE),--no-cache,)
+
+investigate: ## Phase 10: all agents in parallel on an incident: make investigate INCIDENT=INC-10001 [AGENTS=metrics,deployment] [NOCACHE=1]
+	@test -n "$(INCIDENT)" || { echo "usage: make investigate INCIDENT=INC-10001 [AGENTS=a,b]"; exit 2; }
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE)) $(ORCH) investigate $(INCIDENT) $(if $(AGENTS),--agents $(AGENTS),) $(if $(ROUTE),--route $(ROUTE),) $(if $(NOCACHE),--no-cache,)
 
 agent-compare: ## Same incident, two models (local llama vs Claude Haiku): make agent-compare INCIDENT=INC-10001
 	@test -n "$(INCIDENT)" || { echo "usage: make agent-compare INCIDENT=INC-10001"; exit 2; }

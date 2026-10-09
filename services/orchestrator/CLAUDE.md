@@ -12,7 +12,9 @@ schema; leave a live grant behind a finished investigation (revoke BEFORE finish
 
 ## Code map
 - `api.py` HTTP: start (order: read incident → insert → exchange → mark → attach grant → launch), read, trace (redacted without the agent's permission), cancel, resume
-- `graph.py` `plan → Send(run_agent) → collect_evidence → finalize`; every node idempotent
+- `graph.py` `plan → Send(run_agent) ×4 → collect_evidence → finalize`; every node idempotent;
+  `outcome()` COMPLETE / PARTIAL / FAILED (ADR-020); a bad task fails its branch only
+- `salvage.py` post recorded evidence of SUCCEEDED tasks (deadline → PARTIAL; `repost-evidence`)
 - `engine.py` background runs, deadline (from the first slot), resume on startup, cancel, shutdown (rows stay RUNNING)
 - `store.py` every DB write, each safe to repeat · `delegation.py` STS client (5-min tokens, refresh from the grant)
 - `clients.py` incident-service + agents HTTP · `__main__.py` CLI over the service (`make agent-run/compare/status`)
