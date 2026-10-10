@@ -330,7 +330,10 @@ class Gateway:
         started = time.perf_counter()
 
         key = None  # cache first: a hit costs $0, so it is allowed even over budget
-        if self.cache is not None and use_cache and req.temperature == 0:
+        # only DETERMINISTIC calls are cached: a model that ignores temperature samples, so its
+        # answer must not be replayed as if it were the answer (review finding, Phase 11)
+        deterministic = req.temperature == 0 and self.routing.models[chain[0]].supports_temperature
+        if self.cache is not None and use_cache and deterministic:
             key = cache_key(op, route, chain, req)
             hit = self.cache.get(key)
             if hit is not None:
@@ -364,7 +367,10 @@ class Gateway:
                 attempts.append(Attempt(model, rt.name, "skipped", "no structured output"))
                 continue
             call_req = replace(
-                req, model=model, temperature=req.temperature if mcfg.supports_temperature else None
+                req,
+                model=model,
+                temperature=req.temperature if mcfg.supports_temperature else None,
+                force_tool=mcfg.supports_forced_tool,
             )
             redactions = 0
             if rt.hosted:
@@ -555,7 +561,10 @@ class Gateway:
                 attempts.append(Attempt(model, rt.name, "skipped", rt.unavailable_reason))
                 continue
             call_req = replace(
-                req, model=model, temperature=req.temperature if mcfg.supports_temperature else None
+                req,
+                model=model,
+                temperature=req.temperature if mcfg.supports_temperature else None,
+                force_tool=mcfg.supports_forced_tool,
             )
             redactions = 0
             if rt.hosted:

@@ -219,15 +219,18 @@ class Store:
             failed = [r for r in rows if r.status != "SUCCEEDED"]
             if not rows or len(failed) == len(rows):
                 return None
-            inv.status = "PARTIAL" if failed else "COMPLETE"
-            inv.error = (
-                (
-                    "missing sources - "
-                    + "; ".join(f"{r.agent_name}: {r.error or r.status}" for r in failed)
-                )[:1000]
-                if failed
-                else None
+            problems = [f"{r.agent_name}: {r.error or r.status}" for r in failed]
+            # Phase 11 (review finding): the graph skipped hypotheses because the evidence was
+            # missing then; a repost stores the evidence but does not reason over it
+            plan = inv.plan or {}
+            no_reasoning = bool(plan.get("reasoning")) and not plan.get("hypotheses")
+            inv.status = "PARTIAL" if problems or no_reasoning else "COMPLETE"
+            parts = (["missing sources - " + "; ".join(problems)] if problems else []) + (
+                ["hypotheses not generated (evidence was reposted): start a new investigation"]
+                if no_reasoning
+                else []
             )
+            inv.error = "; ".join(parts)[:1000] or None
             inv.plan = {
                 **inv.plan,
                 "evidence_error": None,
@@ -405,6 +408,33 @@ class Store:
             "evidence_count": len(result.evidence) if result else 0,
             "reused": False,
         }
+
+    async def output(self, task_id: UUID) -> dict[str, Any] | None:
+        """The recorded output of a SUCCEEDED task (Phase 11 reads results, never re-runs)."""
+        async with self.sessions() as s:
+            out = await s.scalar(
+                select(AgentExecution.output).where(
+                    AgentExecution.task_id == task_id, AgentExecution.status == "SUCCEEDED"
+                )
+            )
+        return dict(out) if out else None
+
+    async def succeeded_outputs(
+        self, investigation_id: UUID, agents: tuple[str, ...]
+    ) -> dict[str, dict[str, Any]]:
+        async with self.sessions() as s:
+            rows = (
+                await s.execute(
+                    select(Task.agent_name, AgentExecution.output)
+                    .join(AgentExecution, AgentExecution.task_id == Task.id)
+                    .where(
+                        Task.investigation_id == investigation_id,
+                        Task.agent_name.in_(agents),
+                        AgentExecution.status == "SUCCEEDED",
+                    )
+                )
+            ).all()
+        return {r.agent_name: dict(r.output or {}) for r in rows}
 
     async def evidence_of(self, task_id: UUID) -> list[dict[str, Any]]:
         async with self.sessions() as s:

@@ -156,7 +156,12 @@ async def agents_app(
 @pytest.fixture
 def orch_token(tkeys: KeyPair) -> str:
     return service_token_for(
-        tkeys, "orchestrator", "agents:run", "evidence:write", "delegation:create"
+        tkeys,
+        "orchestrator",
+        "agents:run",
+        "evidence:write",
+        "hypotheses:write",
+        "delegation:create",
     )
 
 
@@ -235,7 +240,13 @@ def make_orch(
             environment="test",
             log_json=False,
             # Phase 9 tests pin ONE agent (their counts assume it); Phase 10 tests pass agents=
-            **{"resume_on_startup": False, "agents": ("log_analysis",), **overrides},
+            # Phase 11 reasoning is OFF unless a test turns it on (reasoning=True)
+            **{
+                "resume_on_startup": False,
+                "agents": ("log_analysis",),
+                "reasoning": False,
+                **overrides,
+            },
         )  # type: ignore[call-arg]
         app = build_orch(
             settings,

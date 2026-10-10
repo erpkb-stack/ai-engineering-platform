@@ -16,6 +16,7 @@ from aeoi_agents.config import (
     KnowledgeBudget,
     LogAgentBudget,
     MetricsBudget,
+    ReasoningBudget,
     Settings,
 )
 from aeoi_agents.deployment.agent import DeploymentAgent
@@ -25,6 +26,10 @@ from aeoi_agents.knowledge.agent import KnowledgeAgent
 from aeoi_agents.log_analysis.agent import Deps, LogAnalysisAgent
 from aeoi_agents.metrics.agent import Deps as MetricsDeps
 from aeoi_agents.metrics.agent import MetricsAgent
+from aeoi_agents.reasoning.critic import CriticAgent
+from aeoi_agents.reasoning.critic import Deps as CriticDeps
+from aeoi_agents.reasoning.hypothesis import Deps as HypothesisDeps
+from aeoi_agents.reasoning.hypothesis import HypothesisAgent
 from aeoi_llm_client import HttpLLMClient, LLMClient
 from aeoi_tool_client import HttpToolClient, ToolClient
 from aeoi_web import Authenticator, create_app
@@ -105,4 +110,8 @@ def build_app(
         "deployment": DeploymentAgent(DeployDeps(tools=tool_client, budget=DeploymentBudget())),
         "knowledge": KnowledgeAgent(KnowledgeDeps(tools=tool_client, budget=KnowledgeBudget())),
     }
+    # Phase 11 (ADR-021): reasoning agents get an LLM client and NO tool client
+    reasoning = ReasoningBudget()
+    app.state.hypothesis_agent = HypothesisAgent(HypothesisDeps(llm=llm_client, budget=reasoning))
+    app.state.critic_agent = CriticAgent(CriticDeps(llm=llm_client, budget=reasoning))
     return app

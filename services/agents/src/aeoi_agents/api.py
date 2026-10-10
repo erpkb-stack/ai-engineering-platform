@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Request
 from aeoi_common.correlation import get_correlation_id
 from aeoi_common.errors import ForbiddenError, NotFoundError
 from aeoi_models.api.agents import AgentName, AgentRunResult, AgentTask
+from aeoi_models.api.reasoning import ReasoningTask
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 from aeoi_security.auth import AuthError, Principal
 from aeoi_web import require_scope
@@ -42,6 +43,25 @@ def _user_token(request: Request, investigation_id: UUID | None, incident_id: UU
             "Delegated token is bound to another investigation/incident than this task's."
         )
     return token.strip()
+
+
+@router.post("/hypothesis/run", response_model=AgentRunResult)
+async def run_hypothesis(task: ReasoningTask, request: Request, _: Caller) -> AgentRunResult:
+    """Phase 11: no tool calls, but still bound to the investigation by the delegated token."""
+    _user_token(request, task.investigation_id, task.incident_id)
+    result: AgentRunResult = await request.app.state.hypothesis_agent.run(
+        task, "", get_correlation_id()
+    )
+    return result
+
+
+@router.post("/critic/run", response_model=AgentRunResult)
+async def run_critic(task: ReasoningTask, request: Request, _: Caller) -> AgentRunResult:
+    _user_token(request, task.investigation_id, task.incident_id)
+    result: AgentRunResult = await request.app.state.critic_agent.run(
+        task, "", get_correlation_id()
+    )
+    return result
 
 
 @router.post("/{agent}/run", response_model=AgentRunResult)

@@ -28,6 +28,8 @@ class ChatRequest:
     # For generate_structured: the JSON Schema the output must satisfy.
     json_schema: dict[str, Any] | None = None
     schema_name: str = "result"
+    # False: the model rejects a forced tool choice; offer the tool and instruct instead
+    force_tool: bool = True
 
 
 @dataclass(frozen=True)

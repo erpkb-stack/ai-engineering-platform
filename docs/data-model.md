@@ -80,7 +80,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `approvals` | Human decision on a consequential recommendation (Feature 11, ADR-007). | 16 |
 | `evidence` | A piece of evidence retrieved during an investigation. Findings cite evidence_key. | 14 |
 | `feedback` | Thumbs up/down on findings, reports, answers, retrievals | 8 |
-| `hypotheses` | Ranked explanations with a confidence band and status | 9 |
+| `hypotheses` | Ranked explanations with a confidence band and status; Phase 11 (0020) adds investigation_id, hypothesis_key (unique per investigation: idempotent POST) and detail JSONB (cause kind, origin, rubric, critic verdict, model explanation) | 12 |
 | `idempotency_keys` | Stored result of a POST with an Idempotency-Key, scoped by (principal, scope, key); same transaction as the result (Phase 4, migration 0013) | 8 |
 | `hypothesis_evidence` | Evidence graph edge: hypothesis --SUPPORTS/CONTRADICTS--> evidence. | 4 |
 | `incident_events` | Timeline entries (deploys, alerts, human actions, agent steps). | 10 |

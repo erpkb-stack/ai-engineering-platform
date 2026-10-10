@@ -174,6 +174,7 @@ async def start_investigation(
         "llm_route": body.llm_route,
         "llm_cache": body.llm_cache,
         "agents": agents,
+        "reasoning_enabled": settings.reasoning if body.reasoning is None else body.reasoning,
         "results": [],
     }
     try:
@@ -183,7 +184,12 @@ async def start_investigation(
             who.actor,
             settings.budget_usd,
             settings.investigation_deadline_s,
-            plan={"phase": 10, "agents": agents, "start_key": key},
+            plan={
+                "phase": 11,
+                "agents": agents,
+                "reasoning": graph_input["reasoning_enabled"],
+                "start_key": key,
+            },
         )
     except AlreadyRunningError as exc:
         raise ConflictError(
@@ -262,6 +268,9 @@ AGENT_CONTENT_PERMS: dict[str, frozenset[Perm]] = {
     "metrics": frozenset({Perm.METRICS_READ}),
     "deployment": frozenset({Perm.DEPLOYS_READ}),
     "knowledge": frozenset({Perm.RUNBOOKS_READ, Perm.DOCS_READ}),
+    # Phase 11: they read every evidence agent's results (log codes, metrics, deploys)
+    "hypothesis": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
+    "critic": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
 }
 
 

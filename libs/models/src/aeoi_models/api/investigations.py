@@ -24,6 +24,9 @@ class StartInvestigation(BaseModel):
     # Phase 10: run only these agents (must be a subset of the orchestrator's configured set).
     # Model comparison runs only log_analysis: the other agents have no model to compare.
     agents: list[AgentName] | None = Field(default=None, min_length=1, max_length=4)
+    # Phase 11: hypotheses + critic after the evidence agents (null = orchestrator config).
+    # The Phase 8 model comparison turns it off: it compares the log agent only.
+    reasoning: bool | None = None
 
     @model_validator(mode="after")
     def _window(self) -> StartInvestigation:

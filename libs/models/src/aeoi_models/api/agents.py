@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from aeoi_models.api.hypotheses import Critique, HypothesisOut, Observation, RuledOut
 from aeoi_models.findings import EvidenceId, Fact
 
 ServiceKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{1,99}$")]
@@ -22,7 +23,8 @@ LlmRoute = Literal["fast", "local", "reasoning"]
 MAX_WINDOW = timedelta(hours=24)
 
 
-AgentName = Literal["log_analysis", "metrics", "deployment", "knowledge"]
+AgentName = Literal["log_analysis", "metrics", "deployment", "knowledge"]  # evidence agents
+ReasoningAgent = Literal["hypothesis", "critic"]  # Phase 11: read results, call no tools
 AGENT_NAMES: tuple[str, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
 
 
@@ -250,6 +252,11 @@ class AgentRunResult(BaseModel):
     anomalies: list[MetricAnomaly] = Field(default_factory=list, max_length=50)
     changes: list[DeployChange] = Field(default_factory=list, max_length=30)
     references: list[KnowledgeRef] = Field(default_factory=list, max_length=20)
+    # Phase 11 (hypothesis + critic agents, ADR-021)
+    observations: list[Observation] = Field(default_factory=list, max_length=99)
+    hypotheses: list[HypothesisOut] = Field(default_factory=list, max_length=12)
+    ruled_out: list[RuledOut] = Field(default_factory=list, max_length=12)
+    critique: Critique | None = None
     evidence: list[EvidenceItem] = Field(default_factory=list)
     label_quality: LabelQuality = Field(default_factory=LabelQuality)
     trace: AgentTrace

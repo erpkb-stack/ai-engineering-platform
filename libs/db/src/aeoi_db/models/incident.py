@@ -181,6 +181,14 @@ class Hypothesis(Base):
         Index("ix_hypotheses_incident_id_rank", "incident_id", "rank"),
         # serves: FK lookup when following supersession chains
         Index("ix_hypotheses_superseded_by", "superseded_by"),
+        # enforces: one row per hypothesis key per investigation (idempotent POST, 0020)
+        Index(
+            "uq_hypotheses_investigation_id_hypothesis_key",
+            "investigation_id",
+            "hypothesis_key",
+            unique=True,
+            postgresql_where=text("investigation_id IS NOT NULL"),
+        ),
         {"schema": SCHEMA},
     )
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -194,6 +202,12 @@ class Hypothesis(Base):
     produced_by: Mapped[str] = mapped_column(String(64), nullable=False)
     superseded_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.hypotheses.id", ondelete="SET NULL")
+    )
+    # Phase 11 (0020): the run that produced it (soft ref, other schema) + its key in that run
+    investigation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    hypothesis_key: Mapped[str | None] = mapped_column(String(8))
+    detail: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     created_at: Mapped[datetime] = created_at_col()
 

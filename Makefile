@@ -25,7 +25,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         service-token ollama-pull run-llm stop-llm llm-smoke \
         rag-token docpack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents hypo-smoke multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -318,11 +318,11 @@ INCIDENT ?=
 ROUTE ?=
 ORCH := uv run --quiet python -m aeoi_orchestrator
 
-agents-tokens: ## Mint dev service tokens: agents (tools+llm) and orchestrator (agents:run, evidence:write, delegation:create), 30 days
+agents-tokens: ## Mint dev service tokens: agents (tools+llm) and orchestrator (agents:run, evidence:write, hypotheses:write, delegation:create), 30 days
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service agents --scope tools:invoke \
 	  --scope llm:invoke --ttl-minutes 43200 > secrets/agents_service_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service orchestrator --scope agents:run \
-	  --scope evidence:write --scope delegation:create --ttl-minutes 43200 > secrets/orchestrator_service_token.txt
+	  --scope evidence:write --scope hypotheses:write --scope delegation:create --ttl-minutes 43200 > secrets/orchestrator_service_token.txt
 	@echo "wrote secrets/agents_service_token.txt and secrets/orchestrator_service_token.txt"
 
 stop-agents: ## Stop a running agents service (only if it really is ours)
@@ -359,6 +359,9 @@ stop-orch: ## Stop the orchestrator (RUNNING investigations stay RUNNING and res
 
 orch-smoke: ## End-to-end Phase 9 check incl. a crash + resume (needs dev, run-llm, run-tools, run-audit, run-agents, run-orch)
 	@./scripts/smoke-phase9.sh
+
+hypo-smoke: ## End-to-end Phase 11 check: hypotheses + critic + validation (Phase 10 services; Haiku on fast, Sonnet on reasoning)
+	@./scripts/smoke-phase11.sh
 
 multi-smoke: ## End-to-end Phase 10 check: 4 agents in parallel (needs dev, run-llm, run-rag, run-tools, run-audit, run-agents, run-orch)
 	@./scripts/smoke-phase10.sh

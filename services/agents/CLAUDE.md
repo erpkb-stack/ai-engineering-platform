@@ -17,6 +17,7 @@ uncitable observation into a Fact (use `notes`); call anything but the two gatew
 - `metrics/anomaly.py` robust z vs pre-window baseline (pure) · `metrics/agent.py` 1 fact per series
 - `deployment/agent.py` deploys + config diffs, minutes from START to detection (timing, never cause)
 - `knowledge/agent.py` runbook/doc POINTERS only (rag ACLs are per group; evidence is per incident)
+- `reasoning/` (Phase 11, ADR-021): `observations.py` timeline (code), `candidates.py` causes + rubric bands (code), `hypothesis.py` Haiku ranks/explains with refs, `critic.py` Sonnet critique (route fixed, fallback off, refuses a different observation set)
 - `common.py` one traced tool call (`ToolResult | Failure`)
 - `api.py` task endpoint · `config.py` budgets (`AEOI_AGENTS_LOG_*`, `_METRICS_*`, `_DEPLOY_*`, `_KNOWLEDGE_*`) · `main.py` factory
 

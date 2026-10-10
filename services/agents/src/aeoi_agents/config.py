@@ -72,6 +72,27 @@ class KnowledgeBudget(BaseServiceSettings):
     task_deadline_s: float = 60.0
 
 
+class ReasoningBudget(BaseServiceSettings):
+    """Hypothesis + critic agents (ADR-021). Owner decision (2026-10-09): Haiku ranks (`fast`),
+    a STRONGER, different model critiques (`reasoning` = Sonnet) - the critic must be
+    independent of the author (architecture.md §9 reason 4)."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AEOI_AGENTS_REASONING_", extra="ignore", frozen=True
+    )
+
+    rank_route: str = "fast"
+    critic_route: str = "reasoning"
+    # never critique on a fallback model: a 3B llama "critic" would look like Sonnet in every
+    # report (found on the Mac: the reasoning route had silently failed since Phase 5)
+    critic_allow_fallback: bool = False
+    rank_max_tokens: int = 900
+    critic_max_tokens: int = 1200
+    # Haiku answers in seconds; the llama fallback on an Intel CPU needs the long timeout
+    llm_timeout_s: float = 115.0
+    task_deadline_s: float = 150.0  # below the orchestrator's 180 s HTTP timeout
+
+
 class Settings(BaseServiceSettings):
     model_config = SettingsConfigDict(env_prefix="AEOI_AGENTS_", extra="ignore", frozen=True)
 

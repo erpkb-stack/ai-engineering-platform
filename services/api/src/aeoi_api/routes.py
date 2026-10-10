@@ -21,6 +21,7 @@ from aeoi_api.proxy import Upstream
 from aeoi_common.errors import RateLimitedError
 from aeoi_models.api.audit import AuditPage
 from aeoi_models.api.common import Page
+from aeoi_models.api.hypotheses import HypothesisRecord
 from aeoi_models.api.incidents import (
     EvidenceOut,
     FeedbackCreate,
@@ -274,6 +275,19 @@ async def evidence(
     _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
 ) -> Response:
     return await up.forward(request, f"/v1/incidents/{ref}/evidence")
+
+
+@router.get(
+    "/incidents/{ref}/hypotheses", response_model=list[HypothesisRecord], tags=["incidents"]
+)
+async def hypotheses(
+    ref: str,
+    request: Request,
+    up: Incidents,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+) -> Response:
+    """Phase 11: ranked hypotheses of the latest investigation (or ?investigation_id=)."""
+    return await up.forward(request, f"/v1/incidents/{ref}/hypotheses")
 
 
 @router.post("/feedback", status_code=201, response_model=FeedbackOut, tags=["feedback"])

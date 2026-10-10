@@ -100,6 +100,11 @@ class ModelConfig(_Strict):
     # Newer models reject sampling parameters: Anthropic answers HTTP 400 "`temperature` is
     # deprecated for this model" (found on the Mac, Phase 11 preflight). false = never send it.
     supports_temperature: bool = True
+    # Structured output = a forced tool call. Some models refuse it: claude-sonnet-5-5 answers
+    # HTTP 400 'tool_choice: type "tool" and "any" are not supported for this model' (Mac,
+    # Phase 11). false = offer the single tool with tool_choice auto + an instruction; the
+    # gateway still validates the arguments against the schema and repairs once.
+    supports_forced_tool: bool = True
 
 
 Operation = Literal["chat", "embed"]
