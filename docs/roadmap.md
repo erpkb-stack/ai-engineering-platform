@@ -46,10 +46,10 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 - [x] Phase 6: RAG pipeline (baseline + sweep on the Mac; defaults adopted in ADR-016)
 - [x] Phase 7: Tool Gateway
 - [x] Phase 8: First AI agent — verified on the Mac 2026-10-10 (`make agent-smoke` 15/15, `make test-integration` 189 passed); was: done when `make agent-smoke` all ✔ and `make test-integration` green on the Mac
-- [ ] Phase 9: LangGraph orchestration — built (orchestrator service, checkpoints, resume, delegation tokens); done when `make orch-smoke` + the crash/resume check pass on the Mac
-- [ ] Phase 10: Multi-agent investigation — built (metrics/deployment/knowledge code-only agents, PARTIAL, rag OBO, evidence by kind; ADR-020); done when `make multi-smoke` all ✔ + the 4-agent crash/resume check pass on the Mac (after Phase 9 is ticked)
-- [ ] Phase 11: Critic + Validation — built (code candidates + rubric, Haiku ranks, Sonnet critic without fallback, deterministic validation, hypotheses on the incident; ADR-021); done when `make hypo-smoke` all ✔ on the Mac with a real Sonnet critic (after Phase 10 is ticked)
-- [ ] Phase 12: Incident timeline + postmortem
+- [x] Phase 9: LangGraph orchestration — verified on the Mac 2026-10-10 (`make orch-smoke` 19/19; kill + resume: log_analysis SUCCEEDED(x2), siblings x1, COMPLETE); was: built (orchestrator service, checkpoints, resume, delegation tokens); done when `make orch-smoke` + the crash/resume check pass on the Mac
+- [x] Phase 10: Multi-agent investigation — verified on the Mac 2026-10-10 (`make multi-smoke` 26/26; 4-agent kill + resume COMPLETE, only the interrupted agent re-ran); was: built (metrics/deployment/knowledge code-only agents, PARTIAL, rag OBO, evidence by kind; ADR-020); done when `make multi-smoke` all ✔ + the 4-agent crash/resume check pass on the Mac (after Phase 9 is ticked)
+- [x] Phase 11: Critic + Validation — verified on the Mac 2026-10-10 (`make hypo-smoke` 24/24 with real Sonnet critic, integration 189 passed, first real run → eval case #1; PR #11 merged); was: built (code candidates + rubric, Haiku ranks, Sonnet critic without fallback, deterministic validation, hypotheses on the incident; ADR-021); done when `make hypo-smoke` all ✔ on the Mac with a real Sonnet critic (after Phase 10 is ticked)
+- [ ] Phase 12: Incident timeline + postmortem — built (code timeline in incident_events, Sonnet narrative checked by code, read-time assembly redacted per reader; ADR-022); done when `make pm-smoke` all ✔ on the Mac with real Sonnet and the postmortem is read by a human (after Phase 11 is ticked)
 - [ ] Phase 13: Historical incident intelligence
 - [ ] Phase 14: Code intelligence
 - [ ] Phase 15: Release risk analysis

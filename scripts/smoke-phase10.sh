@@ -43,11 +43,11 @@ while [ "$status" = "RUNNING" ] && [ $i -lt 120 ]; do
   status=$(json "d['status']" < "$TMP/inv.json" 2>/dev/null || echo "?")
 done
 json "', '.join(t['agent']+'='+t['status']+' x'+str(t['attempt']) for t in d['tasks'])" < "$TMP/inv.json" | sed 's/^/    tasks: /'
-evid_ok=$(json "all(t['status']=='SUCCEEDED' for t in d['tasks'] if t['agent'] not in ('hypothesis','critic'))" < "$TMP/inv.json" 2>/dev/null)
+evid_ok=$(json "all(t['status']=='SUCCEEDED' for t in d['tasks'] if t['agent'] not in ('hypothesis','critic','postmortem'))" < "$TMP/inv.json" 2>/dev/null)
 if [ "$status" = "COMPLETE" ]; then ok "investigation COMPLETE (all 4 agents + reasoning)"
 elif [ "$status" = "PARTIAL" ] && [ "$evid_ok" = "True" ]; then ok "all 4 evidence agents SUCCEEDED"; warn "reasoning: $(json "d.get('error')" < "$TMP/inv.json")"
 else bad "investigation $status: $(json "d.get('error')" < "$TMP/inv.json" 2>/dev/null)"; fi
-n=$(json "sum(1 for t in d['tasks'] if t['agent'] not in ('hypothesis','critic'))" < "$TMP/inv.json"); [ "$n" = "4" ] && ok "4 evidence tasks planned" || bad "$n evidence tasks, expected 4"
+n=$(json "sum(1 for t in d['tasks'] if t['agent'] not in ('hypothesis','critic','postmortem'))" < "$TMP/inv.json"); [ "$n" = "4" ] && ok "4 evidence tasks planned" || bad "$n evidence tasks, expected 4"
 
 curl -s "$API/api/v1/investigations/$INV/trace" -H "Authorization: Bearer $SRE" > "$TMP/trace.json"
 facts() { json "' || '.join(f['statement'] for e in d['executions'] if e['agent']=='$1' for f in e['output'].get('facts', []))" < "$TMP/trace.json" 2>/dev/null; }

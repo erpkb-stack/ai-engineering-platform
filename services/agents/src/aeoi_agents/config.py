@@ -93,6 +93,21 @@ class ReasoningBudget(BaseServiceSettings):
     task_deadline_s: float = 150.0  # below the orchestrator's 180 s HTTP timeout
 
 
+class PostmortemBudget(BaseServiceSettings):
+    """Postmortem agent (ADR-022). Owner decision (2026-10-10): Sonnet writes it (`reasoning`),
+    fallback off - a 3B llama narrative would be stored as the postmortem."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AEOI_AGENTS_POSTMORTEM_", extra="ignore", frozen=True
+    )
+
+    route: str = "reasoning"
+    allow_fallback: bool = False
+    max_tokens: int = 1800
+    llm_timeout_s: float = 115.0
+    task_deadline_s: float = 150.0  # below the orchestrator's 180 s HTTP timeout
+
+
 class Settings(BaseServiceSettings):
     model_config = SettingsConfigDict(env_prefix="AEOI_AGENTS_", extra="ignore", frozen=True)
 

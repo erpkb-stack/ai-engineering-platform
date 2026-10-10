@@ -161,6 +161,8 @@ def orch_token(tkeys: KeyPair) -> str:
         "agents:run",
         "evidence:write",
         "hypotheses:write",
+        "timeline:write",
+        "postmortems:write",
         "delegation:create",
     )
 
@@ -240,11 +242,12 @@ def make_orch(
             environment="test",
             log_json=False,
             # Phase 9 tests pin ONE agent (their counts assume it); Phase 10 tests pass agents=
-            # Phase 11 reasoning is OFF unless a test turns it on (reasoning=True)
+            # Phase 11 reasoning and Phase 12 postmortem are OFF unless a test turns them on
             **{
                 "resume_on_startup": False,
                 "agents": ("log_analysis",),
                 "reasoning": False,
+                "postmortem": False,
                 **overrides,
             },
         )  # type: ignore[call-arg]

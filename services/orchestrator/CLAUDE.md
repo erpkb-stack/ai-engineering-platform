@@ -15,6 +15,7 @@ schema; leave a live grant behind a finished investigation (revoke BEFORE finish
 - `graph.py` `plan → Send(run_agent) ×4 → collect_evidence → finalize`; every node idempotent;
   `outcome()` COMPLETE / PARTIAL / FAILED (ADR-020); a bad task fails its branch only
 - `validation.py` (Phase 11) merge ranker + critic, hard checks (citations, support, timing vs the first sustained symptom) and soft checks (critic answered, critic independent); `reasoning_outcome()` COMPLETE/PARTIAL/INCONCLUSIVE
+- `report` node (Phase 12): postmortem task → POST timeline points + postmortem (both idempotent); `report_outcome()` PARTIAL when the writer failed/was empty/not stored
 - `salvage.py` post recorded evidence of SUCCEEDED tasks (deadline → PARTIAL; `repost-evidence`)
 - `engine.py` background runs, deadline (from the first slot), resume on startup, cancel, shutdown (rows stay RUNNING)
 - `store.py` every DB write, each safe to repeat · `delegation.py` STS client (5-min tokens, refresh from the grant)

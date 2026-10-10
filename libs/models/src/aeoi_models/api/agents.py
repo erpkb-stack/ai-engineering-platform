@@ -16,6 +16,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from aeoi_models.api.hypotheses import Critique, HypothesisOut, Observation, RuledOut
+from aeoi_models.api.postmortem import PostmortemDraft
 from aeoi_models.findings import EvidenceId, Fact
 
 ServiceKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{1,99}$")]
@@ -24,7 +25,7 @@ MAX_WINDOW = timedelta(hours=24)
 
 
 AgentName = Literal["log_analysis", "metrics", "deployment", "knowledge"]  # evidence agents
-ReasoningAgent = Literal["hypothesis", "critic"]  # Phase 11: read results, call no tools
+ReasoningAgent = Literal["hypothesis", "critic", "postmortem"]  # Phase 11/12: no tool calls
 AGENT_NAMES: tuple[str, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
 
 
@@ -257,6 +258,7 @@ class AgentRunResult(BaseModel):
     hypotheses: list[HypothesisOut] = Field(default_factory=list, max_length=12)
     ruled_out: list[RuledOut] = Field(default_factory=list, max_length=12)
     critique: Critique | None = None
+    postmortem: PostmortemDraft | None = None  # Phase 12 (ADR-022)
     evidence: list[EvidenceItem] = Field(default_factory=list)
     label_quality: LabelQuality = Field(default_factory=LabelQuality)
     trace: AgentTrace

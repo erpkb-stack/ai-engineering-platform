@@ -2,7 +2,7 @@
 
 **Purpose:** system of record for incidents, timeline, evidence, approvals and feedback.
 **Owns schema:** `incident` (connects as LOGIN user `incident_svc` ∈ `svc_incident`; `make db-users`).
-**Events (outbox → relay → publisher):** IncidentCreated, IncidentUpdated, InvestigationRequested (topic `incident.lifecycle`).
+**Events (outbox → relay → publisher):** IncidentCreated, IncidentUpdated, InvestigationRequested, EvidenceRetrieved, HypothesisCreated, PostmortemGenerated (topic `incident.lifecycle`).
 **Must never:** call LLMs, execute remediation, read another schema.
 **Why a separate service:** owns the transactional incident lifecycle; must stay up when every AI service is down.
 
@@ -10,6 +10,7 @@
 - `api.py` routes `/v1/...` — re-check permissions (`require(Perm.X)`) even behind the gateway
 - `service.py` use cases (caller owns the transaction) · `domain.py` pure rules (transitions, cursors, If-Match)
 - `idempotency.py` DB-backed Idempotency-Key (same tx as the result; race → replay winner)
+- `postmortem.py` (Phase 12, ADR-022): timeline points (source derived from stored evidence kind, dedupe), postmortems, read-time assembly + per-reader redaction, markdown
 - `events.py` `stage_event()` + `OutboxRelay` + `LogPublisher` / `KafkaPublisher` / `InMemoryPublisher`
 
 ## Rules

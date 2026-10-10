@@ -121,6 +121,14 @@ class IncidentEvent(Base):
         CheckConstraint(in_list("source", EVENT_SOURCES), name="source_valid"),
         # serves: timeline reconstruction = range scan per incident in time order
         Index("ix_incident_events_incident_id_occurred_at", "incident_id", "occurred_at"),
+        # enforces: one timeline point per observation, whichever run reported it (0021)
+        Index(
+            "uq_incident_events_incident_id_dedupe_key",
+            "incident_id",
+            "dedupe_key",
+            unique=True,
+            postgresql_where=text("dedupe_key IS NOT NULL"),
+        ),
         {"schema": SCHEMA},
     )
     id: Mapped[uuid.UUID] = uuid_pk()
@@ -136,6 +144,8 @@ class IncidentEvent(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default=EMPTY_JSON
     )
+    # Phase 12 (0021): set for agent-observed points (source|subject|time) -> idempotent POST
+    dedupe_key: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = created_at_col()
 
 
@@ -231,6 +241,40 @@ class HypothesisEvidence(Base):
     )
     stance: Mapped[str] = mapped_column(String(12), nullable=False)
     note: Mapped[str | None] = mapped_column(Text)
+
+
+class Postmortem(Base):
+    """Phase 12 (0021, ADR-022): the GENERATED parts of a postmortem, one per investigation.
+    The document is assembled at read time with the incident's current record (status,
+    resolution, human timeline events), so it never goes stale on those."""
+
+    __tablename__ = "postmortems"
+    __table_args__ = (
+        CheckConstraint(in_list("written_by", ("llm", "code")), name="written_by_valid"),
+        # enforces: one postmortem per investigation (idempotent POST); serves: latest per
+        # incident (incident_id prefix) and the FK lookup
+        Index(
+            "uq_postmortems_incident_id_investigation_id",
+            "incident_id",
+            "investigation_id",
+            unique=True,
+        ),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    incident_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.incidents.id", ondelete="RESTRICT"), nullable=False
+    )
+    investigation_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    written_by: Mapped[str] = mapped_column(String(8), nullable=False)
+    model: Mapped[str | None] = mapped_column(String(120))
+    prompt_version: Mapped[int | None] = mapped_column(SmallInteger)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    content: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=EMPTY_JSON
+    )
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = created_at_col()
 
 
 class Approval(Base):

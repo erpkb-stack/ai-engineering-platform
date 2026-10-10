@@ -2,7 +2,8 @@
 - AS THE USER (their own token, only inside the start request): read the incident, mark it
   INVESTIGATING. incident-service decides what this user may see/do.
 - AS THE ORCHESTRATOR (service token): run an agent (+ the DELEGATED token on behalf of the
-  user), post evidence (`evidence:write`).
+  user), post evidence (`evidence:write`), hypotheses (`hypotheses:write`), timeline points
+  (`timeline:write`) and postmortems (`postmortems:write`).
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import httpx
 from aeoi_common.correlation import CORRELATION_HEADER, get_correlation_id
 from aeoi_models.api.agents import AgentRunResult, AgentTask, EvidenceBatch, EvidenceItem
 from aeoi_models.api.hypotheses import HypothesisBatch
+from aeoi_models.api.postmortem import PostmortemIn, TimelineBatch
 from aeoi_models.api.reasoning import ReasoningTask
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 
@@ -137,6 +139,44 @@ class IncidentClient:
             if r.status_code < 500:
                 break
         raise CallError(last)
+
+    async def _post_idempotent(self, path: str, body: str) -> dict[str, Any]:
+        """For endpoints that are idempotent server-side: one retry on transport/5xx."""
+        last = ""
+        for _ in range(2):
+            try:
+                r = await self._http.post(
+                    f"{self._base}{path}",
+                    content=body,
+                    headers={
+                        "Authorization": f"Bearer {self._service_token}",
+                        CORRELATION_HEADER: _cid(),
+                        "Content-Type": "application/json",
+                    },
+                )
+            except httpx.TransportError as exc:
+                last = type(exc).__name__
+                continue
+            if r.status_code == 200:
+                return r.json()  # type: ignore[no-any-return]
+            last = f"HTTP {r.status_code} {_detail(r)}"
+            if r.status_code < 500:
+                break
+        raise CallError(last)
+
+    async def post_timeline(self, incident_id: str, batch: TimelineBatch) -> int:
+        """Phase 12: idempotent per (incident, source|subject|time) (ADR-022)."""
+        out = await self._post_idempotent(
+            f"/v1/incidents/{incident_id}/timeline", batch.model_dump_json()
+        )
+        return int(out["inserted"])
+
+    async def post_postmortem(self, incident_id: str, pm: PostmortemIn) -> bool:
+        """Phase 12: idempotent per (incident, investigation) (ADR-022)."""
+        out = await self._post_idempotent(
+            f"/v1/incidents/{incident_id}/postmortems", pm.model_dump_json()
+        )
+        return bool(out["inserted"])
 
 
 class AgentsClient:

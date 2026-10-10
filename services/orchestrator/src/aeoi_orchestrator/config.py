@@ -48,6 +48,8 @@ class Settings(BaseServiceSettings):
     agents: tuple[AgentName, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
     # Phase 11 (ADR-021): hypothesize -> critique -> validate after the evidence agents
     reasoning: bool = True
+    # Phase 12 (ADR-022): timeline points + postmortem (Sonnet narrative) after validate
+    postmortem: bool = True
     task_deadline_s: float = 180.0  # > agents' task deadline (150 s): one agent call
     # the whole investigation, all retries and resumes included; past it = FAILED
     investigation_deadline_s: float = 900.0

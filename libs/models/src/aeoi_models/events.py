@@ -32,6 +32,7 @@ class EventType(StrEnum):
     HUMAN_APPROVED = "HumanApproved"
     HUMAN_REJECTED = "HumanRejected"
     INCIDENT_RESOLVED = "IncidentResolved"
+    POSTMORTEM_GENERATED = "PostmortemGenerated"  # Phase 12 (ADR-022)
 
 
 def _now() -> datetime:

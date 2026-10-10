@@ -37,6 +37,7 @@ from aeoi_models.api.investigations import (
     InvestigationOut,
     InvestigationTrace,
 )
+from aeoi_models.api.postmortem import PostmortemDoc
 from aeoi_models.api.search import DocumentOut, SearchRequest, SearchResponse
 from aeoi_models.api.tools import ToolInfo, ToolInvokeRequest, ToolResult
 from aeoi_security.auth import Principal
@@ -288,6 +289,19 @@ async def hypotheses(
 ) -> Response:
     """Phase 11: ranked hypotheses of the latest investigation (or ?investigation_id=)."""
     return await up.forward(request, f"/v1/incidents/{ref}/hypotheses")
+
+
+@router.get("/incidents/{ref}/postmortem", response_model=PostmortemDoc, tags=["incidents"])
+async def postmortem(
+    ref: str,
+    request: Request,
+    up: Incidents,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+) -> Response:
+    """Phase 12 (ADR-022): the latest postmortem (or ?investigation_id=), assembled at read
+    time; `?format=markdown` returns text/markdown. Model sentences are redacted for a reader
+    who may not read all the evidence they cite."""
+    return await up.forward(request, f"/v1/incidents/{ref}/postmortem")
 
 
 @router.post("/feedback", status_code=201, response_model=FeedbackOut, tags=["feedback"])

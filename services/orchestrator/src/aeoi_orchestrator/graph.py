@@ -1,7 +1,7 @@
-"""The investigation graph (ADR-019, ADR-020, ADR-021).
+"""The investigation graph (ADR-019, ADR-020, ADR-021, ADR-022).
 
     START -> plan --(Send per task)--> run_agent --> collect_evidence
-          -> hypothesize -> critique -> validate -> finalize -> END
+          -> hypothesize -> critique -> validate -> report -> finalize -> END
 
 Phase 11: hypothesize (code candidates, LLM ranks) and critique (LLM attacks, code merges) are
 agent tasks like the evidence agents (recorded, reused on resume); validate is plain code.
@@ -16,6 +16,8 @@ again, so every node is idempotent (see store.py):
 - collect_evidence: the evidence endpoint is idempotent per evidence key
 - hypothesize/critique: same reuse guard as run_agent (deterministic task ids per agent)
 - validate:         the hypotheses POST is idempotent per (investigation, key)
+- report:           postmortem task: same reuse guard; timeline POST idempotent per point,
+                    postmortem POST idempotent per (incident, investigation)
 - finalize:         only moves a RUNNING investigation
 
 Outcome (ADR-020): every task SUCCEEDED -> COMPLETE; some failed -> PARTIAL (the evidence that
@@ -37,7 +39,8 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
 from aeoi_models.api.agents import AgentRunResult, AgentTask, EvidenceItem
-from aeoi_models.api.hypotheses import observations_fingerprint
+from aeoi_models.api.hypotheses import HypothesisOut, ValidationReport, observations_fingerprint
+from aeoi_models.api.postmortem import PostmortemIn, RootCauseState, TimelineBatch
 from aeoi_models.api.reasoning import ReasoningTask
 from aeoi_orchestrator import validation
 from aeoi_orchestrator.clients import AgentsClient, CallError, IncidentClient
@@ -66,6 +69,8 @@ class InvestigationState(TypedDict, total=False):
     evidence: dict[str, Any]
     reasoning_enabled: bool  # Phase 11; absent in older checkpoints -> config
     reasoning: dict[str, Any]  # hypothesis / critic task summaries + validation report
+    postmortem_enabled: bool  # Phase 12; absent in older checkpoints -> config
+    report: dict[str, Any]  # postmortem task summary + what was stored
     outcome: dict[str, Any]
 
 
@@ -151,6 +156,26 @@ def reasoning_outcome(status: str, error: str | None, r: dict[str, Any]) -> tupl
             problems.append("critic: same model as the ranker (not independent)")
     if SEVERITY[new] > SEVERITY.get(status, 0):
         status = new
+    joined = "; ".join(p for p in [error, *problems] if p)
+    return status, joined or None
+
+
+def report_outcome(status: str, error: str | None, rep: dict[str, Any]) -> tuple[str, str | None]:
+    """Phase 12 (ADR-022) on top: a postmortem that failed, was written by code only (model
+    down) or was not stored makes the run PARTIAL, named. Worst status still wins."""
+    if not rep or rep.get("skipped") or status == "FAILED":
+        return status, error
+    t = rep.get("task") or {}
+    problems: list[str] = []
+    if t.get("status") != "SUCCEEDED":
+        problems.append(f"postmortem: {t.get('error') or t.get('status')}")
+    else:
+        if rep.get("degraded"):
+            problems.append(f"postmortem: {rep['degraded']}")
+        if rep.get("post_error"):
+            problems.append(f"postmortem: {rep['post_error']}")
+    if problems and SEVERITY["PARTIAL"] > SEVERITY.get(status, 0):
+        status = "PARTIAL"
     joined = "; ".join(p for p in [error, *problems] if p)
     return status, joined or None
 
@@ -266,23 +291,36 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         )  # fmt: skip
         return {"reasoning": {**r, "critic": summary}}
 
-    async def validate(state: InvestigationState) -> dict[str, Any]:
-        r = dict(state.get("reasoning") or {})
+    async def validated(
+        state: InvestigationState,
+    ) -> tuple[AgentRunResult | None, AgentRunResult | None, list[HypothesisOut],
+               ValidationReport | None]:  # fmt: skip
+        """Ranker + critic merged and checked. Plain code over recorded outputs: the same
+        answer every time it runs (validate, then report, then again after a resume)."""
+        r = state.get("reasoning") or {}
         if r.get("skipped") or (r.get("hypothesis") or {}).get("status") != "SUCCEEDED":
-            return {}
+            return None, None, [], None
         inv = state["investigation_id"]
         hyp_raw = await deps.store.output(task_id_for(inv, "hypothesis"))
         hyp = AgentRunResult.model_validate(hyp_raw) if hyp_raw else None
         crit_raw = await deps.store.output(task_id_for(inv, "critic"))
         crit = AgentRunResult.model_validate(crit_raw) if crit_raw else None
         if hyp is None:
-            return {}
+            return None, crit, [], None
         results = await evidence_results(state)
         stored = {e.evidence_key for res in results.values() for e in res.evidence}
         final = validation.merge(hyp.hypotheses, crit)
         kept, report = validation.validate(
             final, hyp.observations, stored, crit, ranker_model=hyp.trace.model
         )
+        return hyp, crit, kept, report
+
+    async def validate(state: InvestigationState) -> dict[str, Any]:
+        r = dict(state.get("reasoning") or {})
+        hyp, crit, kept, checks = await validated(state)
+        if hyp is None or checks is None:
+            return {}
+        inv = state["investigation_id"]
         batch = validation.to_batch(inv, kept, hyp.ruled_out, hyp.observations)
         post_error = None
         if batch is not None:
@@ -295,10 +333,10 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
             # "validated: 3" for three CHALLENGED/PROPOSED hypotheses - a misleading name)
             "kept": len(kept),
             "validated": sum(1 for h in kept if h.status == "VALIDATED"),
-            "dropped": report.dropped,
+            "dropped": checks.dropped,
             "ruled_out": len(hyp.ruled_out),
-            "passed": report.passed,
-            "failed_checks": [c.name for c in report.checks if not c.passed],
+            "passed": checks.passed,
+            "failed_checks": [c.name for c in checks.checks if not c.passed],
             "top": kept[0].statement[:200] if kept else None,
             "post_error": post_error,
             "ranker_degraded": hyp.degraded,
@@ -306,6 +344,74 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         }
         await deps.store.note(UUID(inv), hypotheses=summary)
         return {"reasoning": {**r, "validation": summary}}
+
+    async def report(state: InvestigationState) -> dict[str, Any]:
+        """Phase 12 (ADR-022): code timeline + Sonnet narrative over the VALIDATED result.
+        Runs whenever evidence was stored, with or without hypotheses (then: no root cause)."""
+        if not state.get("postmortem_enabled", s.postmortem) or state.get("evidence", {}).get(
+            "error"
+        ):
+            return {"report": {"skipped": True}}
+        results = await evidence_results(state)
+        if not results:
+            return {"report": {"skipped": True}}
+        inv = state["investigation_id"]
+        inc = state["incident"]
+        hyp, _crit, kept, _ = await validated(state)
+        rsum = state.get("reasoning") or {}
+        root_state: RootCauseState
+        # why there is (no) root cause - "none survived" must never stand in for "not analysed"
+        if rsum.get("skipped"):
+            root_state = "reasoning_off"
+        elif (rsum.get("hypothesis") or {}).get("status") != "SUCCEEDED" or hyp is None:
+            root_state = "reasoning_failed"
+        elif (rsum.get("validation") or {}).get("post_error"):
+            root_state = "not_stored"
+        else:
+            root_state = "validated" if kept else "none_survived"
+        summary, res = await reason(
+            state, "postmortem",
+            lambda tid: reasoning_task(
+                state, results, tid, hypotheses=kept,
+                ruled_out=hyp.ruled_out if hyp else [],
+                observations_sha=observations_fingerprint(hyp.observations) if hyp else None,
+            ),
+        )  # fmt: skip
+        out: dict[str, Any] = {"task": summary}
+        pm = res.postmortem if res else None
+        if pm is not None:
+            errors: list[str] = []
+            if pm.timeline:
+                try:
+                    out["timeline_inserted"] = await deps.incidents.post_timeline(
+                        inc["id"],
+                        TimelineBatch(investigation_id=UUID(inv), agent="postmortem",
+                                      points=pm.timeline),
+                    )  # fmt: skip
+                except CallError as exc:
+                    errors.append(f"timeline was not stored: {exc}")
+            try:
+                await deps.incidents.post_postmortem(inc["id"], PostmortemIn(
+                    investigation_id=UUID(inv), generated_at=datetime.now(UTC),
+                    written_by=pm.written_by, model=pm.model, prompt_version=pm.prompt_version,
+                    root_cause_state=root_state, points=pm.timeline, trigger_ref=pm.trigger_ref,
+                    no_change=pm.no_change, sections=pm.sections, action_items=pm.action_items,
+                    sentences_dropped=pm.sentences_dropped, numbers_rejected=pm.numbers_rejected,
+                ))  # fmt: skip
+            except CallError as exc:
+                errors.append(f"postmortem was not stored: {exc}")
+            out.update({
+                "written_by": pm.written_by,
+                "sentences": sum(len(x.sentences) for x in pm.sections),
+                "action_items": len(pm.action_items),
+                "sentences_dropped": pm.sentences_dropped,
+                "numbers_rejected": pm.numbers_rejected,
+                "degraded": res.degraded if res else None,
+                "post_error": "; ".join(errors) or None,
+                "root_cause_state": root_state,
+            })  # fmt: skip
+        await deps.store.note(UUID(inv), postmortem={k: v for k, v in out.items() if k != "task"})
+        return {"report": out}
 
     async def plan(state: InvestigationState) -> dict[str, Any]:
         inv = state["investigation_id"]
@@ -398,9 +504,10 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         results = state.get("results", [])
         status, error = outcome(results, state.get("evidence", {}).get("error"))
         status, error = reasoning_outcome(status, error, state.get("reasoning") or {})
+        status, error = report_outcome(status, error, state.get("report") or {})
         # revoke BEFORE finish (review finding): a crash between them must not leave a live
         # grant behind a finished row. A crash after revoke re-runs finalize; revoke is
-        # idempotent and nothing after critique needs a token.
+        # idempotent and nothing after report (the last agent call) needs a token.
         await deps.delegation.revoke(UUID(state["grant_id"]), f"investigation {status}")
         await deps.store.finish(inv, status, error)
         log.info("investigation_finished", investigation_id=str(inv), status=status)
@@ -413,6 +520,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_node("hypothesize", hypothesize)
     g.add_node("critique", critique)
     g.add_node("validate", validate)
+    g.add_node("report", report)
     g.add_node("finalize", finalize)
     g.add_edge(START, "plan")
     g.add_conditional_edges("plan", fan_out, ["run_agent"])
@@ -420,6 +528,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_edge("collect_evidence", "hypothesize")
     g.add_edge("hypothesize", "critique")
     g.add_edge("critique", "validate")
-    g.add_edge("validate", "finalize")
+    g.add_edge("validate", "report")
+    g.add_edge("report", "finalize")
     g.add_edge("finalize", END)
     return g

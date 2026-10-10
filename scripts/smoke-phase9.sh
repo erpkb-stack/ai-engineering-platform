@@ -44,7 +44,7 @@ while [ "$status" = "RUNNING" ] && [ $i -lt 120 ]; do
   curl -s "$API/api/v1/investigations/$INV" -H "Authorization: Bearer $SRE" > "$TMP/inv.json"
   status=$(json "d['status']" < "$TMP/inv.json" 2>/dev/null || echo "?")
 done
-evid_ok=$(json "all(t['status']=='SUCCEEDED' for t in d['tasks'] if t['agent'] not in ('hypothesis','critic'))" < "$TMP/inv.json" 2>/dev/null)
+evid_ok=$(json "all(t['status']=='SUCCEEDED' for t in d['tasks'] if t['agent'] not in ('hypothesis','critic','postmortem'))" < "$TMP/inv.json" 2>/dev/null)
 # Phase 11 adds hypotheses + critic on top; THIS smoke checks the evidence path. A PARTIAL whose
 # only gaps are the reasoning steps is reported as a note here (make hypo-smoke judges those).
 if [ "$status" = "COMPLETE" ]; then ok "investigation COMPLETE"

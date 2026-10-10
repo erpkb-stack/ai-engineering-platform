@@ -17,7 +17,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from aeoi_agents.common import hhmm
+from aeoi_agents.common import hhmm, metric_value
 from aeoi_models.api.agents import AgentRunResult
 from aeoi_models.api.hypotheses import Observation
 from aeoi_models.findings import EvidenceKind, EvidenceRef
@@ -88,7 +88,7 @@ def build(results: dict[str, AgentRunResult]) -> list[Observation]:
                     "agent": "metrics", "role": role, "service_key": a.service_key,
                     "subject": a.metric, "at": a.onset, "evidence": a.evidence_ids[:1],
                     "statement": f"{a.service_key} {a.metric}: {shape} {a.direction} from "
-                    f"{hhmm(a.onset)} (peak {a.peak_value:.4g}, robust z {a.peak_z:+.1f})",
+                    f"{hhmm(a.onset)} (peak {metric_value(a.metric, a.peak_value)}, robust z {a.peak_z:+.1f})",
                 }
             )  # fmt: skip
         seen_at = {e.evidence_key: e.observed_at for e in m.evidence}

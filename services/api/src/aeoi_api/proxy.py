@@ -22,6 +22,7 @@ FORWARD_RESPONSE_HEADERS = (
     "location",
     "idempotent-replayed",
     "retry-after",
+    "x-hidden-rows",  # Phase 12: GET timeline is filtered per evidence kind
 )
 
 

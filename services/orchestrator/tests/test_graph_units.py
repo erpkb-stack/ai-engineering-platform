@@ -68,3 +68,22 @@ def test_outcome_complete_partial_failed() -> None:
     # evidence that was not stored: FAILED (repost-evidence repairs it), even if all agents ran
     status, error = outcome([_r("metrics")], "metrics: evidence was not stored")
     assert status == "FAILED" and error and "evidence was not stored" in error
+
+
+def test_a_postmortem_problem_is_partial_and_named_but_never_hides_a_worse_status() -> None:
+    """Phase 12 (ADR-022): written by code only (model down), failed, or not stored = PARTIAL
+    with the reason; skipped = no change; INCONCLUSIVE/FAILED stay what they are."""
+    from aeoi_orchestrator.graph import report_outcome
+
+    ok = {"task": {"status": "SUCCEEDED"}}
+    assert report_outcome("COMPLETE", None, ok) == ("COMPLETE", None)
+    assert report_outcome("COMPLETE", None, {"skipped": True}) == ("COMPLETE", None)
+    s, e = report_outcome("COMPLETE", None, {**ok, "degraded": "narrative not written: 503"})
+    assert s == "PARTIAL" and e == "postmortem: narrative not written: 503"
+    s, e = report_outcome("COMPLETE", None, {**ok, "post_error": "postmortem was not stored"})
+    assert s == "PARTIAL" and "not stored" in (e or "")
+    s, e = report_outcome("COMPLETE", None, {"task": {"status": "FAILED", "error": "boom"}})
+    assert s == "PARTIAL" and e == "postmortem: boom"
+    s, e = report_outcome("INCONCLUSIVE", "no hypothesis", {**ok, "degraded": "x"})
+    assert s == "INCONCLUSIVE" and e == "no hypothesis; postmortem: x"
+    assert report_outcome("FAILED", "dead", {**ok, "degraded": "x"}) == ("FAILED", "dead")
