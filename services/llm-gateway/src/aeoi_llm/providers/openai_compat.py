@@ -67,8 +67,9 @@ class OpenAICompatProvider:
             "model": req.model,
             "messages": self._messages(req),
             "max_tokens": req.max_tokens,
-            "temperature": req.temperature,
         }
+        if req.temperature is not None:
+            body["temperature"] = req.temperature
         if req.stop:
             body["stop"] = req.stop
         return body | extra

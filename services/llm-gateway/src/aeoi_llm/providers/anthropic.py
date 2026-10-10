@@ -60,9 +60,10 @@ class AnthropicProvider:
         body: dict[str, Any] = {
             "model": req.model,
             "max_tokens": req.max_tokens,
-            "temperature": req.temperature,
             "messages": [{"role": m.role, "content": m.content} for m in req.messages],
         }
+        if req.temperature is not None:
+            body["temperature"] = req.temperature
         if req.system:
             body["system"] = req.system
         if req.stop:

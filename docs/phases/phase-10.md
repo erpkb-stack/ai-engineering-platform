@@ -153,6 +153,7 @@ thread pool 09:52Z; traffic and CPU steady; DEPLOY-4821 started 09:42Z with
 | metrics note `not judged - baseline too short` | no data before the window | expected for new services |
 | `orch-smoke` fails on `rag not running` | Phase 10 product path runs knowledge | `make run-rag` |
 | status PARTIAL `deadline exceeded - missing sources: x: TIMED_OUT` | one agent slower than 900 s | finished agents' evidence was kept; investigate x |
+| `reasoning` route → 400 "provider rejected the request" | `claude-sonnet-5-5` rejects `temperature` (found on the Mac, Phase 11 preflight) | fixed: `supports_temperature: false` in routing.yaml; the gateway omits it for that model |
 | 400 `agents not enabled on this orchestrator` | asked for an agent not in `AEOI_ORCH_AGENTS` | set the env var or drop it |
 
 ## 12. Production considerations

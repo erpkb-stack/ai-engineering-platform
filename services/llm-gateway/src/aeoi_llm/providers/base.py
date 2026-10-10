@@ -23,7 +23,7 @@ class ChatRequest:
     messages: list[Message]
     system: str | None = None
     max_tokens: int = 1024
-    temperature: float = 0.0
+    temperature: float | None = 0.0  # None = omit (the model does not accept it)
     stop: list[str] | None = None
     # For generate_structured: the JSON Schema the output must satisfy.
     json_schema: dict[str, Any] | None = None
