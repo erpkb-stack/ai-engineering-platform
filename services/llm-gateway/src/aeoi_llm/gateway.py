@@ -363,7 +363,9 @@ class Gateway:
             if op == "generate_structured" and not mcfg.supports_structured:
                 attempts.append(Attempt(model, rt.name, "skipped", "no structured output"))
                 continue
-            call_req = replace(req, model=model)
+            call_req = replace(
+                req, model=model, temperature=req.temperature if mcfg.supports_temperature else None
+            )
             redactions = 0
             if rt.hosted:
                 call_req, redactions = self._redact(call_req)
@@ -552,7 +554,9 @@ class Gateway:
             if rt.provider is None:
                 attempts.append(Attempt(model, rt.name, "skipped", rt.unavailable_reason))
                 continue
-            call_req = replace(req, model=model)
+            call_req = replace(
+                req, model=model, temperature=req.temperature if mcfg.supports_temperature else None
+            )
             redactions = 0
             if rt.hosted:
                 call_req, redactions = self._redact(call_req)

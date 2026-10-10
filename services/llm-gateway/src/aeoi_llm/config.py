@@ -97,6 +97,9 @@ class ModelConfig(_Strict):
     cached_input_per_mtok: Decimal | None = None
     dimensions: int | None = None  # embedding models only
     supports_structured: bool = True
+    # Newer models reject sampling parameters: Anthropic answers HTTP 400 "`temperature` is
+    # deprecated for this model" (found on the Mac, Phase 11 preflight). false = never send it.
+    supports_temperature: bool = True
 
 
 Operation = Literal["chat", "embed"]

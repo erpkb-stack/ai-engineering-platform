@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 
 from aeoi_common.errors import BadRequestError
-from aeoi_llm.config import ModelConfig
+from aeoi_llm.config import ModelConfig, RoutingConfig
 from aeoi_llm.errors import (
     AllProvidersFailedError,
     BudgetExceededError,
@@ -18,9 +18,12 @@ from aeoi_llm.errors import (
     UpstreamRejectedError,
 )
 from aeoi_llm.gateway import CallMeta, Gateway
+from aeoi_llm.main import build_gateway
 from aeoi_llm.providers import ChatRequest, FakeProvider, Message, PermanentError, RetryableError
 from aeoi_llm.providers.base import RateLimitedError, Usage
 from aeoi_llm.usage import MemoryUsageSink, UsageRow, cost_usd
+
+from .conftest import no_sleep
 
 META = CallMeta(agent_name="test-agent", prompt_id="p", prompt_version=1)
 SCHEMA = {
@@ -387,3 +390,35 @@ async def test_caller_deadline_stops_work_early(gateway: Gateway, hosted: FakePr
     with pytest.raises(GatewayTimeoutError, match=r"0\.1s"):
         await gateway.generate("reasoning", req(), META, allow_fallback=False, deadline_s=0.1)
     assert cancelled.is_set()  # the upstream call was cancelled, not left running
+
+
+async def test_temperature_is_dropped_only_for_models_that_reject_it(
+    routing: RoutingConfig, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    """supports_temperature: false (routing.yaml) -> that model never receives temperature;
+    its fallback still does (it is a different model with its own setting)."""
+    models = dict(routing.models)
+    models["fake-large"] = models["fake-large"].model_copy(update={"supports_temperature": False})
+    gw = build_gateway(
+        routing.model_copy(update={"models": models}),
+        sink,
+        cache=None,
+        request_timeout_s=5,
+        providers={"hosted_fake": hosted, "local_fake": local},
+    )
+    gw._sleep = no_sleep
+    hosted.fail_next(RetryableError("503"), RetryableError("503"))
+    r = await gw.generate("reasoning", req(), META)
+    assert r.fallback_used is True
+    assert [c.temperature for c in hosted.calls] == [None, None]
+    assert local.calls[-1].temperature == 0.0
+
+
+def test_shipped_routing_marks_sonnet_5_5_without_temperature() -> None:
+    from pathlib import Path
+
+    from aeoi_llm.config import load_routing
+
+    cfg = load_routing(Path(__file__).resolve().parents[1] / "config" / "routing.yaml")
+    assert cfg.models["claude-sonnet-5-5"].supports_temperature is False
+    assert cfg.models["claude-haiku-4-5-20251001"].supports_temperature is True

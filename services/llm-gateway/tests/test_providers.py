@@ -241,3 +241,25 @@ async def test_connection_error_names_the_url() -> None:
         RetryableError, match=r"cannot reach http://ollama.test/v1 \(ConnectError\)"
     ):
         await oai(handler).generate(REQ)
+
+
+async def test_anthropic_omits_temperature_when_the_model_rejects_it() -> None:
+    """Mac finding (Phase 11 preflight): claude-sonnet-5-5 answers HTTP 400 "`temperature` is
+    deprecated for this model". None = the field is not sent at all."""
+    bodies: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={"model": "m", "stop_reason": "end_turn",
+                  "content": [{"type": "text", "text": "ok"}],
+                  "usage": {"input_tokens": 1, "output_tokens": 1}},
+        )  # fmt: skip
+
+    from dataclasses import replace
+
+    await anthropic(handler).generate(replace(REQ, temperature=None))
+    await anthropic(handler).generate(REQ)
+    assert "temperature" not in bodies[0]
+    assert bodies[1]["temperature"] == 0.0
