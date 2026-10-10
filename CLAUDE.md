@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 10 — Multi-agent investigation** (Phases 1–9 built; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-020).
+**Phase 11 — Critic + Validation** (Phases 1–10 built; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-021).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -57,6 +57,7 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
 - Orchestrator (Phase 9): `make delegation-keys` · `make run-orch` (:8002, resumes RUNNING investigations on start) · `make stop-orch` · `make orch-smoke` · `make agent-status INCIDENT=INC-n`. Product path: `POST /api/v1/incidents/{id}/investigate` → 202 + `/api/v1/investigations/{id}`.
 - Delegation (ADR-019): a background run acts for the user ONLY via an investigation+incident-bound delegated token from the api's token exchange; delegated tokens are accepted ONLY in `X-On-Behalf-Of` (`Authenticator.verify_obo`), never as a bearer. Graph nodes must be idempotent (a kill re-runs the interrupted node).
 - Multi-agent (Phase 10, ADR-020): `make investigate INCIDENT=INC-n [AGENTS=a,b]` · `make multi-smoke` (needs run-rag + `make tools-tokens` for `rag:obo`). metrics/deployment/knowledge are CODE ONLY (no LLM); knowledge stores POINTERS, never doc text. Outcome COMPLETE / PARTIAL / FAILED. Evidence is readable per kind (`EVIDENCE_KIND_PERMS`).
+- Reasoning (Phase 11, ADR-021): CODE proposes causes + rubric bands; Haiku (`fast`) only ranks/explains with refs; Sonnet (`reasoning`, fallback OFF) critiques blind to the ranker's prose; code validates. `make hypo-smoke`. A critic on the ranker's model or on a fallback = PARTIAL, never hidden.
 - Agent pattern (ADR-018): facts by CODE citing tool evidence ids; LLM only labels/interprets, citations validated; uncitable → `notes`; prompt `services/agents/prompts/<agent>/vN.md` pinned by sha.
 - Agents reach systems only via the tool-gateway (service token `tools:invoke` + `X-On-Behalf-Of` user token). New tool = `/new-tool` skill + contract lint + security test.
 - Service code lives in `services/<name>/src/aeoi_<name>/` (unique package names: one venv for the workspace).

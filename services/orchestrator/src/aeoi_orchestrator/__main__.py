@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -137,6 +138,50 @@ def _print_other(agent: str, r: AgentRunResult) -> None:
         print(f"   · note: {n}")
 
 
+def _print_reasoning(inv: dict[str, Any], hyp: AgentRunResult, crit: AgentRunResult | None) -> None:
+    """Phase 11: code candidates (band = rubric), LLM rank + explanation, critic verdicts."""
+    from aeoi_orchestrator.validation import merge
+
+    llm = [*hyp.trace.llm_calls, *(crit.trace.llm_calls if crit else [])]
+    models = sorted({c.model or "-" for c in llm if c.model})
+    cost = sum((c.cost_usd for c in llm), start=Decimal(0))
+    print(f"\n  HYPOTHESES (candidates by code, ranked by {models or ['rubric']}, cost ${cost})")
+    if hyp.degraded:
+        print(f"  DEGRADED: {hyp.degraded}")
+    for h in merge(hyp.hypotheses, crit):
+        flag = "  ⚠ CHALLENGED" if h.status == "CHALLENGED" else ""
+        who = "critic alternative" if h.origin == "critic" else f"ranked by {h.ranked_by}"
+        print(f"   #{h.rank} [{h.confidence}] {h.statement}  ({who}){flag}")
+        print(f"      rubric: {h.rubric}")
+        if h.explanation:
+            print(f"      why: {h.explanation}  [{', '.join(h.explanation_refs)}]")
+        if h.critic_verdict != "not_reviewed":
+            print(f"      critic: {h.critic_verdict}; missing: {h.critic_missing or '-'}")
+        if h.critic_disputed:
+            print(f"      critic disputed (not counted): {', '.join(h.critic_disputed)}")
+        if h.refinement:
+            print(f"      refinement (critic): {h.refinement}  [{', '.join(h.refinement_refs)}]")
+    for ro in hyp.ruled_out:
+        print(f"   ✗ ruled out: {ro.statement}")
+    c = crit.critique if crit else None
+    if c is not None:
+        print(
+            f"  critic: ran={c.ran} reviews={c.reviews} contradictions+={c.contradictions_added} "
+            f"not counted={c.contradictions_ineligible} "
+            f"alternatives {c.alternatives_accepted}/{c.alternatives_proposed} "
+            f"(refinements {c.alternatives_merged}) "
+            f"citations dropped={c.citations_dropped}" + (f" error={c.error}" if c.error else "")
+        )
+        if c.no_alternative_reason:
+            print(f"  critic, no alternative because: {c.no_alternative_reason}")
+    v = (inv.get("plan") or {}).get("hypotheses") or {}
+    if v:
+        print(
+            f"  validation: passed={v.get('passed')} kept={v.get('kept')} validated={v.get('validated')} "
+            f"dropped={v.get('dropped')} failed checks={v.get('failed_checks')}"
+        )
+
+
 def _print(inv: dict[str, Any], r: AgentRunResult | None) -> None:
     print(f"\ninvestigation={inv['investigation_id']}  status={inv['status']}")
     if inv.get("error"):
@@ -144,8 +189,12 @@ def _print(inv: dict[str, Any], r: AgentRunResult | None) -> None:
     for t in inv.get("tasks", []):
         if t["attempt"] > 1:
             print(f"  ⚠ task {t['agent']} ran {t['attempt']} times (resumed after a crash)")
-    for agent, other in sorted((inv.get("_others") or {}).items()):
+    others = dict(inv.get("_others") or {})
+    hyp, crit = others.pop("hypothesis", None), others.pop("critic", None)
+    for agent, other in sorted(others.items()):
         _print_other(agent, other)
+    if hyp is not None:
+        _print_reasoning(inv, hyp, crit)
     if r is None:
         return
     print()
@@ -196,6 +245,8 @@ def run_one(args: argparse.Namespace, token: str) -> int:
     extra: dict[str, Any] = {"llm_cache": not args.no_cache}
     if args.agents:
         extra["agents"] = args.agents.split(",")
+    if getattr(args, "reasoning", None) is False:
+        extra["reasoning"] = False
     if args.route:
         extra["llm_route"] = args.route
     if args.start:
@@ -328,6 +379,7 @@ def compare(args: argparse.Namespace, token: str) -> int:
                 "llm_route": route,
                 "llm_cache": False,
                 "agents": ["log_analysis"],
+                "reasoning": False,
             }
             if args.start:
                 extra |= {"start": _dt(args.start), "end": _dt(args.end)}
@@ -536,6 +588,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "run-log-agent":  # Phase 8/9 behaviour: the one agent with a model
             args.agents = "log_analysis"
+            args.reasoning = False
             return run_one(args, token)
         if args.cmd == "investigate":
             return run_one(args, token)

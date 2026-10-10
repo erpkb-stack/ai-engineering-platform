@@ -263,3 +263,29 @@ async def test_anthropic_omits_temperature_when_the_model_rejects_it() -> None:
     await anthropic(handler).generate(REQ)
     assert "temperature" not in bodies[0]
     assert bodies[1]["temperature"] == 0.0
+
+
+async def test_anthropic_structured_without_forced_tool_uses_auto_and_instructs() -> None:
+    """Mac finding (Phase 11): claude-sonnet-5-5 rejects tool_choice "tool" and "any"."""
+    from dataclasses import replace
+
+    seen: list[dict] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, json={
+            "model": "m", "stop_reason": "tool_use",
+            "content": [{"type": "tool_use", "name": "critique", "input": {"ok": True}}],
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        })  # fmt: skip
+
+    req = replace(REQ, json_schema={"type": "object"}, schema_name="critique", force_tool=False)
+    r = await anthropic(handler).generate_structured(req)
+    assert r.data == {"ok": True}
+    assert seen[0]["tool_choice"] == {"type": "auto"}
+    assert (
+        seen[0]["system"].startswith("sys")
+        and "ONLY by calling the tool `critique`" in seen[0]["system"]
+    )
+    await anthropic(handler).generate_structured(replace(req, force_tool=True))
+    assert seen[1]["tool_choice"] == {"type": "tool", "name": "critique"}

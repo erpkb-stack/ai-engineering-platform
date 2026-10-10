@@ -43,9 +43,11 @@ while [ "$status" = "RUNNING" ] && [ $i -lt 120 ]; do
   status=$(json "d['status']" < "$TMP/inv.json" 2>/dev/null || echo "?")
 done
 json "', '.join(t['agent']+'='+t['status']+' x'+str(t['attempt']) for t in d['tasks'])" < "$TMP/inv.json" | sed 's/^/    tasks: /'
-[ "$status" = "COMPLETE" ] && ok "investigation COMPLETE (all 4 agents)" \
-  || bad "investigation $status: $(json "d.get('error')" < "$TMP/inv.json" 2>/dev/null)"
-n=$(json "len(d['tasks'])" < "$TMP/inv.json"); [ "$n" = "4" ] && ok "4 tasks planned" || bad "$n tasks, expected 4"
+evid_ok=$(json "all(t['status']=='SUCCEEDED' for t in d['tasks'] if t['agent'] not in ('hypothesis','critic'))" < "$TMP/inv.json" 2>/dev/null)
+if [ "$status" = "COMPLETE" ]; then ok "investigation COMPLETE (all 4 agents + reasoning)"
+elif [ "$status" = "PARTIAL" ] && [ "$evid_ok" = "True" ]; then ok "all 4 evidence agents SUCCEEDED"; warn "reasoning: $(json "d.get('error')" < "$TMP/inv.json")"
+else bad "investigation $status: $(json "d.get('error')" < "$TMP/inv.json" 2>/dev/null)"; fi
+n=$(json "sum(1 for t in d['tasks'] if t['agent'] not in ('hypothesis','critic'))" < "$TMP/inv.json"); [ "$n" = "4" ] && ok "4 evidence tasks planned" || bad "$n evidence tasks, expected 4"
 
 curl -s "$API/api/v1/investigations/$INV/trace" -H "Authorization: Bearer $SRE" > "$TMP/trace.json"
 facts() { json "' || '.join(f['statement'] for e in d['executions'] if e['agent']=='$1' for f in e['output'].get('facts', []))" < "$TMP/trace.json" 2>/dev/null; }
@@ -89,7 +91,7 @@ with psycopg.connect(libpq_dsn()) as c:
     agents = sorted(r[0] for r in c.execute("SELECT DISTINCT agent_name FROM tools.tool_calls WHERE investigation_id=%s", (inv,)))
     print(f"grants={len(g)} revoked={g[0][1] if g else None!r} agents_with_tool_calls={','.join(agents)}")
 PY
-grep -q "grants=1 revoked='investigation COMPLETE' agents_with_tool_calls=deployment,knowledge,log_analysis,metrics" "$TMP/deleg.txt" \
+grep -qE "grants=1 revoked='investigation (COMPLETE|PARTIAL)' agents_with_tool_calls=deployment,knowledge,log_analysis,metrics" "$TMP/deleg.txt" \
   && ok "one grant for 4 agents, revoked: $(cat "$TMP/deleg.txt")" || bad "delegation/tool calls: $(cat "$TMP/deleg.txt")"
 
 echo; echo "passed=$pass failed=$fail notes=$note   incident=$KEY investigation=$INV"

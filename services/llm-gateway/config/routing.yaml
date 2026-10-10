@@ -32,6 +32,7 @@ models:
   claude-sonnet-5-5:
     provider: anthropic
     supports_temperature: false  # HTTP 400 "`temperature` is deprecated for this model"
+    supports_forced_tool: false  # HTTP 400 'tool_choice: type "tool" and "any" are not supported'
     input_per_mtok: 2.00
     output_per_mtok: 10.00
     cached_input_per_mtok: 0.20

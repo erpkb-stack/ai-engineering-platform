@@ -20,6 +20,7 @@ from aeoi_incident.domain import parse_if_match, parse_incident_ref
 from aeoi_incident.idempotency import Result, run_idempotent, validate_key
 from aeoi_models.api.agents import EvidenceBatch, EvidenceBatchResult
 from aeoi_models.api.common import Page
+from aeoi_models.api.hypotheses import HypothesisBatch, HypothesisRecord
 from aeoi_models.api.incidents import (
     EvidenceOut,
     FeedbackCreate,
@@ -217,6 +218,33 @@ async def add_evidence(
             session, parse_incident_ref(ref), batch, who
         )
     return EvidenceBatchResult(received=received, inserted=inserted)
+
+
+@router.post("/incidents/{ref}/hypotheses", response_model=EvidenceBatchResult)
+async def add_hypotheses(
+    ref: str,
+    batch: HypothesisBatch,
+    session: Session,
+    who: Annotated[Principal, Depends(require_scope("hypotheses:write"))],
+) -> EvidenceBatchResult:
+    """Service-only (orchestrator, ADR-021): validated hypotheses + evidence edges.
+    Idempotent per (investigation, key)."""
+    async with session.begin():
+        received, inserted = await service.add_hypotheses(
+            session, parse_incident_ref(ref), batch, who
+        )
+    return EvidenceBatchResult(received=received, inserted=inserted)
+
+
+@router.get("/incidents/{ref}/hypotheses", response_model=list[HypothesisRecord])
+async def get_hypotheses(
+    ref: str,
+    session: Session,
+    who: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+    investigation_id: UUID | None = None,
+) -> list[HypothesisRecord]:
+    readable = [k for k in EVIDENCE_KIND_PERMS if may_read_evidence(who.has, k)]
+    return await service.hypotheses(session, parse_incident_ref(ref), investigation_id, readable)
 
 
 @router.post("/feedback", status_code=201, response_model=FeedbackOut)

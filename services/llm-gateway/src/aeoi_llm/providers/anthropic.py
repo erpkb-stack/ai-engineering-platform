@@ -114,9 +114,17 @@ class AnthropicProvider:
             "description": "Return the result. Arguments must match the schema exactly.",
             "input_schema": req.json_schema,
         }
-        data = await self._post(
-            self._body(req, tools=[tool], tool_choice={"type": "tool", "name": req.schema_name})
-        )
+        if req.force_tool:
+            body = self._body(
+                req, tools=[tool], tool_choice={"type": "tool", "name": req.schema_name}
+            )
+        else:
+            # the model refuses forced tool use: one tool, `auto`, and a plain instruction. If it
+            # answers in text instead, the RetryableError below lets the gateway retry/repair.
+            must = f"Answer ONLY by calling the tool `{req.schema_name}` exactly once."
+            body = self._body(req, tools=[tool], tool_choice={"type": "auto"})
+            body["system"] = f"{body['system']}\n\n{must}" if body.get("system") else must
+        data = await self._post(body)
         for block in data.get("content", []):
             if block.get("type") == "tool_use" and block.get("name") == req.schema_name:
                 args = block.get("input")

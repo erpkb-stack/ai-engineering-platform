@@ -20,6 +20,7 @@
 | [ADR-017](ADR-017-tool-gateway-authz-and-audit.md) | Tool Gateway: on-behalf-of authz (user ∩ agent allow-list), fail-closed audit via outbox | Proposed |
 | [ADR-018](ADR-018-first-agent-code-facts-llm-labels.md) | First agent: facts by code, labels by LLM, thin runner that records the trace | Proposed |
 | [ADR-019](ADR-019-orchestrator-graph-and-delegation.md) | Orchestrator service + LangGraph checkpoints; investigation-bound delegation tokens (token exchange) | Proposed |
+| [ADR-021](ADR-021-hypotheses-critic-validation.md) | Hypotheses by code, ranking by Haiku, critique by Sonnet (no fallback), deterministic validation; model text redacted by evidence kind | Proposed |
 | [ADR-020](ADR-020-multi-agent-code-first-specialists.md) | Multi-agent: code-only metrics/deployment/knowledge agents, PARTIAL outcome, rag on-behalf-of, evidence visibility by kind | Proposed |
 
 Rules: Accepted ADRs are immutable (enforced by `.claude/hooks/protect-files.sh`). Use the `/adr` skill to supersede.

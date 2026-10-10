@@ -44,7 +44,12 @@ while [ "$status" = "RUNNING" ] && [ $i -lt 120 ]; do
   curl -s "$API/api/v1/investigations/$INV" -H "Authorization: Bearer $SRE" > "$TMP/inv.json"
   status=$(json "d['status']" < "$TMP/inv.json" 2>/dev/null || echo "?")
 done
-[ "$status" = "COMPLETE" ] && ok "investigation COMPLETE" || bad "investigation $status: $(json "d.get('error')" < "$TMP/inv.json" 2>/dev/null)"
+evid_ok=$(json "all(t['status']=='SUCCEEDED' for t in d['tasks'] if t['agent'] not in ('hypothesis','critic'))" < "$TMP/inv.json" 2>/dev/null)
+# Phase 11 adds hypotheses + critic on top; THIS smoke checks the evidence path. A PARTIAL whose
+# only gaps are the reasoning steps is reported as a note here (make hypo-smoke judges those).
+if [ "$status" = "COMPLETE" ]; then ok "investigation COMPLETE"
+elif [ "$status" = "PARTIAL" ] && [ "$evid_ok" = "True" ]; then ok "evidence path complete"; warn "reasoning: $(json "d.get('error')" < "$TMP/inv.json")"
+else bad "investigation $status: $(json "d.get('error')" < "$TMP/inv.json" 2>/dev/null)"; fi
 json "', '.join(t['agent']+'='+t['status']+' x'+str(t['attempt'])+' '+str(t['model']) for t in d['tasks'])" < "$TMP/inv.json" | sed 's/^/    tasks: /'
 n=$(json "d.get('evidence_inserted') or 0" < "$TMP/inv.json"); [ "$n" -gt 0 ] && ok "$n evidence rows stored" || bad "no evidence stored"
 
@@ -68,7 +73,7 @@ with psycopg.connect(libpq_dsn()) as c:
     audit = c.execute("SELECT count(*) FROM tools.audit_outbox WHERE event->'details'->>'investigation_id'=%s AND event->'details'->>'delegation_grant'=%s", (inv, str(g[0]))).fetchone()[0]
     print(f"grant {g[0]} revoked={g[1]!r} tokens={g[2]} events={ev} audited_tool_calls={audit}")
 PY
-grep -q "revoked='investigation COMPLETE'" "$TMP/deleg.txt" && grep -q "audited_tool_calls=[1-9]" "$TMP/deleg.txt" \
+grep -qE "revoked='investigation (COMPLETE|PARTIAL)'" "$TMP/deleg.txt" && grep -q "audited_tool_calls=[1-9]" "$TMP/deleg.txt" \
   && ok "delegation: $(cat "$TMP/deleg.txt")" || bad "delegation record: $(cat "$TMP/deleg.txt")"
 
 MGR="$(make -s token ROLE=MANAGER 2>/dev/null)"

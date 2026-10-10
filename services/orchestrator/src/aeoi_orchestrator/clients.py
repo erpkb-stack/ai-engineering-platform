@@ -14,6 +14,8 @@ import httpx
 
 from aeoi_common.correlation import CORRELATION_HEADER, get_correlation_id
 from aeoi_models.api.agents import AgentRunResult, AgentTask, EvidenceBatch, EvidenceItem
+from aeoi_models.api.hypotheses import HypothesisBatch
+from aeoi_models.api.reasoning import ReasoningTask
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 
 
@@ -112,6 +114,30 @@ class IncidentClient:
                 break
         raise CallError(last)
 
+    async def post_hypotheses(self, incident_id: str, batch: HypothesisBatch) -> int:
+        """Idempotent per (investigation, key): a retry is safe (ADR-021)."""
+        last = ""
+        for _ in range(2):
+            try:
+                r = await self._http.post(
+                    f"{self._base}/v1/incidents/{incident_id}/hypotheses",
+                    content=batch.model_dump_json(),
+                    headers={
+                        "Authorization": f"Bearer {self._service_token}",
+                        CORRELATION_HEADER: _cid(),
+                        "Content-Type": "application/json",
+                    },
+                )
+            except httpx.TransportError as exc:
+                last = type(exc).__name__
+                continue
+            if r.status_code == 200:
+                return int(r.json()["inserted"])
+            last = f"HTTP {r.status_code} {_detail(r)}"
+            if r.status_code < 500:
+                break
+        raise CallError(last)
+
 
 class AgentsClient:
     def __init__(
@@ -122,7 +148,9 @@ class AgentsClient:
         self._service_token = service_token
         self._timeout = timeout_s
 
-    async def run(self, agent: str, task: AgentTask, delegated_token: str) -> AgentRunResult:
+    async def run(
+        self, agent: str, task: AgentTask | ReasoningTask, delegated_token: str
+    ) -> AgentRunResult:
         try:
             r = await self._http.post(
                 f"{self._base}/v1/agents/{agent}/run",

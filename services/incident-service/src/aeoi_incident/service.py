@@ -17,10 +17,23 @@ from aeoi_common.errors import (
     ValidationFailedError,
 )
 from aeoi_common.ids import uuid7
-from aeoi_db.models.incident import Evidence, Feedback, Incident, IncidentEvent
+from aeoi_db.models.incident import (
+    Evidence,
+    Feedback,
+    Hypothesis,
+    HypothesisEvidence,
+    Incident,
+    IncidentEvent,
+)
 from aeoi_incident.domain import INVESTIGABLE, check_transition, decode_cursor, encode_cursor
 from aeoi_incident.events import stage_event
 from aeoi_models.api.agents import EvidenceBatch, EvidenceRetrievedPayload
+from aeoi_models.api.hypotheses import (
+    HypothesisBatch,
+    HypothesisCreatedPayload,
+    HypothesisEdge,
+    HypothesisRecord,
+)
 from aeoi_models.api.incidents import (
     FeedbackCreate,
     IncidentCreate,
@@ -349,3 +362,144 @@ async def create_feedback(session: AsyncSession, data: FeedbackCreate, who: Prin
     await session.flush()
     await session.refresh(row)
     return row
+
+
+# ------------------------------------------------------------------ hypotheses (Phase 11)
+async def add_hypotheses(
+    session: AsyncSession, ref: UUID | int, batch: HypothesisBatch, who: Principal
+) -> tuple[int, int]:
+    """Store an investigation's validated hypotheses + their evidence edges (ADR-021).
+    Idempotent per (investigation_id, key). Every cited evidence key must already be stored
+    for THIS incident (the evidence graph cannot point at nothing) - else 422, nothing written."""
+    incident = await load(session, ref)
+    keys = {k for it in batch.items for k in [*it.supports, *it.contradicts]}
+    found = {
+        r.evidence_key: r.id
+        for r in (
+            await session.execute(
+                select(Evidence.evidence_key, Evidence.id).where(
+                    Evidence.incident_id == incident.id, Evidence.evidence_key.in_(keys)
+                )
+            )
+        ).all()
+    }
+    missing = sorted(keys - set(found))
+    if missing:
+        raise ValidationFailedError(
+            f"hypotheses cite evidence not stored for this incident: {', '.join(missing[:5])}"
+        )
+    existing = set(
+        (
+            await session.scalars(
+                select(Hypothesis.hypothesis_key).where(
+                    Hypothesis.investigation_id == batch.investigation_id
+                )
+            )
+        ).all()
+    )
+    new = [it for it in batch.items if it.key not in existing]
+    for it in new:
+        hid = uuid7()
+        session.add(
+            Hypothesis(
+                id=hid, incident_id=incident.id, statement=it.statement,
+                confidence=it.confidence.value, status=it.status, rank=it.rank,
+                produced_by=it.produced_by, investigation_id=batch.investigation_id,
+                hypothesis_key=it.key, detail=dict(it.detail),
+            )
+        )  # fmt: skip
+        await session.flush()
+        edges = {found[k]: "SUPPORTS" for k in it.supports}
+        edges |= {found[k]: "CONTRADICTS" for k in it.contradicts if found[k] not in edges}
+        for eid, stance in edges.items():
+            session.add(HypothesisEvidence(hypothesis_id=hid, evidence_id=eid, stance=stance))
+    if new:
+        actor = f"agent:{new[0].produced_by}"
+        hypos = [it for it in new if it.status != "REJECTED"]
+        top = min(hypos, key=lambda it: it.rank) if hypos else None
+        session.add(
+            _event(
+                incident, source="AGENT", event_type="HypothesisCreated", actor=actor,
+                summary=(f"{len(hypos)} hypotheses; top ({top.confidence.value}): "
+                         f"{top.statement}")[:300] if top else f"{len(new)} cause(s) ruled out",
+                payload={"investigation_id": str(batch.investigation_id),
+                         "keys": [it.key for it in new], "via": who.actor},
+            )
+        )  # fmt: skip
+        payload = HypothesisCreatedPayload(
+            incident_id=incident.id, investigation_id=batch.investigation_id,
+            keys=[it.key for it in new],
+            challenged=[it.key for it in new if it.status == "CHALLENGED"],
+        )  # fmt: skip
+        stage_event(session, event_type=EventType.HYPOTHESIS_CREATED, actor=actor,
+                    incident_id=incident.id, payload=payload)  # fmt: skip
+    return len(batch.items), len(new)
+
+
+MODEL_TEXT = ("explanation", "critic_missing", "critic_disputed", "refinement")
+REDACTED_TEXT = "[redacted: needs read access to all of its evidence]"
+
+
+async def hypotheses(
+    session: AsyncSession, ref: UUID | int, investigation_id: UUID | None, readable: list[str]
+) -> list[HypothesisRecord]:
+    """Latest investigation's hypotheses by default. CODE-written statements are conclusions
+    and are shown to every incident reader; the EVIDENCE edges are filtered by kind like GET
+    evidence. MODEL-written text (the ranker's explanation, the critic's 'missing', a critic
+    alternative's statement) can quote evidence, so a reader who lacks a permission for ANY
+    of the hypothesis' evidence kinds gets it redacted (review finding: the trace endpoint
+    already hid exactly this text)."""
+    incident = await load(session, ref)
+    if investigation_id is None:
+        investigation_id = await session.scalar(
+            select(Hypothesis.investigation_id)
+            .where(Hypothesis.incident_id == incident.id, Hypothesis.investigation_id.is_not(None))
+            .order_by(Hypothesis.created_at.desc())
+            .limit(1)
+        )
+        if investigation_id is None:
+            return []
+    rows = list(
+        (
+            await session.scalars(
+                select(Hypothesis)
+                .where(
+                    Hypothesis.incident_id == incident.id,
+                    Hypothesis.investigation_id == investigation_id,
+                )
+                .order_by(Hypothesis.status == "REJECTED", Hypothesis.rank)
+            )
+        ).all()
+    )
+    edges = (
+        await session.execute(
+            select(HypothesisEvidence.hypothesis_id, HypothesisEvidence.stance,
+                   Evidence.evidence_key, Evidence.kind)
+            .join(Evidence, Evidence.id == HypothesisEvidence.evidence_id)
+            .where(HypothesisEvidence.hypothesis_id.in_([h.id for h in rows]))
+        )
+    ).all()  # fmt: skip
+    out = []
+    for h in rows:
+        mine = [e for e in edges if e.hypothesis_id == h.id]
+        shown = [e for e in mine if e.kind in readable]
+        detail = dict(h.detail or {})
+        statement = h.statement
+        redacted = len(shown) < len(mine)
+        if redacted:
+            for k in MODEL_TEXT:
+                if detail.get(k):
+                    detail[k] = REDACTED_TEXT
+            if detail.get("origin") == "critic":
+                statement = f"Alternative cause proposed by the critic ({REDACTED_TEXT})"
+        out.append(
+            HypothesisRecord(
+                id=h.id, investigation_id=h.investigation_id, key=h.hypothesis_key,
+                statement=statement, confidence=h.confidence, status=h.status, rank=h.rank,
+                produced_by=h.produced_by, detail=detail, created_at=h.created_at,
+                edges=[HypothesisEdge(evidence_key=e.evidence_key, kind=e.kind,
+                                      stance=e.stance) for e in shown],
+                hidden_edges=len(mine) - len(shown),
+            )
+        )  # fmt: skip
+    return out

@@ -65,6 +65,46 @@ for name, p in r["providers"].items():
 sys.exit(bad)
 PY
 
+# Every route whose PRIMARY is a hosted model must answer with that model, fallback OFF.
+# (Phase 11 finding: `reasoning` -> claude-sonnet-5-5 returned HTTP 400 since Phase 5 and nothing
+# noticed, because this smoke only called the default route and fallback hid failures.)
+python3 - "$TMP/routes.json" "$LLM" "$STOKEN" <<'PY' || fail=$((fail+1))
+import json, sys, urllib.request, urllib.error
+r, base, tok = json.load(open(sys.argv[1])), sys.argv[2], sys.argv[3]
+bad = 0
+for name, route in sorted(r["routes"].items()):
+    chain = route.get("chain") or []
+    if not chain:
+        continue
+    prov = r.get("models", {}).get(chain[0])
+    p = r["providers"].get(prov or "", {})
+    if not p.get("hosted") or not p.get("configured") or route.get("operation", "chat") != "chat":
+        continue
+    # plain AND structured: the critic's structured call failed on Sonnet (forced tool choice)
+    # while plain text worked - Phase 11 finding
+    msgs = [{"role": "user", "content": "Classify: checkout returns HTTP 500. Severity SEV1-SEV4?"}]
+    calls = {
+        "plain": ("/v1/generate", {"max_tokens": 10, "messages": [{"role": "user", "content": "Reply with one word: ready"}]}),
+        "structured": ("/v1/generate_structured", {"max_tokens": 200, "messages": msgs, "schema_name": "sev",
+            "json_schema": {"type": "object", "properties": {"severity": {"type": "string", "enum": ["SEV1", "SEV2", "SEV3", "SEV4"]}},
+                            "required": ["severity"], "additionalProperties": False}}),
+    }
+    for kind, (path, extra) in calls.items():
+        body = json.dumps({"route": name, "allow_fallback": False, "cache": False, **extra}).encode()
+        req = urllib.request.Request(base + path, data=body, method="POST",
+            headers={"Authorization": "Bearer " + tok, "Content-Type": "application/json"})
+        try:
+            d = json.load(urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=120))
+            ok = d.get("model") == chain[0] and not d.get("fallback_used")
+            print(("✔" if ok else "✘") + f" route {name} {kind}: primary {chain[0]} answered (fallback off) model={d.get('model')}")
+            bad |= not ok
+        except urllib.error.HTTPError as exc:
+            detail = json.loads(exc.read() or b"{}").get("detail", "")
+            print(f"✘ route {name} {kind}: primary {chain[0]} FAILED with fallback off: HTTP {exc.code} {detail}")
+            bad = 1
+sys.exit(1 if bad else 0)
+PY
+
 NONCE="$(date +%s)-$$"
 BODY="{\"route\":\"$ROUTE\",\"max_tokens\":60,\"messages\":[{\"role\":\"user\",\"content\":\"Reply with one short sentence: what is a connection pool? ($NONCE)\"}],\"metadata\":{\"agent_name\":\"smoke\",\"prompt_id\":\"smoke\",\"prompt_version\":1}}"
 code=$(curl -s -o "$TMP/g1.json" -w '%{http_code}' -X POST "$LLM/v1/generate" "${H[@]}" -d "$BODY" --max-time 200)

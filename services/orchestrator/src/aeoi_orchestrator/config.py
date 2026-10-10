@@ -46,6 +46,8 @@ class Settings(BaseServiceSettings):
     budget_usd: Decimal = Decimal("0.50")
     # Phase 10 (ADR-020): the agents every investigation runs, in parallel (Send per agent)
     agents: tuple[AgentName, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
+    # Phase 11 (ADR-021): hypothesize -> critique -> validate after the evidence agents
+    reasoning: bool = True
     task_deadline_s: float = 180.0  # > agents' task deadline (150 s): one agent call
     # the whole investigation, all retries and resumes included; past it = FAILED
     investigation_deadline_s: float = 900.0

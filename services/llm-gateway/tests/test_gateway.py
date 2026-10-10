@@ -421,4 +421,36 @@ def test_shipped_routing_marks_sonnet_5_5_without_temperature() -> None:
 
     cfg = load_routing(Path(__file__).resolve().parents[1] / "config" / "routing.yaml")
     assert cfg.models["claude-sonnet-5-5"].supports_temperature is False
+    assert cfg.models["claude-sonnet-5-5"].supports_forced_tool is False
     assert cfg.models["claude-haiku-4-5-20251001"].supports_temperature is True
+
+
+async def test_a_model_without_temperature_is_never_cached(
+    routing: RoutingConfig, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    from aeoi_llm.cache import ResponseCache
+
+    models = dict(routing.models)
+    models["fake-large"] = models["fake-large"].model_copy(update={"supports_temperature": False})
+    gw = build_gateway(
+        routing.model_copy(update={"models": models}), sink, cache=ResponseCache(10, 60),
+        request_timeout_s=5, providers={"hosted_fake": hosted, "local_fake": local},
+    )  # fmt: skip
+    hosted.replies.extend(["a", "b"])
+    r1 = await gw.generate("reasoning", req(), META)
+    r2 = await gw.generate("reasoning", req(), META)
+    assert (r1.text, r2.text) == ("a", "b") and not r2.cached and len(hosted.calls) == 2
+
+
+async def test_forced_tool_setting_reaches_the_provider_per_model(
+    routing: RoutingConfig, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    models = dict(routing.models)
+    models["fake-large"] = models["fake-large"].model_copy(update={"supports_forced_tool": False})
+    gw = build_gateway(
+        routing.model_copy(update={"models": models}), sink, cache=None,
+        request_timeout_s=5, providers={"hosted_fake": hosted, "local_fake": local},
+    )  # fmt: skip
+    hosted.structured.append({"a": 1})
+    await gw.generate_structured("reasoning", req(json_schema={"type": "object"}), META)
+    assert hosted.calls[-1].force_tool is False
