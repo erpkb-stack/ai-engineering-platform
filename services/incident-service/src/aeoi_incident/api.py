@@ -10,10 +10,11 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from aeoi_incident import service
+from aeoi_common.errors import NotFoundError
+from aeoi_incident import postmortem, service
 from aeoi_incident.config import Settings
 from aeoi_incident.db import session_dep
 from aeoi_incident.domain import parse_if_match, parse_incident_ref
@@ -33,6 +34,7 @@ from aeoi_models.api.incidents import (
     Severity,
     TimelineEntry,
 )
+from aeoi_models.api.postmortem import PostmortemDoc, PostmortemIn, PostmortemStored, TimelineBatch
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import EVIDENCE_KIND_PERMS, Perm, may_read_evidence
 from aeoi_web.auth import require, require_scope
@@ -182,12 +184,68 @@ async def investigate(
     return _result_response(result)
 
 
+def _readable(who: Principal) -> list[str]:
+    return [k for k in EVIDENCE_KIND_PERMS if may_read_evidence(who.has, k)]
+
+
 @router.get("/incidents/{ref}/timeline", response_model=list[TimelineEntry])
 async def get_timeline(
-    ref: str, session: Session, _: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))]
-) -> list[TimelineEntry]:
-    rows = await service.timeline(session, parse_incident_ref(ref))
-    return [TimelineEntry.model_validate(r) for r in rows]
+    ref: str, session: Session, who: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))]
+) -> Response:
+    """Human actions + agent-observed points (Phase 12), in time order. A row whose source is
+    an evidence kind (LOG, METRIC, DEPLOY, ...) needs that kind's permission (ADR-020)."""
+    rows, hidden = await postmortem.timeline_for(session, parse_incident_ref(ref), _readable(who))
+    body = [TimelineEntry.model_validate(r).model_dump(mode="json") for r in rows]
+    # rows are filtered in SQL; the header says how many, so a client knows the list is partial
+    return JSONResponse(body, headers={"X-Hidden-Rows": str(hidden)})
+
+
+@router.post("/incidents/{ref}/timeline", response_model=EvidenceBatchResult)
+async def add_timeline(
+    ref: str,
+    batch: TimelineBatch,
+    session: Session,
+    who: Annotated[Principal, Depends(require_scope("timeline:write"))],
+) -> EvidenceBatchResult:
+    """Service-only (orchestrator, ADR-022): code-written observation points. Idempotent."""
+    async with session.begin():
+        received, inserted = await postmortem.add_timeline(
+            session, parse_incident_ref(ref), batch, who
+        )
+    return EvidenceBatchResult(received=received, inserted=inserted)
+
+
+@router.post("/incidents/{ref}/postmortems", response_model=PostmortemStored)
+async def add_postmortem(
+    ref: str,
+    body: PostmortemIn,
+    session: Session,
+    who: Annotated[Principal, Depends(require_scope("postmortems:write"))],
+) -> PostmortemStored:
+    """Service-only (orchestrator, ADR-022). Idempotent per (incident, investigation)."""
+    async with session.begin():
+        inserted = await postmortem.add_postmortem(session, parse_incident_ref(ref), body, who)
+    return PostmortemStored(received=True, inserted=inserted)
+
+
+@router.get("/incidents/{ref}/postmortem", response_model=PostmortemDoc)
+async def get_postmortem(
+    ref: str,
+    session: Session,
+    who: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+    investigation_id: UUID | None = None,
+    format: Annotated[str, Query(pattern=r"^(json|markdown)$")] = "json",
+) -> Response:
+    """Assembled at read time (ADR-022): numbers and root cause by code, model sentences
+    redacted unless the reader may read all the evidence they cite."""
+    doc = await postmortem.postmortem_doc(
+        session, parse_incident_ref(ref), _readable(who), investigation_id
+    )
+    if doc is None:
+        raise NotFoundError("No postmortem for this incident yet.")
+    if format == "markdown":
+        return PlainTextResponse(postmortem.render_markdown(doc), media_type="text/markdown")
+    return JSONResponse(doc.model_dump(mode="json"))
 
 
 @router.get("/incidents/{ref}/evidence", response_model=list[EvidenceOut])

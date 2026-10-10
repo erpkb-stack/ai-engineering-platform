@@ -191,10 +191,21 @@ def _print(inv: dict[str, Any], r: AgentRunResult | None) -> None:
             print(f"  ⚠ task {t['agent']} ran {t['attempt']} times (resumed after a crash)")
     others = dict(inv.get("_others") or {})
     hyp, crit = others.pop("hypothesis", None), others.pop("critic", None)
+    others.pop("postmortem", None)  # printed from the plan note below (make postmortem: full)
     for agent, other in sorted(others.items()):
         _print_other(agent, other)
     if hyp is not None:
         _print_reasoning(inv, hyp, crit)
+    pm = (inv.get("plan") or {}).get("postmortem") or {}
+    if pm:
+        print(
+            f"  postmortem: written_by={pm.get('written_by')} sentences={pm.get('sentences')} "
+            f"actions={pm.get('action_items')} dropped={pm.get('sentences_dropped')} "
+            f"bad numbers={pm.get('numbers_rejected')} timeline+={pm.get('timeline_inserted')}"
+            + (f" degraded={pm['degraded']}" if pm.get("degraded") else "")
+            + (f" error={pm['post_error']}" if pm.get("post_error") else "")
+            + f"\n  -> make postmortem INCIDENT={inv.get('incident_key') or '<key>'}"
+        )
     if r is None:
         return
     print()

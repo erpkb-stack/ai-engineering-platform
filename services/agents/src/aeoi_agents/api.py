@@ -64,6 +64,16 @@ async def run_critic(task: ReasoningTask, request: Request, _: Caller) -> AgentR
     return result
 
 
+@router.post("/postmortem/run", response_model=AgentRunResult)
+async def run_postmortem(task: ReasoningTask, request: Request, _: Caller) -> AgentRunResult:
+    """Phase 12 (ADR-022): narrative over the validated result; no tool calls."""
+    _user_token(request, task.investigation_id, task.incident_id)
+    result: AgentRunResult = await request.app.state.postmortem_agent.run(
+        task, "", get_correlation_id()
+    )
+    return result
+
+
 @router.post("/{agent}/run", response_model=AgentRunResult)
 async def run_agent(
     agent: AgentName, task: AgentTask, request: Request, _: Caller

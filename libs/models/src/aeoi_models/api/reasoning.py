@@ -55,5 +55,7 @@ class ReasoningTask(BaseModel):
     hypotheses: list[HypothesisOut] = Field(default_factory=list, max_length=12)
     # critic only: sha of the observations the ranker used; the critic refuses on a mismatch
     observations_sha: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    # postmortem only (Phase 12, ADR-022): the VALIDATED result to write up, never re-ranked
+    ruled_out: list[RuledOut] = Field(default_factory=list, max_length=12)
     llm_route: LlmRoute | None = None
     llm_cache: bool = True

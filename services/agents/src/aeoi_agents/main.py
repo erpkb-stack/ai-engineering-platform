@@ -16,6 +16,7 @@ from aeoi_agents.config import (
     KnowledgeBudget,
     LogAgentBudget,
     MetricsBudget,
+    PostmortemBudget,
     ReasoningBudget,
     Settings,
 )
@@ -26,6 +27,8 @@ from aeoi_agents.knowledge.agent import KnowledgeAgent
 from aeoi_agents.log_analysis.agent import Deps, LogAnalysisAgent
 from aeoi_agents.metrics.agent import Deps as MetricsDeps
 from aeoi_agents.metrics.agent import MetricsAgent
+from aeoi_agents.postmortem.agent import Deps as PostmortemDeps
+from aeoi_agents.postmortem.agent import PostmortemAgent
 from aeoi_agents.reasoning.critic import CriticAgent
 from aeoi_agents.reasoning.critic import Deps as CriticDeps
 from aeoi_agents.reasoning.hypothesis import Deps as HypothesisDeps
@@ -114,4 +117,8 @@ def build_app(
     reasoning = ReasoningBudget()
     app.state.hypothesis_agent = HypothesisAgent(HypothesisDeps(llm=llm_client, budget=reasoning))
     app.state.critic_agent = CriticAgent(CriticDeps(llm=llm_client, budget=reasoning))
+    # Phase 12 (ADR-022): the narrative writer, also LLM-only, no tool client
+    app.state.postmortem_agent = PostmortemAgent(
+        PostmortemDeps(llm=llm_client, budget=PostmortemBudget())
+    )
     return app

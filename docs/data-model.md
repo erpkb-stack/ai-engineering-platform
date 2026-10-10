@@ -83,7 +83,8 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `hypotheses` | Ranked explanations with a confidence band and status; Phase 11 (0020) adds investigation_id, hypothesis_key (unique per investigation: idempotent POST) and detail JSONB (cause kind, origin, rubric, critic verdict, model explanation) | 12 |
 | `idempotency_keys` | Stored result of a POST with an Idempotency-Key, scoped by (principal, scope, key); same transaction as the result (Phase 4, migration 0013) | 8 |
 | `hypothesis_evidence` | Evidence graph edge: hypothesis --SUPPORTS/CONTRADICTS--> evidence. | 4 |
-| `incident_events` | Timeline entries (deploys, alerts, human actions, agent steps). | 10 |
+| `incident_events` | Timeline entries (deploys, alerts, human actions, agent steps). Phase 12 (0021): agent-observed points (source = stored evidence kind) with `dedupe_key` (source\|service\|subject\|UTC instant, unique per incident) | 10 |
+| `postmortems` | Phase 12 (0021): generated parts of a postmortem per (incident, investigation): model sections + action items (each with evidence keys), negative evidence, that run's timeline points, trigger ref, root-cause state. Assembled at read time (ADR-022) | 1 per run |
 | `incidents` | System of record for incidents; `number` gives the human key INC-n; optimistic locking via `version` | 13 |
 | `outbox` | Transactional outbox: written in the SAME transaction as the state change (ADR-003). | 10 |
 | `processed_events` | Consumer-side dedupe: insert in the same tx as the side effect; conflict = duplicate. | 3 |
@@ -168,6 +169,8 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `incident.ix_hypotheses_superseded_by` | serves: FK lookup when following supersession chains |
 | `incident.ix_hypothesis_evidence_evidence_id` | serves: reverse edge "which hypotheses use this evidence" (graph view, impact of retracting evidence); the PK already serves hypothesis -> evidence |
 | `incident.ix_incident_events_incident_id_occurred_at` | serves: timeline reconstruction = range scan per incident in time order |
+| `incident.uq_incident_events_incident_id_dedupe_key` | enforces: one timeline point per observation per incident (partial, dedupe_key IS NOT NULL) |
+| `incident.uq_postmortems_incident_id_investigation_id` | enforces: one postmortem per investigation; serves: latest per incident + FK |
 | `incident.ix_idempotency_keys_expires_at` | serves: cleanup job deleting expired idempotency keys |
 | `incident.ix_incidents_created_at_id` | serves: unfiltered incident list, keyset pagination (created_at, id) newest first |
 | `incident.ix_incidents_affected_services` | serves: "incidents affecting service X" (array containment @>) |

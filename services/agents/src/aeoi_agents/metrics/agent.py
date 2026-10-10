@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-from aeoi_agents.common import Failure, call, context, flagged_ids, hhmm, ts
+from aeoi_agents.common import Failure, call, context, flagged_ids, hhmm, metric_value, ts
 from aeoi_agents.config import MetricsBudget
 from aeoi_agents.metrics.anomaly import Baseline, Run, SeriesVerdict, analyse
 from aeoi_agents.trace import Tracer
@@ -64,10 +64,6 @@ ABS_FLOOR = {
 class Deps:
     tools: ToolClient
     budget: MetricsBudget
-
-
-def _fmt(v: float) -> str:
-    return f"{v:.4g}"
 
 
 class MetricsAgent:
@@ -199,7 +195,7 @@ class MetricsAgent:
         ev_id: str,
     ) -> list[Fact]:
         base = (
-            f"baseline median {_fmt(baseline.median)} over {baseline.n} buckets "
+            f"baseline median {metric_value(metric, baseline.median)} over {baseline.n} buckets "
             f"before {hhmm(task.start)}"
         )
         last = hhmm(v.last_ts) if v.last_ts else hhmm(task.end)
@@ -208,7 +204,7 @@ class MetricsAgent:
                 return [
                     _fact(
                         f"{svc} {metric}: stayed within its baseline from {hhmm(task.start)} to "
-                        f"{last} (window median {_fmt(v.window_median or 0)}, {base}, "
+                        f"{last} (window median {metric_value(metric, v.window_median or 0)}, {base}, "
                         f"max |robust z| {v.max_abs_z or 0:.1f} < "
                         f"{self.deps.budget.z_threshold:g}).",
                         ev_id,
@@ -219,7 +215,7 @@ class MetricsAgent:
                 _fact(
                     f"{svc} {metric}: no sustained change from {hhmm(task.start)} to {last}, but "
                     f"{v.single_spikes} single-bucket spike(s), max |robust z| "
-                    f"{v.max_abs_z or 0:.1f} (window median {_fmt(v.window_median or 0)}, {base}).",
+                    f"{v.max_abs_z or 0:.1f} (window median {metric_value(metric, v.window_median or 0)}, {base}).",
                     ev_id,
                 )
             ]
@@ -239,7 +235,7 @@ class MetricsAgent:
                 )
             out.append(
                 _fact(
-                    f"{svc} {metric}: {shape}; peak {_fmt(r.peak_value)} at {hhmm(r.peak_at)} "
+                    f"{svc} {metric}: {shape}; peak {metric_value(metric, r.peak_value)} at {hhmm(r.peak_at)} "
                     f"(robust z {r.peak_z:+.1f}), {base}.",
                     ev_id,
                 )

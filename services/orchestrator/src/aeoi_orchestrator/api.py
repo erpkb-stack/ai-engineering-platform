@@ -175,6 +175,7 @@ async def start_investigation(
         "llm_cache": body.llm_cache,
         "agents": agents,
         "reasoning_enabled": settings.reasoning if body.reasoning is None else body.reasoning,
+        "postmortem_enabled": settings.postmortem,
         "results": [],
     }
     try:
@@ -185,9 +186,10 @@ async def start_investigation(
             settings.budget_usd,
             settings.investigation_deadline_s,
             plan={
-                "phase": 11,
+                "phase": 12,
                 "agents": agents,
                 "reasoning": graph_input["reasoning_enabled"],
+                "postmortem": settings.postmortem,
                 "start_key": key,
             },
         )
@@ -271,6 +273,8 @@ AGENT_CONTENT_PERMS: dict[str, frozenset[Perm]] = {
     # Phase 11: they read every evidence agent's results (log codes, metrics, deploys)
     "hypothesis": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
     "critic": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
+    # Phase 12: the writer's prompt holds every observation (log codes, metrics, deploys)
+    "postmortem": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
 }
 
 

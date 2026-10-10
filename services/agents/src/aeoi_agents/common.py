@@ -93,3 +93,14 @@ def _uuid(value: str | None) -> UUID | None:
         return UUID(value) if value else None
     except ValueError:
         return None
+
+
+RATIO_SUFFIXES = ("_util", "_utilization")
+
+
+def metric_value(metric: str, v: float) -> str:
+    """A metric value as a reader understands it. Utilisation metrics are 0..1 ratios: the Mac
+    postmortem read "DB pool utilization peaked at 1" (Phase 12 review) - shown as a percent."""
+    if metric.endswith(RATIO_SUFFIXES):
+        return f"{v * 100:.4g}%"
+    return f"{v:.4g}"
