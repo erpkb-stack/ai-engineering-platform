@@ -20,6 +20,7 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
+from aeoi_models.api.history import SimilarIncident
 from aeoi_models.api.hypotheses import ObsRef
 
 # incident.incident_events.source values (migration 0003 check constraint)
@@ -160,6 +161,8 @@ class PostmortemIn(BaseModel):
     action_items: list[ActionItem] = Field(default_factory=list, max_length=8)
     sentences_dropped: int = Field(default=0, ge=0)
     numbers_rejected: int = Field(default=0, ge=0)
+    # Phase 13 (ADR-023): similar past incidents (shared with every engineer), code-rendered
+    similar: list[SimilarIncident] = Field(default_factory=list, max_length=10)
 
 
 class PostmortemGeneratedPayload(BaseModel):
@@ -184,6 +187,7 @@ class RootCause(BaseModel):
     confirmed_by_human: bool = False  # Phase 16 (approval/feedback) sets this; never the model
     explanation: str | None = None  # model text (ranker), redacted like the hypotheses API
     refinement: str | None = None  # model text (critic), redacted like the hypotheses API
+    history_prior: str | None = None  # Phase 13: code text, a base rate - never evidence
 
 
 class PmTimelineRow(BaseModel):
@@ -225,3 +229,4 @@ class PostmortemDoc(BaseModel):
     redacted_sentences: int = 0
     sentences_dropped: int = 0
     numbers_rejected: int = 0
+    similar: list[SimilarIncident] = Field(default_factory=list)  # Phase 13 (ADR-023)

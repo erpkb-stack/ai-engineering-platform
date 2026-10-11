@@ -59,6 +59,11 @@ class HypothesisOut(BaseModel):
     # of this hypothesis, not a rival cause: model text, cites `refinement_refs`
     refinement: str = Field(default="", max_length=300)
     refinement_refs: list[ObsRef] = Field(default_factory=list, max_length=4)
+    # Phase 13 (ADR-023): base rate from similar past incidents - shown, breaks a tie inside a
+    # band in the rubric order, never changes a band, never shown to the ranker or the critic
+    history_prior: str = Field(default="", max_length=300)
+    history_n: int = Field(default=0, ge=0)
+    history_refs: list[str] = Field(default_factory=list, max_length=10)
 
 
 class RuledOut(BaseModel):

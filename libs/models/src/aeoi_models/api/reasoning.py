@@ -50,6 +50,8 @@ class ReasoningTask(BaseModel):
     task_id: UUID | None = None
     incident_title: str | None = Field(default=None, max_length=300)
     detected_at: datetime | None = None
+    # Phase 13: the incident's services (historical_incident boosts them in the search)
+    service_keys: list[str] = Field(default_factory=list, max_length=3)
     results: dict[str, AgentRunResult] = Field(max_length=8)
     # critic only: what to attack. Statements + refs written by CODE, never the ranker's prose
     hypotheses: list[HypothesisOut] = Field(default_factory=list, max_length=12)

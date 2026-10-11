@@ -58,6 +58,7 @@ class FakeProvider:
     structured: list[dict[str, Any]] = field(default_factory=list)
     errors: list[ProviderError] = field(default_factory=list)
     calls: list[ChatRequest] = field(default_factory=list)
+    stop_reasons: list[str] = field(default_factory=list)  # per structured call; default end_turn
 
     def fail_next(self, *errors: ProviderError) -> None:
         self.errors.extend(errors)
@@ -89,7 +90,10 @@ class FakeProvider:
         import json
 
         text = json.dumps(data)
-        return ChatResult(text=text, usage=Usage(50, _tokens(text)), model=req.model, data=data)
+        stop = self.stop_reasons.pop(0) if self.stop_reasons else "end_turn"
+        return ChatResult(
+            text=text, usage=Usage(50, _tokens(text)), model=req.model, data=data, stop_reason=stop
+        )
 
     async def stream(self, req: ChatRequest) -> AsyncGenerator[StreamChunk, None]:
         result = await self.generate(req)

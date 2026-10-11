@@ -235,9 +235,12 @@ def build_registry(catalog: CatalogAdapter, devdata: DevDataAdapter, rag: RagAda
         ToolSpec(
             name="search_incidents",
             description=(
-                "Keyword search over past (resolved) incidents the user may read: summary, root "
-                "cause, category and remediation, optionally for one service. Similar is not "
-                "the same: compare the evidence before reusing a past root cause."
+                "Search past (resolved) incidents the user may read: summary, root cause, "
+                "category and remediation. mode=hybrid adds meaning-based (vector) matching; "
+                "service_key filters to one service unless boost_service=true (then it only "
+                "ranks that service first). open_to_engineering says whether every engineer may "
+                "read the hit; shared_only=true returns only those. Similar is not the same: compare the evidence before reusing a "
+                "past root cause."
             ),
             input_model=s.IncidentSearchIn,
             output_model=s.IncidentSearchOut,

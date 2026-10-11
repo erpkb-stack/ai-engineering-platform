@@ -105,5 +105,6 @@ def build_app(
     app.state.engine = engine
     app.state.sessionmaker = sessions
     app.state.retriever = retriever
+    app.state.embedder = emb  # Phase 13: historical incident vectors (ADR-023)
     app.state.reranker = make_reranker(settings, client)
     return app

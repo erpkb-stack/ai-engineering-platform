@@ -22,6 +22,7 @@
 | [ADR-019](ADR-019-orchestrator-graph-and-delegation.md) | Orchestrator service + LangGraph checkpoints; investigation-bound delegation tokens (token exchange) | Proposed |
 | [ADR-021](ADR-021-hypotheses-critic-validation.md) | Hypotheses by code, ranking by Haiku, critique by Sonnet (no fallback), deterministic validation; model text redacted by evidence kind | Proposed |
 | [ADR-022](ADR-022-timeline-and-postmortem.md) | Timeline by code in incident_events; postmortem narrative by Sonnet (checked: refs, numbers, markup); assembled at read time, redacted per reader | Proposed |
+| [ADR-023](ADR-023-historical-incident-intelligence.md) | Hybrid past-incident search (ACL in both branches); only incidents shared with all engineers stored, as pointers; Haiku claims checked by code; history prior = tie-break inside a band only | Proposed |
 | [ADR-020](ADR-020-multi-agent-code-first-specialists.md) | Multi-agent: code-only metrics/deployment/knowledge agents, PARTIAL outcome, rag on-behalf-of, evidence visibility by kind | Proposed |
 
 Rules: Accepted ADRs are immutable (enforced by `.claude/hooks/protect-files.sh`). Use the `/adr` skill to supersede.

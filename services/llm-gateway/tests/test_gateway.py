@@ -174,6 +174,20 @@ async def test_structured_invalid_is_repaired_once(
     assert r.usage.input_tokens == 100  # both calls are paid for and recorded
 
 
+async def test_structured_cut_off_at_max_tokens_says_so_and_is_not_repaired(
+    gateway: Gateway, hosted: FakeProvider, local: FakeProvider
+) -> None:
+    """Mac run (Phase 13): the postmortem was cut off before its last required field; the
+    repair was cut off too and the error said only 'still invalid'."""
+    hosted.structured.append({"severity": "SEV2"})  # 'reason' missing: cut off
+    hosted.stop_reasons.append("max_tokens")
+    local.structured.append({"severity": "SEV2"})
+    local.stop_reasons.append("max_tokens")
+    with pytest.raises(StructuredOutputError, match="cut off at max_tokens"):
+        await gateway.generate_structured("reasoning", req(json_schema=SCHEMA), META)
+    assert len(hosted.calls) == 1  # no pointless repair round-trip
+
+
 async def test_structured_still_invalid_raises_after_whole_chain(
     gateway: Gateway, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
 ) -> None:

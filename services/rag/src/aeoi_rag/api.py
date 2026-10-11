@@ -13,10 +13,10 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, Request
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from aeoi_common.errors import NotFoundError
+from aeoi_common.errors import NotFoundError, UpstreamUnavailableError
 from aeoi_db.models.rag import Document, DocumentChunk
 from aeoi_models.api.search import (
     DocumentOut,
@@ -27,6 +27,8 @@ from aeoi_models.api.search import (
     SearchRequest,
     SearchResponse,
 )
+from aeoi_rag import history
+from aeoi_rag.embedder import Embedder
 from aeoi_rag.ingest import new_retrieval_id
 from aeoi_rag.rerank import LLMReranker
 from aeoi_rag.search import Retriever
@@ -155,22 +157,6 @@ async def get_document(
     )
 
 
-_INCIDENT_SQL = text("""
-WITH q AS (
-  SELECT CASE WHEN plainto_tsquery('english', :q)::text = '' THEN NULL
-              ELSE replace(plainto_tsquery('english', :q)::text, '&', '|')::tsquery END AS tsq
-)
-SELECT h.incident_key, h.title, h.summary, h.root_cause, h.root_cause_category, h.remediation,
-       h.service_keys, h.severity, h.occurred_at, h.resolved_at, ts_rank_cd(h.tsv, q.tsq) AS score
-FROM rag.historical_incidents h, q
-WHERE q.tsq IS NOT NULL AND h.tsv @@ q.tsq
-  AND h.allowed_groups && CAST(:groups AS varchar[])
-  AND (CAST(:svc AS text) IS NULL OR CAST(:svc AS text) = ANY(h.service_keys))
-ORDER BY score DESC, h.occurred_at DESC
-LIMIT :k
-""")
-
-
 @router.post("/incidents/search", response_model=list[HistoricalIncidentHit])
 async def search_incidents(
     body: IncidentSearchRequest,
@@ -179,10 +165,39 @@ async def search_incidents(
     ],
     request: Request,
 ) -> list[HistoricalIncidentHit]:
-    """Keyword search over past incidents with the same group ACL rule as documents."""
+    """Similar past incidents; the group ACL is in the SQL, groups come from the token.
+    `mode=keyword` (default) is the Phase 7 search. `hybrid`/`vector` add the pgvector branch
+    (ADR-023); if the embedder fails, hybrid degrades to keyword and every hit says so
+    (`retrieval`), vector-only fails loudly (503)."""
     sessions: async_sessionmaker[AsyncSession] = request.app.state.sessionmaker
-    async with sessions() as s:
-        rows = (await s.execute(_INCIDENT_SQL, {
-            "q": body.query, "groups": sorted(principal.groups), "svc": body.service_key, "k": body.k,
-        })).mappings().all()  # fmt: skip
-    return [HistoricalIncidentHit(**{**r, "score": float(r["score"])}) for r in rows]
+    embedder: Embedder = request.app.state.embedder
+    qvec: list[float] | None = None
+    retrieval = body.mode
+    if body.mode != "keyword":
+        try:
+            qvec = await embedder.embed_query(body.query)
+        except Exception as e:
+            if body.mode == "vector":
+                raise UpstreamUnavailableError("embedding service unavailable") from e
+            log.warning("incident_search_vector_unavailable", error=type(e).__name__)
+            retrieval = "keyword"
+    rows = await history.search(
+        sessions,
+        body.query,
+        sorted(principal.groups),
+        k=body.k,
+        qvec=qvec,
+        model=embedder.model if qvec is not None else None,
+        service_key=body.service_key if body.boost_service else None,
+        only_service=None if body.boost_service else body.service_key,
+        use_keyword=body.mode != "vector",
+        exclude=body.exclude_key,
+        shared_only=body.shared_only,
+        iterative_scan=request.app.state.retriever._iterative_scan,
+    )
+    if qvec is not None and rows and not rows[0]["vec_hits"]:
+        # the vector branch found nothing at all: no vectors for this embedding model yet
+        # (`make embed-history`). Say so instead of labelling keyword hits "hybrid".
+        log.warning("incident_search_no_vectors", model=embedder.model)
+        retrieval = "keyword"
+    return [HistoricalIncidentHit(**r, retrieval=retrieval) for r in rows]

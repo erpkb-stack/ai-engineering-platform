@@ -175,6 +175,9 @@ def to_batch(
                 "critic_disputed": _named(h.critic_disputed, by_ref) or None,
                 "refinement": h.refinement or None,
                 "refinement_refs": _named(h.refinement_refs, by_ref) or None,
+                # Phase 13 (ADR-023): a base rate from similar past incidents, code-written
+                "history_prior": h.history_prior or None,
+                "history_refs": h.history_refs or None,
             },
         )
         for h in hs

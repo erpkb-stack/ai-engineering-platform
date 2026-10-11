@@ -6,6 +6,8 @@
                         unknown ids dropped, refs that do not exist dropped, an explanation with
                         no valid ref is dropped (uncited prose is not shown)
   4 degrade:            LLM down -> rubric order, `ranked_by=rubric`, result marked degraded
+  Phase 13: a history prior (historical_incident agent) is attached per cause kind; it breaks
+  ties inside a band in the rubric order and is never shown to the ranker (ADR-023).
 The LLM cannot add a cause, change a band, or cite evidence that was not observed.
 """
 
@@ -18,7 +20,7 @@ from typing import Any
 from aeoi_agents.config import ReasoningBudget
 from aeoi_agents.prompts import Prompt, load_prompt
 from aeoi_agents.reasoning import llm as llm_call
-from aeoi_agents.reasoning.candidates import propose, rubric_order
+from aeoi_agents.reasoning.candidates import attach_priors, propose, rubric_order
 from aeoi_agents.reasoning.observations import build
 from aeoi_agents.trace import Tracer
 from aeoi_llm_client import LLMClient
@@ -95,6 +97,11 @@ class HypothesisAgent:
         tracer.trace.prompt_sha256 = self.prompt.sha256
         obs = build(task.results)
         cands, ruled = propose(obs)
+        hist = task.results.get("historical_incident")
+        if hist is not None and hist.status == "SUCCEEDED":
+            # shown and used as a tie-break in the rubric order; NOT in the ranker's prompt
+            # (candidate_block prints statements + refs only)
+            cands = attach_priors(cands, hist.priors)
         notes: list[str] = []
         if not cands:
             notes.append("no candidate cause: no symptom observation (error/latency/log) found.")

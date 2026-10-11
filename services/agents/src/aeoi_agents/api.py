@@ -74,6 +74,17 @@ async def run_postmortem(task: ReasoningTask, request: Request, _: Caller) -> Ag
     return result
 
 
+@router.post("/historical_incident/run", response_model=AgentRunResult)
+async def run_history(task: ReasoningTask, request: Request, _: Caller) -> AgentRunResult:
+    """Phase 13 (ADR-023): reasoning input (observations) + one tool call AS THE USER: the
+    delegated token is forwarded, so rag applies the user's groups."""
+    user_token = _user_token(request, task.investigation_id, task.incident_id)
+    result: AgentRunResult = await request.app.state.history_agent.run(
+        task, user_token, get_correlation_id()
+    )
+    return result
+
+
 @router.post("/{agent}/run", response_model=AgentRunResult)
 async def run_agent(
     agent: AgentName, task: AgentTask, request: Request, _: Caller

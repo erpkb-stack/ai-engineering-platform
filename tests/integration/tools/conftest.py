@@ -16,6 +16,7 @@ import httpx
 import psycopg
 import pytest
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from psycopg.types.json import Jsonb
 from pydantic import SecretStr
 
@@ -50,6 +51,9 @@ class Planted:
 @dataclass
 class StubRag:
     seen: list[dict[str, Any]] = field(default_factory=list)
+    # Phase 13: a test may set the incident hits (None = the Phase 7 single hit) or a status
+    incidents: list[dict[str, Any]] | None = None
+    incidents_status: int = 200
 
 
 def _login(db: str, user: str, role: str) -> str:
@@ -200,11 +204,16 @@ def make_stub_rag(stub: StubRag) -> FastAPI:
             }],
         }  # fmt: skip
 
-    @app.post("/v1/incidents/search")
-    async def incidents(request: Request) -> list[dict[str, Any]]:
+    @app.post("/v1/incidents/search", response_model=None)
+    async def incidents(request: Request) -> list[dict[str, Any]] | JSONResponse:
         stub.seen.append({"path": "/v1/incidents/search",
                           "auth": request.headers.get("authorization"),
-                          "obo": request.headers.get("x-on-behalf-of")})  # fmt: skip
+                          "obo": request.headers.get("x-on-behalf-of"),
+                          "body": await request.json()})  # fmt: skip
+        if stub.incidents_status != 200:
+            return JSONResponse({"detail": "down"}, status_code=stub.incidents_status)
+        if stub.incidents is not None:
+            return stub.incidents
         return [{
             "incident_key": "INC-1001", "title": "Pool exhaustion", "summary": "s",
             "root_cause": "N+1 query", "root_cause_category": "code", "remediation": "rollback",

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from aeoi_agents.common import hhmm
 from aeoi_agents.reasoning.observations import first_effect, minutes
+from aeoi_models.api.history import HistoryPrior
 from aeoi_models.api.hypotheses import HypothesisOut, Observation, RuledOut
 from aeoi_models.findings import ConfidenceBand, EvidenceRef
 
@@ -201,9 +202,30 @@ BAND_ORDER = {ConfidenceBand.HIGH: 0, ConfidenceBand.MEDIUM: 1, ConfidenceBand.L
 
 
 def rubric_order(hs: list[HypothesisOut]) -> list[HypothesisOut]:
-    """Fallback ranking when the model is unavailable: band, then support, then key."""
+    """Fallback ranking when the model is unavailable: band, then support, then contradiction,
+    then (Phase 13, ADR-023) the history prior - a TIE-BREAK only: it never moves a candidate
+    across a band or past one with more evidence - then key."""
     ordered = sorted(
         hs,
-        key=lambda h: (BAND_ORDER[h.confidence], -len(h.supporting), len(h.contradicting), h.key),
+        key=lambda h: (
+            BAND_ORDER[h.confidence],
+            -len(h.supporting),
+            len(h.contradicting),
+            -h.history_n,
+            h.key,
+        ),
     )
     return [h.model_copy(update={"rank": i + 1}) for i, h in enumerate(ordered)]
+
+
+def attach_priors(hs: list[HypothesisOut], priors: list[HistoryPrior]) -> list[HypothesisOut]:
+    """History prior per candidate, by cause kind (ADR-023). Never touches the band, the
+    statement or the evidence: it is a base rate about OTHER incidents, not evidence here."""
+    by_kind: dict[str, HistoryPrior] = {p.cause_kind: p for p in priors}
+    out = []
+    for h in hs:
+        p = by_kind.get(h.cause_kind)
+        out.append(h if p is None else h.model_copy(update={
+            "history_prior": p.statement, "history_n": p.n, "history_refs": p.incident_keys,
+        }))  # fmt: skip
+    return out

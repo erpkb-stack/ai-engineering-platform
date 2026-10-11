@@ -18,11 +18,12 @@ body; index a file without an explicit ACL; chunk a quarantined document; call a
 - `search.py` the ONE hybrid SQL; `identifier_terms` (IDF stand-in); defence-in-depth ACL assert
 - `rerank.py` listwise graded LLM rerank; RESTRICTED → local route; failure → RRF order
 - `evaluation.py` recall@k / MRR@10 / leakage / quarantine with bootstrap CIs
-- `__main__.py` CLI: ingest · chunk-db · embed · stats · eval · sweep (fusion grid, dev/test) · bench
+- `__main__.py` CLI: ingest · chunk-db · embed · stats · eval · sweep (fusion grid, dev/test) · bench · embed-history · history-eval
+- `history.py` (Phase 13, ADR-023) past incidents: keyword + vector (same `embedding_model` only) RRF + same-service vote; ACL in both branches; `open_to_engineering`; `history_eval.py` + `data/eval/history_queries_v1.jsonl`
 - `fuse()` in search.py is the Python twin of the SQL fusion - keep them identical (integration test)
 
 ## Commands
-`make rag-token` · `make rag-ingest` · `make rag-eval [RERANK=1]` · `make run-rag` · `make rag-smoke`
+`make rag-token` · `make rag-ingest` · `make rag-eval [RERANK=1]` · `make run-rag` · `make rag-smoke` · `make embed-history` · `make history-eval`
 Corpus: `make docpack` (deterministic; `data/sample-documents/` + `data/eval/rag_queries_v1.jsonl`).
 
 ## Rules when changing retrieval

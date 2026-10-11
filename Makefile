@@ -24,8 +24,9 @@ UVICORN := uv run uvicorn --factory --log-level warning
         db-users token run-incident run-api dev smoke \
         service-token ollama-pull run-llm stop-llm llm-smoke \
         rag-token docpack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
+        embed-history history-eval history-explain \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents hypo-smoke pm-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -247,6 +248,16 @@ rag-eval: ## Retrieval eval (recall@k, MRR, leakage, quarantine). RERANK=1 adds 
 rag-sweep: ## Fusion grid (rrf_k, depth, weights): tune on dev split, report on test split
 	$(RAG) sweep
 
+embed-history: ## Phase 13: vectors for the 600 past incidents (needs make run-llm). REEMBED=1 clears all first
+	$(RAG) embed-history $(if $(REEMBED),--reembed,)
+
+history-explain: ## Phase 13 debug: why each past incident ranked: make history-explain Q="..." [SERVICE=checkout-api]
+	@test -n "$(Q)" || { echo 'usage: make history-explain Q="pool timeouts after deploy" [SERVICE=checkout-api]'; exit 2; }
+	$(RAG) history-explain --query "$(Q)" $(if $(SERVICE),--service $(SERVICE),)
+
+history-eval: ## Phase 13: similar-incident eval, keyword vs vector vs hybrid (data/eval/results/history-*.json)
+	$(RAG) history-eval
+
 rag-bench: ## Embedding throughput (chunks/s) and query-embedding latency on this machine
 	$(RAG) bench
 
@@ -363,6 +374,9 @@ orch-smoke: ## End-to-end Phase 9 check incl. a crash + resume (needs dev, run-l
 
 pm-smoke: ## End-to-end Phase 12 check: timeline + postmortem (Sonnet narrative) on the planted demo
 	@./scripts/smoke-phase12.sh
+
+history-smoke: ## End-to-end Phase 13 check: hybrid incident search + historical_incident agent + priors (needs make embed-history)
+	@./scripts/smoke-phase13.sh
 
 postmortem: ## Print the latest postmortem of an incident as markdown: make postmortem INCIDENT=INC-10001 [ROLE=SRE]
 	@test -n "$(INCIDENT)" || { echo "usage: make postmortem INCIDENT=INC-10001 [ROLE=SRE]"; exit 2; }

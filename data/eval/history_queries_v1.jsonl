@@ -1,0 +1,36 @@
+{"id": "h00", "query": "after the release the service started throwing server errors and could not get a database connection", "error_code": "ERR_POOL_TIMEOUT", "service_key": "checkout-api", "category": "connection_pool_exhaustion"}
+{"id": "h01", "query": "requests fail with 500s and the db client waits too long to borrow a connection", "error_code": "ERR_POOL_TIMEOUT", "service_key": "orders-api", "category": "connection_pool_exhaustion"}
+{"id": "h02", "query": "error rate jumped right after the new version went out, logs show the connection pool is empty", "error_code": "ERR_POOL_TIMEOUT", "service_key": "billing-api", "category": "connection_pool_exhaustion"}
+{"id": "h03", "query": "slow responses even though traffic is normal, work is queuing and the executor rejects tasks", "error_code": "ERR_EXECUTOR_REJECTED", "service_key": "tax-api", "category": "thread_pool_saturation"}
+{"id": "h04", "query": "tail latency went up while cpu looked fine, worker threads all busy", "error_code": "ERR_EXECUTOR_REJECTED", "service_key": "ledger-api", "category": "thread_pool_saturation"}
+{"id": "h05", "query": "request backlog keeps growing and handlers are blocked waiting", "error_code": "ERR_EXECUTOR_REJECTED", "service_key": "fraud-worker", "category": "thread_pool_saturation"}
+{"id": "h06", "query": "containers keep getting killed for using too much memory", "error_code": "ERR_OUT_OF_MEMORY", "service_key": "checkout-api", "category": "memory_leak"}
+{"id": "h07", "query": "heap usage climbs slowly all day until the process dies", "error_code": "ERR_OUT_OF_MEMORY", "service_key": "orders-api", "category": "memory_leak"}
+{"id": "h08", "query": "pods crash loop with out of memory after running a few hours", "error_code": "ERR_OUT_OF_MEMORY", "service_key": "billing-api", "category": "memory_leak"}
+{"id": "h09", "query": "failures started right after someone pushed new settings, nothing was deployed", "error_code": "ERR_CONFIG_INVALID", "service_key": "tax-api", "category": "bad_config_change"}
+{"id": "h10", "query": "a settings update went out and the service broke within a minute", "error_code": "ERR_CONFIG_INVALID", "service_key": "ledger-api", "category": "bad_config_change"}
+{"id": "h11", "query": "errors began when the configuration was edited, no new build", "error_code": "ERR_CONFIG_INVALID", "service_key": "fraud-worker", "category": "bad_config_change"}
+{"id": "h12", "query": "calls to another team's service are timing out and retries make it worse", "error_code": "ERR_UPSTREAM_TIMEOUT", "service_key": "checkout-api", "category": "dependency_timeout"}
+{"id": "h13", "query": "a backend we depend on got slow and our retries flooded it", "error_code": "ERR_UPSTREAM_TIMEOUT", "service_key": "orders-api", "category": "dependency_timeout"}
+{"id": "h14", "query": "outbound requests to a downstream api exceed their deadline", "error_code": "ERR_UPSTREAM_TIMEOUT", "service_key": "billing-api", "category": "dependency_timeout"}
+{"id": "h15", "query": "every https call to internal services fails at once with a secure connection error", "error_code": "ERR_TLS_HANDSHAKE", "service_key": "tax-api", "category": "certificate_expiry"}
+{"id": "h16", "query": "ssl errors on all outgoing connections starting at the same moment", "error_code": "ERR_TLS_HANDSHAKE", "service_key": "ledger-api", "category": "certificate_expiry"}
+{"id": "h17", "query": "clients cannot establish encrypted connections, cert seems invalid", "error_code": "ERR_TLS_HANDSHAKE", "service_key": "fraud-worker", "category": "certificate_expiry"}
+{"id": "h18", "query": "the volume is out of space so writes are failing", "error_code": "ERR_DISK_FULL", "service_key": "checkout-api", "category": "disk_full"}
+{"id": "h19", "query": "saving files fails because the node storage filled up", "error_code": "ERR_DISK_FULL", "service_key": "orders-api", "category": "disk_full"}
+{"id": "h20", "query": "no free storage left on the host, the app cannot write", "error_code": "ERR_DISK_FULL", "service_key": "billing-api", "category": "disk_full"}
+{"id": "h21", "query": "after the cache was cleared the database cpu maxed out", "error_code": "ERR_DB_OVERLOADED", "service_key": "tax-api", "category": "cache_stampede"}
+{"id": "h22", "query": "redis was emptied and every request went straight to postgres", "error_code": "ERR_DB_OVERLOADED", "service_key": "ledger-api", "category": "cache_stampede"}
+{"id": "h23", "query": "cache misses spiked and the primary database got overwhelmed", "error_code": "ERR_DB_OVERLOADED", "service_key": "fraud-worker", "category": "cache_stampede"}
+{"id": "h24", "query": "requests hang while a database migration runs", "error_code": "ERR_LOCK_TIMEOUT", "service_key": "checkout-api", "category": "schema_migration_lock"}
+{"id": "h25", "query": "an alter table blocked reads and writes on a busy table", "error_code": "ERR_LOCK_TIMEOUT", "service_key": "orders-api", "category": "schema_migration_lock"}
+{"id": "h26", "query": "queries stuck waiting on a lock during a deploy that changed the schema", "error_code": "ERR_LOCK_TIMEOUT", "service_key": "billing-api", "category": "schema_migration_lock"}
+{"id": "h27", "query": "event processing is hours behind and data downstream is old", "error_code": "ERR_CONSUMER_LAG", "service_key": "tax-api", "category": "kafka_consumer_lag"}
+{"id": "h28", "query": "the consumer group is falling behind on one partition", "error_code": "ERR_CONSUMER_LAG", "service_key": "ledger-api", "category": "kafka_consumer_lag"}
+{"id": "h29", "query": "messages pile up in the topic and are not processed", "error_code": "ERR_CONSUMER_LAG", "service_key": "fraud-worker", "category": "kafka_consumer_lag"}
+{"id": "h30", "query": "some requests fail because hostnames cannot be looked up", "error_code": "ERR_DNS_RESOLUTION", "service_key": "checkout-api", "category": "dns_failure"}
+{"id": "h31", "query": "random lookup failures for internal service names after the cluster upgrade", "error_code": "ERR_DNS_RESOLUTION", "service_key": "orders-api", "category": "dns_failure"}
+{"id": "h32", "query": "intermittent errors resolving addresses of other services", "error_code": "ERR_DNS_RESOLUTION", "service_key": "billing-api", "category": "dns_failure"}
+{"id": "h33", "query": "some customers get incorrect output since a toggle was turned on", "error_code": "ERR_VALIDATION_FAILED", "service_key": "tax-api", "category": "feature_flag_regression"}
+{"id": "h34", "query": "a percentage rollout changed behaviour and bad input is accepted", "error_code": "ERR_VALIDATION_FAILED", "service_key": "ledger-api", "category": "feature_flag_regression"}
+{"id": "h35", "query": "wrong answers for part of the users after enabling a new option", "error_code": "ERR_VALIDATION_FAILED", "service_key": "fraud-worker", "category": "feature_flag_regression"}

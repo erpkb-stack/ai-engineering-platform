@@ -87,3 +87,22 @@ def test_a_postmortem_problem_is_partial_and_named_but_never_hides_a_worse_statu
     s, e = report_outcome("INCONCLUSIVE", "no hypothesis", {**ok, "degraded": "x"})
     assert s == "INCONCLUSIVE" and e == "no hypothesis; postmortem: x"
     assert report_outcome("FAILED", "dead", {**ok, "degraded": "x"}) == ("FAILED", "dead")
+
+
+def test_history_problems_are_partial_and_named_but_never_hide_a_worse_status() -> None:
+    """Phase 13 (ADR-023): a failed search, code-only comparison or unstored pointers is a
+    missing source like any other (ADR-020)."""
+    from aeoi_orchestrator.graph import history_outcome
+
+    ok = {"task": {"status": "SUCCEEDED"}, "similar": ["INC-1"]}
+    assert history_outcome("COMPLETE", None, ok) == ("COMPLETE", None)
+    assert history_outcome("COMPLETE", None, {"skipped": True}) == ("COMPLETE", None)
+    s, e = history_outcome("COMPLETE", None, {"task": {"status": "FAILED", "error": "denied"}})
+    assert s == "PARTIAL" and e == "historical_incident: denied"
+    s, e = history_outcome("COMPLETE", None, {**ok, "degraded": "compared by code: 503"})
+    assert s == "PARTIAL" and "compared by code" in (e or "")
+    s, e = history_outcome("COMPLETE", None, {**ok, "post_error": "not stored"})
+    assert s == "PARTIAL" and "not stored" in (e or "")
+    s, e = history_outcome("INCONCLUSIVE", "no hypothesis", {**ok, "degraded": "x"})
+    assert s == "INCONCLUSIVE" and e == "no hypothesis; historical_incident: x"
+    assert history_outcome("FAILED", "dead", {**ok, "degraded": "x"}) == ("FAILED", "dead")
