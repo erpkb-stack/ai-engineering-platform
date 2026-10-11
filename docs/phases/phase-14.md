@@ -106,10 +106,10 @@ make history-smoke && make pm-smoke && make hypo-smoke   # regressions (each now
 ```
 
 ## 10. Verify (gate for Phase 15)
-- [ ] `time make code-index` prints `"parse_errors": 0` and no `!!` line; write down the time
-- [ ] `make code-smoke` all ✔ - read the printed hunk: is the call really inside the loop?
-- [ ] `make history-smoke`, `make pm-smoke`, `make hypo-smoke` still ✔ (deploy band still HIGH)
-- [ ] `make test-integration` green
+- [x] `time make code-index`: 0 parse errors, no `!!` line; re-index 13.8 s (302 unchanged; first full index not timed)
+- [x] `make code-smoke` 21/21 - the hunk shows the call inside the `for` body (read 2026-10-11)
+- [x] `make history-smoke` 23/23 + 1 note, `make pm-smoke` 22/22, `make hypo-smoke` 24/24 (deploy HIGH)
+- [x] `make test-integration` 223 passed, 1 skipped (Kafka), 8 min 30 s on the Mac
 
 Measured here: sandbox only, fake embeddings and fake models — no latency or cost numbers claimed.
 

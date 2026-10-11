@@ -85,6 +85,19 @@ emptied and flagged, never parsed half), a diff that does not fit its file, more
 `max_commits`, more references than `max_refs`. A redeploy of the same commit or a rollback
 shipped nothing new: `compare_commits` says `same`/`rollback` and returns nothing.
 
+## First Mac run (2026-10-11, Intel x86_64)
+`make code-smoke` 21/21: one `query_in_loop` on `CartService.priceCart` (PR #812), the COMMIT
+hunk shows the per-cart query replaced by a per-item query inside the loop; deploy hypothesis
+HIGH with the commit as support; 4 impacted services for `ShipmentResponse.address`; MANAGER
+sees counts only. Index: 30 repositories, 302 files, 0 parse errors, 0 skipped. Re-index with
+nothing changed: 13.8 s wall (302 files skipped by sha) - the FIRST full index was not timed.
+Regressions: history 23/23, postmortem 22/22, hypotheses 24/24; integration 223 passed.
+
+Seen in the run (not fixed here): the critic and the writer proposed "set order_batching back
+to false" as a mitigation, but the per-item query in the diff is NOT behind that flag - the
+code evidence contradicts the action. Nothing checks a proposed action against the code yet
+(input for Phase 15/16: rollback, not the flag).
+
 ## Alternatives
 | Option | Why not |
 |---|---|
