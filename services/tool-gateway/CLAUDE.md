@@ -12,7 +12,7 @@ record; reach a host outside the egress allow-list; drop (instead of flag) suspi
 
 ## Code map (`src/aeoi_tools/`)
 - `contracts.py` ToolSpec (validated at import) · `schemas.py` bounded I/O models
-- `registry.py` the 12 specs (11 READ + rollback) · `policy.py` decide() + agents.yaml model
+- `registry.py` the 14 specs (13 READ + rollback; Phase 14: compare_commits, find_references) · `policy.py` decide() + agents.yaml model
 - `service.py` invoke pipeline, one-transaction recording · `sanitize.py` caps/redaction/flags/evidence ids
 - `relay.py` outbox → audit · `api.py` caller modes · `adapters/` devdata SQL, catalog JSON, rag HTTP, egress
 - rag calls (ADR-020): bearer = OUR `secrets/tools_rag_token.txt` (scope `rag:obo`, `make tools-tokens`), `X-On-Behalf-Of` = the caller's token unchanged (user or delegated). Never the user token as a bearer.

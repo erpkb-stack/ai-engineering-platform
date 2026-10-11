@@ -1,4 +1,4 @@
-"""CLI: python -m aeoi_synth {summary|load|docpack} [--seed N] [--small]"""
+"""CLI: python -m aeoi_synth {summary|load|docpack|codepack} [--seed N] [--small]"""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from aeoi_synth.load import load, write_catalog
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="aeoi_synth", description=__doc__)
-    p.add_argument("command", choices=("summary", "load", "docpack"))
+    p.add_argument("command", choices=("summary", "load", "docpack", "codepack"))
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--small", action="store_true", help="small dataset for quick tests")
     args = p.parse_args(argv)
@@ -23,6 +23,14 @@ def main(argv: list[str] | None = None) -> int:
 
         out = find_repo_root() / "data" / "sample-documents"
         print(json.dumps(write_pack(out, args.seed)))
+        return 0
+
+    if args.command == "codepack":
+        from aeoi_synth.codegen import write_repos
+
+        ds = generate(args.seed, Scale.small() if args.small else Scale())
+        out = find_repo_root() / "data" / "sample-repositories"
+        print(json.dumps(write_repos(ds.code, out)))
         return 0
 
     started = datetime.now(UTC)

@@ -436,7 +436,8 @@ async def add_hypotheses(
     return len(batch.items), len(new)
 
 
-MODEL_TEXT = ("explanation", "critic_missing", "critic_disputed", "refinement")
+# refinement_refs: observation subjects the critic named (code names a call: review finding)
+MODEL_TEXT = ("explanation", "critic_missing", "critic_disputed", "refinement", "refinement_refs")
 REDACTED_TEXT = "[redacted: needs read access to all of its evidence]"
 
 

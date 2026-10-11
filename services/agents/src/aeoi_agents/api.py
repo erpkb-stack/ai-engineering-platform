@@ -85,6 +85,17 @@ async def run_history(task: ReasoningTask, request: Request, _: Caller) -> Agent
     return result
 
 
+@router.post("/code_intelligence/run", response_model=AgentRunResult)
+async def run_code(task: ReasoningTask, request: Request, _: Caller) -> AgentRunResult:
+    """Phase 14 (ADR-024): reads the deployment agent's result, calls code tools AS THE USER
+    (delegated token forwarded: rag applies the user's groups to code references)."""
+    user_token = _user_token(request, task.investigation_id, task.incident_id)
+    result: AgentRunResult = await request.app.state.code_agent.run(
+        task, user_token, get_correlation_id()
+    )
+    return result
+
+
 @router.post("/{agent}/run", response_model=AgentRunResult)
 async def run_agent(
     agent: AgentName, task: AgentTask, request: Request, _: Caller

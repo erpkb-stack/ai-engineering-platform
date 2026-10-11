@@ -20,8 +20,9 @@ uncitable observation into a Fact (use `notes`); call anything but the two gatew
 - `reasoning/` (Phase 11, ADR-021): `observations.py` timeline (code), `candidates.py` causes + rubric bands (code), `hypothesis.py` Haiku ranks/explains with refs, `critic.py` Sonnet critique (route fixed, fallback off, refuses a different observation set)
 - `postmortem/agent.py` (Phase 12, ADR-022): timeline + negative evidence + trigger (code), Sonnet sentences (route fixed, fallback off), `check()`: refs, markup, unknown numbers
 - `history/agent.py` (Phase 13, ADR-023): query (code) → search_incidents AS THE USER, twice (own service = filter, then anywhere = boost) → keep `open_to_engineering` only → Haiku claims, kept only if `relations()` (code) agrees → `priors()` → INCIDENT pointers. `candidates.attach_priors` + `rubric_order` tie-break (after band/support/contradiction)
+- `code/agent.py` (Phase 14, ADR-024): CODE ONLY. deploys started <= first symptom (max 3) → `compare_commits` (previous successful deploy's commit → this one) → `aeoi_codeparse.analyze_diff` → COMMIT evidence (hunk excerpt) → `find_references` for a removed field (CODE evidence, other services only). Observations: role `code`, at the deploy's start; `candidates.code_support` adds at most ONE per deploy (strongest rule)
 - `common.py` one traced tool call (`ToolResult | Failure`)
-- `api.py` task endpoint · `config.py` budgets (`AEOI_AGENTS_LOG_*`, `_METRICS_*`, `_DEPLOY_*`, `_KNOWLEDGE_*`, `_HISTORY_*`) · `main.py` factory
+- `api.py` task endpoint · `config.py` budgets (`AEOI_AGENTS_LOG_*`, `_METRICS_*`, `_DEPLOY_*`, `_KNOWLEDGE_*`, `_HISTORY_*`, `_CODE_*`) · `main.py` factory
 
 ## Adding an agent (`/new-agent` skill)
 Justify it (what can't code do?). Copy the Log Analysis shape: budgets + one deadline, facts by

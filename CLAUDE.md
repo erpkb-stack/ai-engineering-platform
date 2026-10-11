@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 13 — Historical incident intelligence** (Phases 1–12 built; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-023).
+**Phase 14 — Code intelligence** (Phases 1–13 built; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-024).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -59,6 +59,7 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
 - Multi-agent (Phase 10, ADR-020): `make investigate INCIDENT=INC-n [AGENTS=a,b]` · `make multi-smoke` (needs run-rag + `make tools-tokens` for `rag:obo`). metrics/deployment/knowledge are CODE ONLY (no LLM); knowledge stores POINTERS, never doc text. Outcome COMPLETE / PARTIAL / FAILED. Evidence is readable per kind (`EVIDENCE_KIND_PERMS`).
 - Postmortem (Phase 12, ADR-022): `make pm-smoke` · `make postmortem INCIDENT=INC-n [ROLE=MANAGER]`. Timeline points are CODE (observations → `incident_events`, source = stored evidence kind); Sonnet (`reasoning`, fallback OFF) writes sentences only, each citing observations; code drops uncited / markup / unknown-number sentences; incident-service assembles the doc at READ time and redacts per reader. Times: always `astimezone(UTC)` before a "Z".
 - History (Phase 13, ADR-023): `make embed-history` · `make history-eval` · `make history-smoke`. Incident search is hybrid (ACL in BOTH branches' SQL); the historical_incident agent keeps only `open_to_engineering` hits, stores POINTERS (INCIDENT), Haiku claims are kept only if code computes the same relation; the history prior is a TIE-BREAK inside a band, never shown to the ranker/critic.
+- Code (Phase 14, ADR-024): `make codepack` · `make code-index` · `make code-smoke`. CODE ONLY (no model reads a diff): `code_intelligence` gets the commits each deploy before the first symptom shipped (`compare_commits`, AS THE USER), tree-sitter rules (`aeoi_codeparse`: query/remote call added in a loop, numeric limit changed, field removed), change impact via `find_references` (rag, file ACL in SQL). A finding is ONE more source for its own deploy (max one code observation per deploy); a removed field is impact only, never support. tree-sitter pinned to 0.23.x (last Intel-Mac wheels).
 - Reasoning (Phase 11, ADR-021): CODE proposes causes + rubric bands; Haiku (`fast`) only ranks/explains with refs; Sonnet (`reasoning`, fallback OFF) critiques blind to the ranker's prose; code validates. `make hypo-smoke`. A critic on the ranker's model or on a fallback = PARTIAL, never hidden.
 - Agent pattern (ADR-018): facts by CODE citing tool evidence ids; LLM only labels/interprets, citations validated; uncitable → `notes`; prompt `services/agents/prompts/<agent>/vN.md` pinned by sha.
 - Agents reach systems only via the tool-gateway (service token `tools:invoke` + `X-On-Behalf-Of` user token). New tool = `/new-tool` skill + contract lint + security test.

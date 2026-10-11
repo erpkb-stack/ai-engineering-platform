@@ -23,10 +23,10 @@ UVICORN := uv run uvicorn --factory --log-level warning
         verify-infra psql redis-cli kafka-topics kafka-init clean test-integration \
         db-users token run-incident run-api dev smoke \
         service-token ollama-pull run-llm stop-llm llm-smoke \
-        rag-token docpack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
-        embed-history history-eval history-explain \
+        rag-token docpack codepack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
+        embed-history history-eval history-explain code-index \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -229,6 +229,9 @@ rag-token: ## Mint the rag -> llm-gateway service token (dev only, 30 days) into
 	  --ttl-minutes 43200 > secrets/rag_service_token.txt
 	@echo "wrote secrets/rag_service_token.txt (scope llm:invoke, 30 days)"
 
+codepack: ## Phase 14: write the synthetic repositories at HEAD to data/sample-repositories (deterministic)
+	uv run python -m aeoi_synth codepack
+
 docpack: ## Regenerate the document pack + eval queries (deterministic; commit the result)
 	uv run python -m aeoi_synth docpack
 
@@ -250,6 +253,9 @@ rag-sweep: ## Fusion grid (rrf_k, depth, weights): tune on dev split, report on 
 
 embed-history: ## Phase 13: vectors for the 600 past incidents (needs make run-llm). REEMBED=1 clears all first
 	$(RAG) embed-history $(if $(REEMBED),--reembed,)
+
+code-index: ## Phase 14: parse data/sample-repositories with tree-sitter into rag.code_* (run make codepack first)
+	$(RAG) index-code
 
 history-explain: ## Phase 13 debug: why each past incident ranked: make history-explain Q="..." [SERVICE=checkout-api]
 	@test -n "$(Q)" || { echo 'usage: make history-explain Q="pool timeouts after deploy" [SERVICE=checkout-api]'; exit 2; }
@@ -374,6 +380,9 @@ orch-smoke: ## End-to-end Phase 9 check incl. a crash + resume (needs dev, run-l
 
 pm-smoke: ## End-to-end Phase 12 check: timeline + postmortem (Sonnet narrative) on the planted demo
 	@./scripts/smoke-phase12.sh
+
+code-smoke: ## End-to-end Phase 14 check: code index + code_intelligence agent + COMMIT evidence (needs codepack, code-index)
+	@./scripts/smoke-phase14.sh
 
 history-smoke: ## End-to-end Phase 13 check: hybrid incident search + historical_incident agent + priors (needs make embed-history)
 	@./scripts/smoke-phase13.sh

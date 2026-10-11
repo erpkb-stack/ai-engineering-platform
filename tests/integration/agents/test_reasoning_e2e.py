@@ -135,6 +135,9 @@ async def test_hypotheses_ranked_critiqued_validated_and_stored(
     assert "redacted" in mgr["h1"]["detail"]["explanation"] and RANKER_MARKER not in str(mgr)
     assert "redacted" in mgr["h3"]["statement"]  # the critic's alternative is model text
     assert "redacted" in mgr["h1"]["detail"]["refinement"]  # so is a refinement
+    # ... and the observations it named (Phase 14: a code observation names a call - review)
+    assert "redacted" in str(mgr["h1"]["detail"]["refinement_refs"])
+    assert h1["detail"]["refinement_refs"]  # the SRE still sees them
     redacted = {e["agent"]: e["redacted"] for e in mgr_trace["executions"]}
     assert redacted["hypothesis"] and redacted["critic"]
     assert not any(e["redacted"] for e in trace["executions"])

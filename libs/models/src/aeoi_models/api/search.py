@@ -127,3 +127,26 @@ class HistoricalIncidentHit(BaseModel):
     # shared with every engineer (`eng-all`): only such incidents may be stored on another
     # incident's record (ADR-023)
     open_to_engineering: bool = False
+
+
+# ------------------------------------------------------------------ code (Phase 14, ADR-024)
+class CodeReferencesRequest(BaseModel):
+    """Who uses a symbol? `ShipmentResponse.address` (a member of a type: also matches
+    getAddress / Address, in services that use the type) or a plain name (`findOpenOrders`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    symbol: str = Field(min_length=2, max_length=200, pattern=r"^[A-Za-z_][\w.]*$")
+    exclude_repository: str | None = Field(default=None, max_length=120)
+    limit: int = Field(default=50, ge=1, le=200)
+
+
+class CodeReferenceHit(BaseModel):
+    repository: str
+    path: str
+    service_key: str | None
+    line: int
+    kind: Literal["call", "type", "field"]
+    name: str
+    enclosing: str | None
+    open_to_engineering: bool = False

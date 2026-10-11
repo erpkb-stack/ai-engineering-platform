@@ -33,6 +33,7 @@ class EvidenceKind(StrEnum):
     INCIDENT = "INCIDENT"
     ALERT = "ALERT"
     CATALOG = "CATALOG"  # service catalog facts (owner, tier, dependencies) - Phase 8
+    CODE = "CODE"  # a code location at HEAD (find_references) - Phase 14
 
 
 class ConfidenceBand(StrEnum):

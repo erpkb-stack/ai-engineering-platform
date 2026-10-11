@@ -125,6 +125,121 @@ async def test_code_tools(tools: httpx.AsyncClient, tok: Tokens, planted: Plante
     assert r.json()["data"]["items"] == []  # wildcards are literals
 
 
+async def test_previous_commit_is_the_last_successful_deploy_in_the_same_environment(
+    tools: httpx.AsyncClient, tok: Tokens, owner: psycopg.Connection
+) -> None:
+    """Phase 14: compare_commits' base. FAILED / ROLLED_BACK deploys and other environments
+    never count as "what was running before" (review: the subquery had no test)."""
+    tag = uuid4().hex[:6]
+    svc, n = f"tg-prev-{tag}", int(tag, 16) % 10**6
+    rows = [  # (key suffix, status, environment, hours before the current deploy)
+        ("1", "SUCCEEDED", "production", 40), ("2", "FAILED", "production", 30),
+        ("3", "ROLLED_BACK", "production", 20), ("4", "SUCCEEDED", "staging", 10),
+        ("5", "SUCCEEDED", "production", 0),
+    ]  # fmt: skip
+    for k, status, env, hours in rows:
+        owner.execute(
+            "INSERT INTO devdata.deployments (id, deploy_key, service_key, version, environment,"
+            " status, commit_sha, deployed_by, config_diff, started_at) VALUES (gen_random_uuid(),"
+            " %s, %s, 'v', %s, %s, %s, 'cd-bot', '{}', %s)",
+            (f"DEPLOY-8{n:06d}{k}", svc, env, status, k * 40, T0 - timedelta(hours=hours)),
+        )
+    r = await call(
+        tools, "get_deployment", tok.h("ENGINEER"), args={"deploy_key": f"DEPLOY-8{n:06d}5"}
+    )
+    assert r.json()["data"]["items"][0]["previous_commit_sha"] == "1" * 40
+    r = await call(
+        tools, "get_deployment", tok.h("ENGINEER"), args={"deploy_key": f"DEPLOY-8{n:06d}1"}
+    )
+    assert r.json()["data"]["items"][0]["previous_commit_sha"] is None  # the first one
+
+
+async def test_compare_commits_returns_the_deploys_range_with_diffs(
+    tools: httpx.AsyncClient, tok: Tokens, planted: Planted, owner: psycopg.Connection
+) -> None:
+    """Phase 14 (ADR-024): after base (exclusive) up to head (inclusive), with diffs and PR;
+    a commit between base and head is in, one after head is out; a redeploy / rollback shipped
+    nothing new (review)."""
+
+    def sha(p: str) -> str:
+        return (p + planted.sha[len(p) :])[:40]
+
+    base, mid, late = sha("ba"), sha("bb"), sha("bc")
+    for c, when in ((base, T0 - timedelta(days=1)), (mid, T0 - timedelta(hours=1)),
+                    (late, T0 + timedelta(days=1))):  # fmt: skip
+        owner.execute(
+            "INSERT INTO devdata.commits VALUES (%s, %s, %s, 'dev@northwind.example', 'c',"
+            " %s, 1, 1, %s) ON CONFLICT DO NOTHING",
+            (c, planted.repo, planted.svc, ["src/A.java"], when),
+        )
+    owner.execute(
+        "INSERT INTO devdata.commit_diffs VALUES (%s, 'src/OrderRepository.java', %s, %s, 1, 0)"
+        " ON CONFLICT DO NOTHING",
+        (planted.sha, "--- a/x\n+++ b/x\n@@ -0,0 +1,1 @@\n+int x;\n", "int x;\n"),
+    )
+    owner.execute(  # a file longer than the gateway passes on: both texts empty, flagged
+        "INSERT INTO devdata.commit_diffs VALUES (%s, 'src/Big.java', %s, %s, 1, 0)"
+        " ON CONFLICT DO NOTHING",
+        (planted.sha, "+x\n" * 3000, "x\n" * 3000),
+    )
+    h = tok.h("ENGINEER")
+    args = {"service_key": planted.svc, "head_sha": planted.sha, "base_sha": base}
+    r = await call(tools, "compare_commits", h, args=args)
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    shas = [i["sha"] for i in data["items"]]
+    assert data["relation"] == "ahead" and data["base_found"] and data["more"] is False
+    assert shas[0] == planted.sha and mid in shas and base not in shas and late not in shas
+    head = data["items"][0]
+    assert head["pull_request"] == planted.pr_number and head["evidence_id"]
+    files = {f["path"]: f for f in head["files"]}
+    assert files["src/OrderRepository.java"]["additions"] == 1
+    big = files["src/Big.java"]
+    assert big["truncated"] and big["patch"] == "" and big["content_after"] == ""
+    r = await call(tools, "compare_commits", h, args={**args, "limit": 1})
+    assert r.json()["data"]["more"] is True and len(r.json()["data"]["items"]) == 1
+    # base unknown: ONLY the head, and the gap is said, not hidden
+    r = await call(tools, "compare_commits", h, args={**args, "base_sha": "e" * 40})
+    data = r.json()["data"]
+    assert [i["sha"] for i in data["items"]] == [planted.sha]
+    assert (data["base_found"], data["relation"]) == (False, "no_base")
+    # base with the SAME timestamp as head: the head is still returned (regression)
+    r = await call(tools, "compare_commits", h,
+                   args={**args, "base_sha": planted.twin_prefix + "1" * 33})  # fmt: skip
+    assert r.json()["data"]["items"][0]["sha"] == planted.sha
+    # a redeploy of the same commit / a rollback to an older one: nothing new shipped
+    r = await call(tools, "compare_commits", h, args={**args, "base_sha": planted.sha})
+    assert (r.json()["data"]["relation"], r.json()["data"]["items"]) == ("same", [])
+    r = await call(tools, "compare_commits", h, args={**args, "base_sha": late})
+    assert (r.json()["data"]["relation"], r.json()["data"]["items"]) == ("rollback", [])
+    # a head that is not this service's commit: nothing (no cross-service reads by sha)
+    r = await call(tools, "compare_commits", h, args={**args, "service_key": "tg-db"})
+    assert (r.json()["data"]["relation"], r.json()["data"]["items"]) == ("head_unknown", [])
+    r = await call(tools, "compare_commits", tok.h("MANAGER"), args=args)
+    assert r.status_code == 403
+
+
+async def test_find_references_forwards_the_user_and_bounds_the_input(
+    tools: httpx.AsyncClient, tok: Tokens, stub_rag: StubRag
+) -> None:
+    headers = tok.agent("ENGINEER")
+    r = await call(tools, "find_references", headers, agent_name="code_intelligence",
+                   args={"symbol": "ShipmentResponse.address"})  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert stub_rag.seen[-1]["path"] == "/v1/code/references"
+    assert stub_rag.seen[-1]["obo"] == headers["X-On-Behalf-Of"]
+    [item] = r.json()["data"]["items"]
+    assert item["service_key"] == "media-api" and item["evidence_id"]
+    assert item["open_to_engineering"] is True  # passed through: the agent stores only these
+    assert "extra_field" not in item
+    r = await call(tools, "find_references", headers, agent_name="code_intelligence",
+                   args={"symbol": "x; DROP TABLE"})  # fmt: skip
+    assert r.status_code == 422
+    r = await call(tools, "find_references", headers, agent_name="log_analysis",
+                   args={"symbol": "address"})  # fmt: skip
+    assert r.status_code == 403 and r.json()["reason"] == "not_in_agent_allowlist"
+
+
 async def test_catalog(tools: httpx.AsyncClient, tok: Tokens, planted: Planted) -> None:
     r = await call(tools, "query_service_catalog", tok.h("MANAGER"), args={"service_key": "tg-db"})
     assert r.json()["data"]["items"][0]["dependents"] == [planted.svc]

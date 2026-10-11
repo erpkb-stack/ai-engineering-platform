@@ -185,6 +185,9 @@ class DeploymentItem(Item):
     started_at: datetime
     finished_at: datetime | None = None
     config_changed_keys: list[str] = Field(default_factory=list, max_length=100)
+    # Phase 14: the commit the PREVIOUS successful deploy of this service shipped - the
+    # commits after it, up to commit_sha, are what this deploy changed (compare_commits)
+    previous_commit_sha: str | None = None
 
 
 class DeploymentsOut(Out):
@@ -231,6 +234,80 @@ class CommitItem(Item):
 
 class CommitOut(Out):
     items: list[CommitItem] = Field(default_factory=list, max_length=1)
+
+
+class CompareCommitsIn(In):
+    """Phase 14 (ADR-024): the commits a deploy shipped, with their diffs (a code host's
+    "compare" API): commits of `service_key` after `base_sha` up to and including `head_sha`."""
+
+    service_key: str = Field(pattern=SERVICE_KEY, max_length=100)
+    head_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
+    base_sha: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
+    limit: int = Field(default=10, ge=1, le=20)
+
+
+class FileDiff(BaseModel):
+    """`truncated`: the file or its diff is longer than the gateway passes on (the sanitizer
+    cuts every string at 4000 chars); then BOTH texts are empty - a cut file would be parsed
+    wrong, so the agent reports it as unchecked instead (review finding)."""
+
+    path: str
+    patch: str = Field(max_length=4_000)
+    content_after: str = Field(max_length=4_000)
+    additions: int
+    deletions: int
+    truncated: bool = False
+
+
+class CommitDiffItem(Item):
+    sha: str
+    repository: str
+    service_key: str
+    author: str
+    message: str
+    committed_at: datetime
+    pull_request: int | None = None
+    files: list[FileDiff] = Field(default_factory=list, max_length=20)
+
+
+CompareRelation = Literal["ahead", "same", "rollback", "no_base", "head_unknown"]
+
+
+class CompareCommitsOut(Out):
+    """`relation` of head to base: ahead (commits after base up to head), same (a redeploy of
+    the same commit: nothing new shipped), rollback (head is older than base: nothing new
+    shipped), no_base (base not given / not found: the head commit only), head_unknown.
+    `more`: there were more commits in the range than `limit`."""
+
+    items: list[CommitDiffItem] = Field(default_factory=list, max_length=20)
+    base_found: bool = True
+    relation: CompareRelation = "ahead"
+    more: bool = False
+
+
+class FindReferencesIn(In):
+    """Phase 14 (ADR-024): who uses a symbol, across every repository the user may read."""
+
+    symbol: str = Field(min_length=2, max_length=200, pattern=r"^[A-Za-z_][A-Za-z0-9_.]*$")
+    exclude_repository: str | None = Field(
+        default=None, pattern=r"^[a-z0-9-]+/[a-z0-9-]+$", max_length=120
+    )
+    limit: int = Field(default=50, ge=1, le=100)
+
+
+class CodeRefItem(Item):
+    repository: str
+    path: str
+    service_key: str | None = None
+    line: int
+    kind: Literal["call", "type", "field"]
+    name: str
+    enclosing: str | None = None
+    open_to_engineering: bool = False
+
+
+class FindReferencesOut(Out):
+    items: list[CodeRefItem] = Field(default_factory=list, max_length=100)
 
 
 class PullRequestIn(In):
