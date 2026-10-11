@@ -19,6 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from aeoi_common.errors import NotFoundError, UpstreamUnavailableError
 from aeoi_db.models.rag import Document, DocumentChunk
 from aeoi_models.api.search import (
+    CodeReferenceHit,
+    CodeReferencesRequest,
     DocumentOut,
     HistoricalIncidentHit,
     IncidentSearchRequest,
@@ -27,7 +29,7 @@ from aeoi_models.api.search import (
     SearchRequest,
     SearchResponse,
 )
-from aeoi_rag import history
+from aeoi_rag import codeindex, history
 from aeoi_rag.embedder import Embedder
 from aeoi_rag.ingest import new_retrieval_id
 from aeoi_rag.rerank import LLMReranker
@@ -201,3 +203,18 @@ async def search_incidents(
         log.warning("incident_search_no_vectors", model=embedder.model)
         retrieval = "keyword"
     return [HistoricalIncidentHit(**r, retrieval=retrieval) for r in rows]
+
+
+@router.post("/code/references", response_model=list[CodeReferenceHit])
+async def code_references(
+    body: CodeReferencesRequest,
+    principal: Annotated[Principal, Depends(require_acting_user(Perm.CODE_READ, RAG_OBO_SCOPE))],
+    request: Request,
+) -> list[CodeReferenceHit]:
+    """Phase 14 (ADR-024): change impact - who uses a symbol. The file ACL is in the SQL;
+    groups come from the token (the tool gateway forwards the user / delegated token)."""
+    rows = await codeindex.references(
+        request.app.state.sessionmaker, body.symbol, sorted(principal.groups),
+        exclude_repository=body.exclude_repository, limit=body.limit,
+    )  # fmt: skip
+    return [CodeReferenceHit(**r) for r in rows]

@@ -125,6 +125,16 @@ class HistoryBudget(BaseServiceSettings):
     task_deadline_s: float = 60.0
 
 
+class CodeBudget(BaseServiceSettings):
+    """Code intelligence agent (ADR-024): code only, two tools."""
+
+    model_config = SettingsConfigDict(env_prefix="AEOI_AGENTS_CODE_", extra="ignore", frozen=True)
+
+    max_commits: int = 10  # per deploy (compare_commits limit)
+    max_refs: int = 50  # per removed field (find_references limit)
+    task_deadline_s: float = 60.0
+
+
 class Settings(BaseServiceSettings):
     model_config = SettingsConfigDict(env_prefix="AEOI_AGENTS_", extra="ignore", frozen=True)
 

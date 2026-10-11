@@ -101,6 +101,9 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 ### `rag`
 | Table | Purpose | Columns |
 |---|---|---|
+| `code_files` | Phase 14 (0022): one source file at HEAD per (repository, path); ACL `allowed_groups` from the repo's `.aeoi-repo.json` (required); `content_sha256` skips unchanged files on re-index | 8 |
+| `code_refs` | Phase 14: uses by SIMPLE name (call / type / field) with line + enclosing function; ON DELETE CASCADE from the file | 6 |
+| `code_symbols` | Phase 14: definitions (class, struct, function, method, field) with line range; ON DELETE CASCADE from the file | 7 |
 | `document_chunks` |  | 11 |
 | `documents` | Source documents with ACL (`allowed_groups`), sensitivity, quarantine flag + reason (0015) | 16 |
 | `historical_incidents` | Closed past incidents (Feature 8). root_cause_category doubles as eval ground truth. | 16 |
@@ -109,6 +112,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 ### `devdata`
 | Table | Purpose | Columns |
 |---|---|---|
+| `commit_diffs` | Phase 14 (0022): per commit and file, the unified diff and the file after it (synthetic code); PK (sha, path), FK commits ON DELETE CASCADE | 6 |
 | `commits` | Simulated git commits | 9 |
 | `deployments` | Simulated CD history | 11 |
 | `log_events` | Append-only, time-ordered. [Prod]: daily partitions + retention, or a real log store. | 8 |
@@ -186,6 +190,11 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `orchestrator.ix_tasks_investigation_id` | serves: fan-in "all tasks of investigation X" |
 | `orchestrator.ix_tasks_live_deadline` | serves: reaper finding stuck PENDING/RUNNING tasks past deadline; partial = live tasks only |
 | `orchestrator.uq_investigations_one_running` | enforces: one RUNNING investigation per incident (duplicate deliveries cannot start a second) |
+| `rag.ix_code_files_service_key` | serves: files of service X (impact grouped by service) |
+| `rag.ix_code_refs_file_id` | serves: FK lookup + delete-on-reindex of one file |
+| `rag.ix_code_refs_name` | serves: change impact - who uses name X (find_references) |
+| `rag.ix_code_symbols_file_id` | serves: FK lookup + delete-on-reindex of one file |
+| `rag.ix_code_symbols_name` | serves: definition lookup by simple name |
 | `rag.ix_document_chunks_allowed_groups` | serves: permission filter allowed_groups && <caller groups> in the same statement as ranking |
 | `rag.ix_document_chunks_embedding_hnsw` | serves: semantic ANN retrieval (cosine) for RAG |
 | `rag.ix_document_chunks_tsv` | serves: keyword retrieval (error codes, class names) - the "BM25 side" of hybrid |

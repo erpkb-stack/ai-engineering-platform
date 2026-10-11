@@ -198,3 +198,76 @@ class HistoricalIncident(Base):
         ),
     )
     created_at: Mapped[datetime] = created_at_col()
+
+
+# ------------------------------------------------------------------ code index (Phase 14, ADR-024)
+CODE_SYMBOL_KINDS = ("class", "interface", "struct", "method", "function", "field", "constant")
+CODE_REF_KINDS = ("call", "type", "field")
+
+
+class CodeFile(Base):
+    """One source file of a repository at HEAD, as parsed by `make code-index` (tree-sitter).
+    The ACL is per file (copied from the repository's explicit ACL) and filters IN the SQL."""
+
+    __tablename__ = "code_files"
+    __table_args__ = (
+        UniqueConstraint("repository", "path"),  # also serves: re-index upsert by repo + path
+        CheckConstraint(in_list("language", ("java", "python", "go")), name="language_valid"),
+        CheckConstraint("cardinality(allowed_groups) >= 1", name="has_allowed_groups"),
+        # serves: "files of service X" (impact grouped by service)
+        Index("ix_code_files_service_key", "service_key"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    repository: Mapped[str] = mapped_column(String(120), nullable=False)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    service_key: Mapped[str | None] = mapped_column(String(100))
+    language: Mapped[str] = mapped_column(String(12), nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    allowed_groups: Mapped[list[str]] = mapped_column(ARRAY(String(80)), nullable=False)
+    indexed_at: Mapped[datetime] = created_at_col()
+
+
+class CodeSymbol(Base):
+    """A definition: class / method / field ... with its line span."""
+
+    __tablename__ = "code_symbols"
+    __table_args__ = (
+        CheckConstraint(in_list("kind", CODE_SYMBOL_KINDS), name="kind_valid"),
+        # serves: "where is X defined" (definition lookup by simple name)
+        Index("ix_code_symbols_name", "name"),
+        # serves: FK lookup + delete-on-reindex of one file
+        Index("ix_code_symbols_file_id", "file_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.code_files.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(12), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    container: Mapped[str | None] = mapped_column(String(200))  # enclosing class / type
+    start_line: Mapped[int] = mapped_column(Integer, nullable=False)
+    end_line: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class CodeRef(Base):
+    """A use: a call, a type use or a field read, by simple name (no type resolution [P])."""
+
+    __tablename__ = "code_refs"
+    __table_args__ = (
+        CheckConstraint(in_list("kind", CODE_REF_KINDS), name="kind_valid"),
+        # serves: change impact - "who uses name X" (find_references)
+        Index("ix_code_refs_name", "name"),
+        # serves: FK lookup + delete-on-reindex of one file
+        Index("ix_code_refs_file_id", "file_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey(f"{SCHEMA}.code_files.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(8), nullable=False)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    line: Mapped[int] = mapped_column(Integer, nullable=False)
+    enclosing: Mapped[str | None] = mapped_column(String(200))  # method / function it is in

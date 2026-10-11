@@ -53,6 +53,7 @@ EVIDENCE_KINDS = (
     "INCIDENT",
     "ALERT",
     "CATALOG",
+    "CODE",  # Phase 14: a code location at HEAD (find_references)
 )
 CONFIDENCE = ("LOW", "MEDIUM", "HIGH")
 HYPOTHESIS_STATUSES = ("PROPOSED", "CHALLENGED", "VALIDATED", "REJECTED", "CONFIRMED")

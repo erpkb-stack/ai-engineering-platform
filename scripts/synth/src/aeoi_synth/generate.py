@@ -13,7 +13,7 @@ import random
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from aeoi_synth import vocab
 
@@ -51,6 +51,7 @@ class Dataset:
     seed: int
     catalog: list[dict[str, Any]] = field(default_factory=list)
     tables: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    code: Any = None  # codegen.CodePack (Phase 14): the repositories at HEAD
 
     def rows(self, table: str) -> list[dict[str, Any]]:
         return self.tables.setdefault(table, [])
@@ -131,6 +132,12 @@ class _Gen:
         checkout = by_key[DEMO_SERVICE]
         checkout["depends_on"] = [DEMO_DB, "payments-api", "inventory-api", DEMO_DECOY]
         checkout["tier"] = 1
+        # Phase 14: the demo commit is Java (OrderRepository.java, CartService.java), so the
+        # demo service is a Java service whatever the seed drew. The draw above still happens,
+        # so the random stream does not shift - but checkout-api's own rows DO change (seed 42
+        # drew python): its catalog entry and the knowledge documents that name its language
+        # (text, content_sha256, embeddings). Re-seed + re-ingest after this phase (ADR-024).
+        checkout["language"] = "java"
 
     # -- identity ----------------------------------------------------------------------
     def identity(self) -> None:
@@ -315,6 +322,25 @@ class _Gen:
                 "finished_at": T(hour=9, minute=44),
             }
         )
+
+    # -- source code (Phase 14, ADR-024) ------------------------------------------------
+    def code(self) -> None:
+        """Real files and real diffs for every commit. Own random stream + no uuid counter
+        use, so nothing generated after this shifts."""
+        from aeoi_synth import codegen
+
+        commits = self.ds.rows("devdata.commits")
+        prs = self.ds.rows("devdata.pull_requests")
+        demo_sha = self.sha("demo", "order-batching")
+        pack = codegen.build(
+            self.ds.catalog, commits, prs, demo_sha, DEMO_DAY - timedelta(days=20, hours=-14),
+            self.sha, self.seed,
+        )  # fmt: skip
+        commits.extend(pack.extra_commits)
+        for pr in pack.extra_prs:
+            prs.append({"id": uuid5(NAMESPACE_URL, f"aeoi:pr:{pr['merge_commit_sha']}"), **pr})
+        self.ds.rows("devdata.commit_diffs").extend(pack.diffs)
+        self.ds.code = pack
 
     # -- logs + metrics ----------------------------------------------------------------
     def telemetry(self) -> None:
@@ -654,6 +680,7 @@ def generate(seed: int = 42, scale: Scale | None = None) -> Dataset:
     g.identity()
     g.git_and_deploys()
     g.demo()
+    g.code()
     g.telemetry()
     g.history()
     g.knowledge()

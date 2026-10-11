@@ -33,4 +33,7 @@ frontend/dist/
 .vscode/
 # Data generated locally
 data/generated/
+# Phase 14: synthetic repositories (make codepack, deterministic from the seed)
+data/sample-repositories/*
+!data/sample-repositories/.gitkeep
 *.log

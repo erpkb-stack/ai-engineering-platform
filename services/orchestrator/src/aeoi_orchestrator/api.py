@@ -177,6 +177,7 @@ async def start_investigation(
         "reasoning_enabled": settings.reasoning if body.reasoning is None else body.reasoning,
         "postmortem_enabled": settings.postmortem,
         "history_enabled": settings.history,
+        "code_enabled": settings.code,
         "results": [],
     }
     try:
@@ -187,11 +188,12 @@ async def start_investigation(
             settings.budget_usd,
             settings.investigation_deadline_s,
             plan={
-                "phase": 13,
+                "phase": 14,
                 "agents": agents,
                 "reasoning": graph_input["reasoning_enabled"],
                 "postmortem": settings.postmortem,
                 "history": settings.history,
+                "code": settings.code,
                 "start_key": key,
             },
         )
@@ -273,11 +275,16 @@ AGENT_CONTENT_PERMS: dict[str, frozenset[Perm]] = {
     "deployment": frozenset({Perm.DEPLOYS_READ}),
     "knowledge": frozenset({Perm.RUNBOOKS_READ, Perm.DOCS_READ}),
     # Phase 11: they read every evidence agent's results (log codes, metrics, deploys)
-    "hypothesis": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
-    "critic": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
-    # Phase 12: the writer's prompt holds every observation (log codes, metrics, deploys)
-    "postmortem": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ}),
+    # Phase 14: + code (the code observation's statement names the call and the PR)
+    "hypothesis": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ, Perm.CODE_READ}),
+    "critic": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ, Perm.CODE_READ}),
+    # Phase 12: the writer's prompt holds every observation (log codes, metrics, deploys, code)
+    "postmortem": frozenset({Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ, Perm.CODE_READ}),
     # Phase 13: observations + past incidents' text (only those shared with all engineers)
+    # Phase 14: observations (logs/metrics/deploys) + diffs and code references
+    "code_intelligence": frozenset(
+        {Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ, Perm.CODE_READ}
+    ),
     "historical_incident": frozenset(
         {Perm.LOGS_READ, Perm.METRICS_READ, Perm.DEPLOYS_READ, Perm.DOCS_READ}
     ),

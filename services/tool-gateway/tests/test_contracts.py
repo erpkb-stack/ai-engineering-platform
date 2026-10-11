@@ -22,7 +22,7 @@ AGENTS = Path(__file__).resolve().parents[1] / "config" / "agents.yaml"
 EXPECTED = {
     "query_service_catalog", "search_logs", "query_metrics", "get_commit", "get_pull_request",
     "search_repository", "get_deployment", "get_config_diff", "search_runbooks", "search_docs",
-    "search_incidents", "rollback_deployment",
+    "search_incidents", "rollback_deployment", "compare_commits", "find_references",
 }  # fmt: skip
 
 
@@ -120,9 +120,7 @@ def test_spec_refuses_incomplete_tools() -> None:
 def test_agents_yaml_matches_registry_and_architecture() -> None:
     cfg = PolicyConfig.load(AGENTS, set(registry()))
     assert cfg.agents["log_analysis"].tools == {"search_logs"}
-    assert cfg.agents["code_intelligence"].tools == {
-        "get_commit", "get_pull_request", "search_repository"
-    }  # fmt: skip
+    assert cfg.agents["code_intelligence"].tools == {"compare_commits", "find_references"}
     # the ONLY agent that may hold a consequential tool
     holders = {a for a, p in cfg.agents.items() if "rollback_deployment" in p.tools}
     assert holders == {"action_executor"}

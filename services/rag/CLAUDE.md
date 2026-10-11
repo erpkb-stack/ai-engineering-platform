@@ -20,10 +20,11 @@ body; index a file without an explicit ACL; chunk a quarantined document; call a
 - `evaluation.py` recall@k / MRR@10 / leakage / quarantine with bootstrap CIs
 - `__main__.py` CLI: ingest · chunk-db · embed · stats · eval · sweep (fusion grid, dev/test) · bench · embed-history · history-eval
 - `history.py` (Phase 13, ADR-023) past incidents: keyword + vector (same `embedding_model` only) RRF + same-service vote; ACL in both branches; `open_to_engineering`; `history_eval.py` + `data/eval/history_queries_v1.jsonl`
+- `codeindex.py` (Phase 14, ADR-024): `index_repos` (tree-sitter via `aeoi_codeparse`; repos WITHOUT `.aeoi-repo.json` are skipped; unchanged sha skipped; files gone from disk deleted) · `references` = `POST /v1/code/references` (perm `code:read`, file ACL in SQL incl. the type sub-query, defence-in-depth assert). `Type.member` → accessor names in services that use the type (heuristic, no type resolution)
 - `fuse()` in search.py is the Python twin of the SQL fusion - keep them identical (integration test)
 
 ## Commands
-`make rag-token` · `make rag-ingest` · `make rag-eval [RERANK=1]` · `make run-rag` · `make rag-smoke` · `make embed-history` · `make history-eval`
+`make rag-token` · `make rag-ingest` · `make rag-eval [RERANK=1]` · `make run-rag` · `make rag-smoke` · `make embed-history` · `make history-eval` · `make codepack` · `make code-index`
 Corpus: `make docpack` (deterministic; `data/sample-documents/` + `data/eval/rag_queries_v1.jsonl`).
 
 ## Rules when changing retrieval

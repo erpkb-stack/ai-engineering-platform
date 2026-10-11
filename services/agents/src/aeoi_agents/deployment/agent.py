@@ -163,6 +163,7 @@ class DeploymentAgent:
             started_at=started,
             finished_at=finished,
             commit_sha=d["commit_sha"],
+            previous_commit_sha=d.get("previous_commit_sha"),
             deployed_by=d["deployed_by"],
             config_changes=config,
             minutes_before_detection=before,

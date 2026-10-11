@@ -17,6 +17,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     Double,
+    ForeignKey,
     Identity,
     Index,
     Integer,
@@ -90,6 +91,22 @@ class Commit(Base):
     additions: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     deletions: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     committed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class CommitDiff(Base):
+    """Phase 14 (ADR-024): what a commit changed, per file - the unified diff and the file
+    after the change (what GitHub's commit API returns). Synthetic, from aeoi_synth.codegen."""
+
+    __tablename__ = "commit_diffs"
+    __table_args__ = ({"schema": SCHEMA},)
+    sha: Mapped[str] = mapped_column(
+        ForeignKey(f"{SCHEMA}.commits.sha", ondelete="CASCADE"), primary_key=True
+    )
+    path: Mapped[str] = mapped_column(Text, primary_key=True)
+    patch: Mapped[str] = mapped_column(Text, nullable=False)
+    content_after: Mapped[str] = mapped_column(Text, nullable=False)
+    additions: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    deletions: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
 
 class PullRequest(Base):

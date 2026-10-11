@@ -21,7 +21,8 @@ class Observation(BaseModel):
 
     ref: ObsRef = Field(pattern=r"^o[0-9]{1,3}$")
     agent: str
-    role: Literal["effect", "resource", "traffic", "change", "steady"]
+    # Phase 14: "code" = a diff rule finding of the deploy that shipped it (at = deploy start)
+    role: Literal["effect", "resource", "traffic", "change", "steady", "code"]
     service_key: str
     subject: str = Field(max_length=120, description="metric, error code or deploy key")
     at: datetime

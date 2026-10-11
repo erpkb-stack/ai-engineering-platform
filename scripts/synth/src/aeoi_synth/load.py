@@ -46,6 +46,8 @@ TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
         "created_at",
         "merged_at",
     ),
+    # Phase 14: after commits (FK). What each commit changed - from aeoi_synth.codegen
+    "devdata.commit_diffs": ("sha", "path", "patch", "content_after", "additions", "deletions"),
     "devdata.deployments": (
         "id",
         "deploy_key",
@@ -116,6 +118,7 @@ TRUNCATE_ORDER = [
     "devdata.log_events",
     "devdata.deployments",
     "devdata.pull_requests",
+    "devdata.commit_diffs",
     "devdata.commits",
     # Phase 9: grants reference users; a reload replaces every user, so their grants (and the
     # grants' history) go too. Otherwise `make db-seed` fails after the first investigation.

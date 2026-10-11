@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from aeoi_models.api.code import CodeFinding, CodeStats
 from aeoi_models.api.history import HistoryPrior, HistoryStats, SimilarIncident
 from aeoi_models.api.hypotheses import Critique, HypothesisOut, Observation, RuledOut
 from aeoi_models.api.postmortem import PostmortemDraft
@@ -27,7 +28,9 @@ MAX_WINDOW = timedelta(hours=24)
 
 AgentName = Literal["log_analysis", "metrics", "deployment", "knowledge"]  # evidence agents
 # Phase 11/12: no tool calls; Phase 13 historical_incident: reasoning input + one rag tool
-ReasoningAgent = Literal["hypothesis", "critic", "postmortem", "historical_incident"]
+ReasoningAgent = Literal[
+    "hypothesis", "critic", "postmortem", "historical_incident", "code_intelligence"
+]
 AGENT_NAMES: tuple[str, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
 
 
@@ -220,6 +223,8 @@ class DeployChange(BaseModel):
     started_at: datetime
     finished_at: datetime | None = None
     commit_sha: str
+    # Phase 14: the previous successful deploy's commit - the code range this deploy shipped
+    previous_commit_sha: str | None = None
     deployed_by: str
     config_changes: list[ConfigChangeOut] = Field(default_factory=list, max_length=100)
     minutes_before_detection: float | None = Field(
@@ -265,6 +270,9 @@ class AgentRunResult(BaseModel):
     similar: list[SimilarIncident] = Field(default_factory=list, max_length=10)
     priors: list[HistoryPrior] = Field(default_factory=list, max_length=3)
     history: HistoryStats | None = None
+    # Phase 14 (ADR-024): diff rules over the commits a deploy shipped (code only)
+    code_findings: list[CodeFinding] = Field(default_factory=list, max_length=30)
+    code: CodeStats | None = None
     evidence: list[EvidenceItem] = Field(default_factory=list)
     label_quality: LabelQuality = Field(default_factory=LabelQuality)
     trace: AgentTrace

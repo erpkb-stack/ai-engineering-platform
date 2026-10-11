@@ -6,6 +6,7 @@ Each observation has a role, a time and the evidence ids behind it. Roles:
   traffic   request rate moved
   change    a deploy (with its config diff)
   steady    a metric that stayed within its baseline (a NEGATIVE fact: rules causes out)
+  code      (Phase 14) a diff rule finding of a deploy, timed at that deploy's start
 Refs o1..oN are assigned in TIME order, so the same results always give the same refs (the
 hypothesis and critic agents rebuild them independently and must agree).
 Knowledge pointers are not observations: they have no time and say nothing about the system.
@@ -19,6 +20,7 @@ from typing import Any
 
 from aeoi_agents.common import hhmm, metric_value
 from aeoi_models.api.agents import AgentRunResult
+from aeoi_models.api.code import MECHANISM_RULES
 from aeoi_models.api.hypotheses import Observation
 from aeoi_models.findings import EvidenceKind, EvidenceRef
 
@@ -35,7 +37,7 @@ MIN_LOG_LINES = 5  # an error code seen fewer times is noise, not a symptom
 MAX_OBS = 60
 # truncation keeps causes and symptoms before negative evidence (review finding: cutting the
 # LATEST observations silently dropped the steady metrics that rule causes out)
-KEEP_FIRST = {"change": 0, "effect": 0, "resource": 0, "traffic": 0, "steady": 1}
+KEEP_FIRST = {"change": 0, "effect": 0, "resource": 0, "traffic": 0, "steady": 1, "code": 0}
 ERROR_CODE = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
 
 
@@ -54,6 +56,7 @@ SOURCES = {
     "METRIC": "devdata.metric_points",
     "DEPLOY": "devdata.deployments",
     "CONFIG": "devdata.deployments",
+    "COMMIT": "devdata.commits",
 }
 
 
@@ -142,6 +145,26 @@ def build(results: dict[str, AgentRunResult]) -> list[Observation]:
                  "subject": code, "at": m0["at"], "evidence": m0["ev"],
                  "statement": f"{svc}: {m0['n']} log lines with error_code {code}, "
                  f"first seen {hhmm(m0['at'])}"}
+            )  # fmt: skip
+    ci = results.get("code_intelligence")
+    if ci is not None and ci.status == "SUCCEEDED":
+        # Phase 14 (ADR-024): a diff rule finding is an observation OF the deploy that shipped
+        # it - same service, same time as that deploy (it arrived with it). A removed field
+        # breaks OTHER services: reported by the agent, never an observation here.
+        # ONE per deploy (the first query, else the first remote call): the rubric counts
+        # observations, and one deploy's code is one source (review: no padding)
+        best: dict[str, Any] = {}
+        for cf in ci.code_findings:
+            if cf.rule not in MECHANISM_RULES:
+                continue
+            cur = best.get(cf.deploy_key)
+            if cur is None or (cf.rule == "query_in_loop" and cur.rule != "query_in_loop"):
+                best[cf.deploy_key] = cf
+        for cf in best.values():
+            raw.append(
+                {"agent": "code_intelligence", "role": "code", "service_key": cf.service_key,
+                 "subject": f"{cf.rule} {cf.symbol}", "at": cf.deploy_started_at,
+                 "evidence": [cf.evidence_id], "statement": cf.statement}
             )  # fmt: skip
     raw.sort(key=lambda r: (KEEP_FIRST[r["role"]], r["at"], r["agent"], r["subject"]))
     kept = sorted(raw[:MAX_OBS], key=lambda r: (r["at"], r["agent"], r["subject"]))

@@ -97,3 +97,18 @@ class RagAdapter:
                 for h in data[: q.k]
             ]
         )
+
+    async def find_references(self, q: s.FindReferencesIn, ctx: ToolContext) -> s.FindReferencesOut:
+        """Phase 14 (ADR-024): rag applies the user's groups to every code file in its SQL."""
+        data = await self._post(
+            "/v1/code/references",
+            {"symbol": q.symbol, "exclude_repository": q.exclude_repository, "limit": q.limit},
+            ctx,
+        )
+        fields = s.CodeRefItem.model_fields
+        return s.FindReferencesOut(
+            items=[
+                s.CodeRefItem(**{k: v for k, v in h.items() if k in fields})
+                for h in data[: q.limit]
+            ]
+        )

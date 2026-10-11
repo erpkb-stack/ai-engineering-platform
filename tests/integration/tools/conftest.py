@@ -222,6 +222,19 @@ def make_stub_rag(stub: StubRag) -> FastAPI:
             "score": 0.5,
         }]  # fmt: skip
 
+    @app.post("/v1/code/references")
+    async def code_references(request: Request) -> list[dict[str, Any]]:
+        stub.seen.append({"path": "/v1/code/references",
+                          "auth": request.headers.get("authorization"),
+                          "obo": request.headers.get("x-on-behalf-of"),
+                          "body": await request.json()})  # fmt: skip
+        return [{
+            "repository": "northwind/media", "path": "services/media-api/src/Svc.java",
+            "service_key": "media-api", "line": 40, "kind": "call", "name": "getAddress",
+            "enclosing": "describeShipment", "open_to_engineering": True,
+            "extra_field": "dropped by the adapter",
+        }]  # fmt: skip
+
     return app
 
 

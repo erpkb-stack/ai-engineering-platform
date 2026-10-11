@@ -104,6 +104,17 @@ def can_contradict(h: HypothesisOut, o: Observation, by_ref: dict[str, Observati
     return False
 
 
+def code_support(obs: list[Observation], c: Observation, sup: list[str]) -> list[str]:
+    """Phase 14 (ADR-024): what THIS deploy's code does - ONE more source in the unchanged
+    rubric, and only for a deploy that already has a symptom on its own service (review: code
+    proves a mechanism EXISTS, not that it fired; without a symptom it must not lift an
+    unrelated deploy from LOW to MEDIUM). observations.build emits at most one per deploy."""
+    if len(sup) < 2:  # sup[0] is the deploy itself
+        return []
+    return [o.ref for o in obs
+            if o.role == "code" and o.at == c.at and o.service_key == c.service_key][:1]  # fmt: skip
+
+
 MAX_RULED_OUT = 12  # AgentRunResult.ruled_out cap (review finding: 13 crashed the agent)
 
 
@@ -123,10 +134,13 @@ def propose(obs: list[Observation]) -> tuple[list[HypothesisOut], list[RuledOut]
             # Another deploy that also precedes the first symptom is a competing explanation:
             # it counts AGAINST (review finding: every early deploy was HIGH by construction)
             sup = [c.ref] + [
-                o.ref for o in obs
-                if o.role in ("effect", "resource") and o.at >= c.at
+                o.ref
+                for o in obs
+                if o.role in ("effect", "resource")
+                and o.at >= c.at
                 and o.service_key == c.service_key
-            ]  # fmt: skip
+            ]
+            sup += code_support(obs, c, sup)
             con = [o.ref for o in early if o.ref != c.ref]
             drafts.append({
                 "cause_kind": "change", "supporting": sup, "contradicting": con,

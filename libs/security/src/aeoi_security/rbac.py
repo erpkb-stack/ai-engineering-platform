@@ -102,6 +102,7 @@ EVIDENCE_KIND_PERMS: dict[str, Perm] = {
     "CONFIG": Perm.DEPLOYS_READ,
     "COMMIT": Perm.CODE_READ,
     "PR": Perm.CODE_READ,
+    "CODE": Perm.CODE_READ,
     # pointers only (no text) - the text is re-read through rag with the reader's own groups
     "DOC": Perm.DOCS_READ,
     "RUNBOOK": Perm.RUNBOOKS_READ,

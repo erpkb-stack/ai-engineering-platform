@@ -11,7 +11,10 @@ from fastapi import FastAPI
 
 from aeoi_agents import __version__
 from aeoi_agents.api import router
+from aeoi_agents.code.agent import CodeAgent
+from aeoi_agents.code.agent import Deps as CodeDeps
 from aeoi_agents.config import (
+    CodeBudget,
     DeploymentBudget,
     HistoryBudget,
     KnowledgeBudget,
@@ -128,4 +131,6 @@ def build_app(
     app.state.history_agent = HistoryAgent(
         HistoryDeps(tools=tool_client, llm=llm_client, budget=HistoryBudget())
     )
+    # Phase 14 (ADR-024): code only - a tool client, NO llm client
+    app.state.code_agent = CodeAgent(CodeDeps(tools=tool_client, budget=CodeBudget()))
     return app

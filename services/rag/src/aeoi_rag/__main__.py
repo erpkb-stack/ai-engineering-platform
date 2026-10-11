@@ -8,6 +8,7 @@ python -m aeoi_rag eval [--modes hybrid,vector,keyword] [--rerank]
 python -m aeoi_rag embed-history [--reembed]                 vectors for rag.historical_incidents
 python -m aeoi_rag history-eval                              similar-incident search eval (ADR-023)
 python -m aeoi_rag history-explain --query "..." [--service s]  why each past incident ranked
+python -m aeoi_rag index-code [--root data/sample-repositories]  tree-sitter code index (ADR-024)
 """
 
 from __future__ import annotations
@@ -23,7 +24,7 @@ from typing import Any
 from sqlalchemy import text
 
 from aeoi_db.config import find_repo_root
-from aeoi_rag import history, history_eval
+from aeoi_rag import codeindex, history, history_eval
 from aeoi_rag.config import Settings
 from aeoi_rag.db import make_engine, make_sessionmaker
 from aeoi_rag.evaluation import (
@@ -169,6 +170,15 @@ async def _main(args: argparse.Namespace) -> int:
                 )
             print(json.dumps({"embedded": n, "model": model, "without_vector": left}))
             return 0 if not left else 1
+        if args.command == "index-code":
+            rep = await codeindex.index_repos(sessions, (root / args.root).resolve())
+            print(json.dumps(rep.__dict__))
+            if rep.skipped_repos:
+                print(
+                    f"!! {len(rep.skipped_repos)} repositories have no {codeindex.ACL_FILE}: "
+                    "NOT indexed (explicit ACL required)"
+                )
+            return 0 if rep.repositories else 1
         if args.command == "history-explain":
             # operator debugging: groups come from the ARGUMENT (this CLI is the rag_svc login,
             # like eval), never use it as a user-facing path
@@ -315,6 +325,8 @@ def main(argv: list[str] | None = None) -> int:
     eh.add_argument("--reembed", action="store_true", help="clear all vectors first")
     he = sub.add_parser("history-eval")
     he.add_argument("--dataset", default="data/eval/history_queries_v1.jsonl")
+    ic = sub.add_parser("index-code")
+    ic.add_argument("--root", default="data/sample-repositories")
     hx = sub.add_parser("history-explain")
     hx.add_argument("--query", required=True)
     hx.add_argument("--service", default=None, help="boost this service (as the agent does)")

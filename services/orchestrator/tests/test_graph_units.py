@@ -106,3 +106,25 @@ def test_history_problems_are_partial_and_named_but_never_hide_a_worse_status() 
     s, e = history_outcome("INCONCLUSIVE", "no hypothesis", {**ok, "degraded": "x"})
     assert s == "INCONCLUSIVE" and e == "no hypothesis; historical_incident: x"
     assert history_outcome("FAILED", "dead", {**ok, "degraded": "x"}) == ("FAILED", "dead")
+
+
+def test_code_problems_are_partial_and_named_but_never_hide_a_worse_status() -> None:
+    """Phase 14 (ADR-024): code that could not be checked is a missing source, named."""
+    from aeoi_orchestrator.graph import code_outcome
+
+    ok = {"task": {"status": "SUCCEEDED"}, "findings": 1}
+    assert code_outcome("COMPLETE", None, ok) == ("COMPLETE", None)
+    assert code_outcome("COMPLETE", None, {"skipped": True}) == ("COMPLETE", None)
+    assert code_outcome("COMPLETE", None, {}) == ("COMPLETE", None)
+    s, e = code_outcome("COMPLETE", None, {"task": {"status": "FAILED", "error": "x.Y: denied"}})
+    assert s == "PARTIAL" and e == "code_intelligence: FAILED (see the trace)"
+    s, e = code_outcome("COMPLETE", None, {**ok, "degraded": True})
+    # readable by every incident reader: names the problem, never a symbol (review)
+    assert s == "PARTIAL" and e == "code_intelligence: code only partly checked (see the trace)"
+    s, e = code_outcome("COMPLETE", None, {**ok, "post_error": "not stored"})
+    assert s == "PARTIAL" and "not stored" in (e or "")
+    s, e = code_outcome("INCONCLUSIVE", "no hypothesis", {**ok, "degraded": True})
+    assert s == "INCONCLUSIVE" and e == (
+        "no hypothesis; code_intelligence: code only partly checked (see the trace)"
+    )
+    assert code_outcome("FAILED", "dead", {**ok, "degraded": True}) == ("FAILED", "dead")

@@ -86,7 +86,7 @@ mshown=$(json "sum(len(h['edges']) for h in d)" < "$TMP/mh.json"); mhid=$(json "
 [ "$mshown" = "0" ] && [ "${mhid:-0}" -gt 0 ] && ok "MANAGER sees the conclusions, not the raw evidence ($mhid edges hidden)" \
   || bad "MANAGER edges shown=$mshown hidden=$mhid"
 curl -s "$API/api/v1/investigations/$INV/trace" -H "Authorization: Bearer $MGR" > "$TMP/mt.json"
-json "all(e['redacted'] for e in d['executions'] if e['agent'] in ('hypothesis','critic','postmortem','historical_incident'))" < "$TMP/mt.json" | grep -q True \
+json "all(e['redacted'] for e in d['executions'] if e['agent'] in ('hypothesis','critic','postmortem','historical_incident','code_intelligence'))" < "$TMP/mt.json" | grep -q True \
   && ok "MANAGER trace: hypothesis/critic prompts redacted" || bad "MANAGER can read reasoning prompts"
 
 echo; echo "passed=$pass failed=$fail notes=$note   incident=$KEY investigation=$INV"

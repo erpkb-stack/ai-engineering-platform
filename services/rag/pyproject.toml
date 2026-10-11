@@ -11,6 +11,7 @@ dependencies = [
     "aeoi-web",
     "aeoi-db",
     "aeoi-llm-client",
+    "aeoi-codeparse",
     "httpx>=0.27",
     "pypdfium2>=4.30",
     "sqlalchemy[asyncio]>=2.0.36",
@@ -25,6 +26,7 @@ packages = ["src/aeoi_rag"]
 
 [tool.uv.sources]
 aeoi-common = { workspace = true }
+aeoi-codeparse = { workspace = true }
 aeoi-models = { workspace = true }
 aeoi-security = { workspace = true }
 aeoi-observability = { workspace = true }

@@ -108,7 +108,7 @@ def timeline(obs: list[Observation], detected_at: datetime | None) -> list[Timel
     """CODE: every observation that is an event (not 'stayed steady') + detection."""
     points = []
     for o in obs:
-        if o.role == "steady":
+        if o.role in ("steady", "code"):  # code: a fact about the deploy, not an event in time
             continue
         kind = o.evidence[0].kind.value if o.evidence else "AGENT"
         points.append(TimelinePoint(

@@ -112,7 +112,14 @@ class TestPlantedDemo:
         assert deploy["service_key"] == DEMO_SERVICE
         assert deploy["config_diff"]["feature_flags.order_batching"] == [False, True]
         commit = next(c for c in t["devdata.commits"] if c["sha"] == deploy["commit_sha"])
-        assert any("OrderRepository" in f for f in commit["files_changed"])
+        # Phase 14: files_changed is the REAL file the commit edits; its diff moves the
+        # OrderRepository query into the cart-item loop
+        assert [f.rsplit("/", 1)[-1] for f in commit["files_changed"]] == ["CartService.java"]
+        diff = next(d for d in t["devdata.commit_diffs"] if d["sha"] == commit["sha"])
+        assert (
+            "+            List<Order> open = orderRepository.findOpenOrders(item.getSku());"
+            in diff["patch"]
+        )
 
     def _first_change(self, svc: str, metric: str, threshold: float) -> object:
         points = sorted(

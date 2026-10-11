@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from aeoi_security.redaction import REDACTED, is_sensitive_key
 from aeoi_tools import schemas as s
 from aeoi_tools.contracts import ToolExecutionError, ToolUnavailableError
+from aeoi_tools.sanitize import MAX_STRING_CHARS
 
 
 def _like(value: str) -> str:
@@ -136,16 +137,21 @@ class DevDataAdapter:
 
     # ------------------------------------------------------------ deployments
     async def get_deployments(self, q: s.DeploymentsIn) -> s.DeploymentsOut:
+        prev = """
+            , (SELECT p.commit_sha FROM devdata.deployments p
+               WHERE p.service_key = d.service_key AND p.environment = d.environment
+                 AND p.status = 'SUCCEEDED' AND p.started_at < d.started_at
+               ORDER BY p.started_at DESC LIMIT 1) AS previous_commit_sha"""
         if q.deploy_key:
-            sql = text("SELECT * FROM devdata.deployments WHERE deploy_key = :key")
+            sql = text(f"SELECT d.*{prev} FROM devdata.deployments d WHERE deploy_key = :key")  # noqa: S608
             params: dict[str, Any] = {"key": q.deploy_key}
         else:
-            sql = text("""
-                SELECT * FROM devdata.deployments
+            sql = text(f"""
+                SELECT d.*{prev} FROM devdata.deployments d
                 WHERE service_key = :svc AND environment = :env
                   AND started_at >= :start AND started_at < :end
                 ORDER BY started_at DESC LIMIT :limit
-            """)
+            """)  # noqa: S608 - constant fragment, values are bound parameters
             params = {
                 "svc": q.service_key,
                 "env": q.environment,
@@ -167,6 +173,7 @@ class DevDataAdapter:
                     started_at=r["started_at"],
                     finished_at=r["finished_at"],
                     config_changed_keys=sorted(_changed(r["config_diff"])),
+                    previous_commit_sha=r.get("previous_commit_sha"),
                 )
                 for r in rows
             ]
@@ -218,6 +225,63 @@ class DevDataAdapter:
         if len(rows) > 1:
             raise ToolExecutionError(f"sha prefix '{q.sha}' is ambiguous; give more characters")
         return s.CommitOut(items=[s.CommitItem(**r) for r in rows])
+
+    async def compare_commits(self, q: s.CompareCommitsIn) -> s.CompareCommitsOut:
+        """What a deploy shipped: commits of one service after base (exclusive) up to head
+        (inclusive), head first then newest first, each with its file diffs and the PR that
+        merged it. Time-ordered by commit time, as a deploy pipeline sees one service's history
+        ([P]: no merge-graph walk; commits that tie with base on time are left out - ADR-024).
+        A redeploy (head = base) or a rollback (head older than base) shipped NOTHING new: no
+        items, and `relation` says which (review: they were reported as new code)."""
+        ends = await self._rows(
+            text("SELECT sha, committed_at FROM devdata.commits WHERE sha = ANY(:shas) "
+                 "AND service_key = :svc"),
+            {"shas": [x for x in (q.head_sha, q.base_sha) if x], "svc": q.service_key},
+        )  # fmt: skip
+        at = {r["sha"]: r["committed_at"] for r in ends}
+        base_at = at.get(q.base_sha) if q.base_sha else None
+        base_found = q.base_sha is None or base_at is not None
+        if q.head_sha not in at:
+            return s.CompareCommitsOut(base_found=base_found, relation="head_unknown")
+        if base_at is not None and q.head_sha == q.base_sha:
+            return s.CompareCommitsOut(relation="same")
+        if base_at is not None and at[q.head_sha] < base_at:
+            return s.CompareCommitsOut(relation="rollback")
+        limit = q.limit if base_at is not None else 1
+        rows = await self._rows(
+            text("""
+                SELECT c.sha, c.repository, c.service_key, c.author, c.message, c.committed_at,
+                       (SELECT p.number FROM devdata.pull_requests p
+                        WHERE p.merge_commit_sha = c.sha LIMIT 1) AS pull_request
+                FROM devdata.commits c
+                WHERE c.service_key = :svc
+                  AND (c.sha = :head_sha OR (
+                       CAST(:base AS timestamptz) IS NOT NULL AND c.sha <> :base_sha
+                       AND c.committed_at <= :head AND c.committed_at > CAST(:base AS timestamptz)))
+                ORDER BY (c.sha = :head_sha) DESC, c.committed_at DESC, c.sha LIMIT :limit
+            """),
+            {"svc": q.service_key, "head": at[q.head_sha], "base": base_at,
+             "head_sha": q.head_sha, "base_sha": q.base_sha or "", "limit": limit + 1},
+        )  # fmt: skip
+        more, rows = len(rows) > limit, rows[:limit]
+        diffs = await self._rows(
+            text("SELECT sha, path, patch, content_after, additions, deletions "
+                 "FROM devdata.commit_diffs WHERE sha = ANY(:shas) ORDER BY sha, path"),
+            {"shas": [r["sha"] for r in rows]},
+        )  # fmt: skip
+        by_sha: dict[str, list[s.FileDiff]] = {}
+        for d in diffs:
+            patch, content = d["patch"], d["content_after"]
+            cut = len(patch) > MAX_STRING_CHARS or len(content) > MAX_STRING_CHARS
+            by_sha.setdefault(d["sha"], []).append(s.FileDiff(
+                path=d["path"], patch="" if cut else patch, content_after="" if cut else content,
+                additions=d["additions"], deletions=d["deletions"], truncated=cut,
+            ))  # fmt: skip
+        return s.CompareCommitsOut(
+            items=[s.CommitDiffItem(**r, files=by_sha.get(r["sha"], [])[:20]) for r in rows],
+            base_found=base_found, relation="ahead" if base_at is not None else "no_base",
+            more=more,
+        )  # fmt: skip
 
     async def get_pull_request(self, q: s.PullRequestIn) -> s.PullRequestOut:
         rows = await self._rows(

@@ -1,7 +1,7 @@
 """The investigation graph (ADR-019, ADR-020, ADR-021, ADR-022).
 
     START -> plan --(Send per task)--> run_agent --> collect_evidence
-          -> history -> hypothesize -> critique -> validate -> report -> finalize -> END
+          -> history -> code -> hypothesize -> critique -> validate -> report -> finalize -> END
 
 Phase 11: hypothesize (code candidates, LLM ranks) and critique (LLM attacks, code merges) are
 agent tasks like the evidence agents (recorded, reused on resume); validate is plain code.
@@ -16,6 +16,8 @@ again, so every node is idempotent (see store.py):
 - collect_evidence: the evidence endpoint is idempotent per evidence key
 - history:          same reuse guard; its INCIDENT pointers go through the idempotent
                     evidence endpoint (Phase 13, ADR-023)
+- code:             same reuse guard; COMMIT/CODE evidence through the idempotent endpoint
+                    (Phase 14, ADR-024)
 - hypothesize/critique: same reuse guard as run_agent (deterministic task ids per agent)
 - validate:         the hypotheses POST is idempotent per (investigation, key)
 - report:           postmortem task: same reuse guard; timeline POST idempotent per point,
@@ -41,6 +43,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import Send
 
 from aeoi_models.api.agents import AgentRunResult, AgentTask, EvidenceItem
+from aeoi_models.api.code import CodeStats
 from aeoi_models.api.hypotheses import HypothesisOut, ValidationReport, observations_fingerprint
 from aeoi_models.api.postmortem import PostmortemIn, RootCauseState, TimelineBatch
 from aeoi_models.api.reasoning import ReasoningTask
@@ -75,6 +78,8 @@ class InvestigationState(TypedDict, total=False):
     report: dict[str, Any]  # postmortem task summary + what was stored
     history_enabled: bool  # Phase 13; absent in older checkpoints -> config
     history: dict[str, Any]  # historical_incident task summary + what was stored
+    code_enabled: bool  # Phase 14; absent in older checkpoints -> config
+    code: dict[str, Any]  # code_intelligence task summary + what was stored
     outcome: dict[str, Any]
 
 
@@ -204,6 +209,29 @@ def history_outcome(status: str, error: str | None, h: dict[str, Any]) -> tuple[
     return status, joined or None
 
 
+def code_outcome(status: str, error: str | None, c: dict[str, Any]) -> tuple[str, str | None]:
+    """Phase 14 (ADR-024): the code agent failed, checked only part of the code, or its
+    evidence was not stored -> PARTIAL, named. Worst status wins. No deploy to check is not a
+    problem (skipped)."""
+    if not c or c.get("skipped") or status == "FAILED":
+        return status, error
+    t = c.get("task") or {}
+    problems: list[str] = []
+    # the run's error is readable by every incident reader: never a symbol or a path here
+    # (review), only what kind of problem it was - the details are in the code:read trace
+    if t.get("status") != "SUCCEEDED":
+        problems.append(f"code_intelligence: {t.get('status') or 'FAILED'} (see the trace)")
+    else:
+        if c.get("degraded"):
+            problems.append("code_intelligence: code only partly checked (see the trace)")
+        if c.get("post_error"):
+            problems.append(f"code_intelligence: {c['post_error']}")
+    if problems and SEVERITY["PARTIAL"] > SEVERITY.get(status, 0):
+        status = "PARTIAL"
+    joined = "; ".join(p for p in [error, *problems] if p)
+    return status, joined or None
+
+
 def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     s = deps.settings
 
@@ -287,6 +315,63 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         raw = await deps.store.output(task_id_for(state["investigation_id"], "historical_incident"))
         return AgentRunResult.model_validate(raw) if raw else None
 
+    async def reasoning_results(state: InvestigationState) -> dict[str, AgentRunResult]:
+        """Evidence agents + the code agent (Phase 14): its findings are observations, so the
+        ranker, the critic (fingerprint check), validation and the writer must all see the
+        SAME set. Only when its evidence was stored - else validation would drop the deploy
+        hypothesis for citing unstored COMMIT keys."""
+        results = await evidence_results(state)
+        c = state.get("code") or {}
+        if (c.get("task") or {}).get("status") == "SUCCEEDED" and not c.get("post_error"):
+            raw = await deps.store.output(
+                task_id_for(state["investigation_id"], "code_intelligence")
+            )
+            if raw and results:
+                results = {**results, "code_intelligence": AgentRunResult.model_validate(raw)}
+        return results
+
+    async def code(state: InvestigationState) -> dict[str, Any]:
+        """Phase 14 (ADR-024): what the deploy(s) before the first symptom shipped, by code
+        rules over the diffs; change impact for removed fields. AS THE USER (code:read)."""
+        if not enabled(state) or not state.get("code_enabled", s.code):
+            return {"code": {"skipped": True}}
+        results = await evidence_results(state)
+        if "deployment" not in results:
+            return {"code": {"skipped": True, "reason": "no deployment result"}}
+        summary, res = await reason(
+            state, "code_intelligence", lambda tid: reasoning_task(state, results, tid)
+        )
+        out: dict[str, Any] = {"task": summary}
+        if res is not None and res.status == "SUCCEEDED":
+            post_error = None
+            if res.evidence:
+                try:
+                    await deps.incidents.post_evidence(
+                        state["incident"]["id"], UUID(state["investigation_id"]),
+                        "code_intelligence", res.evidence,
+                        f"code_intelligence: {len(res.code_findings)} finding(s) in shipped code",
+                    )  # fmt: skip
+                except CallError as exc:
+                    post_error = f"code evidence was not stored: {exc}"
+            st = res.code or CodeStats()
+            by_rule: dict[str, int] = {}
+            for f in res.code_findings:
+                by_rule[f.rule] = by_rule.get(f.rule, 0) + 1
+            # COUNTS ONLY: the plan is readable by every incident reader, code is not (review:
+            # symbols and impacted services reached MANAGER). Details: evidence + trace.
+            out.update({
+                "findings_by_rule": dict(sorted(by_rule.items())),
+                "deploys_checked": st.deploys_checked, "commits_checked": st.commits_checked,
+                "files_checked": st.files_checked, "files_skipped": st.files_skipped,
+                "impact_refs": st.impact_refs,
+                "degraded": bool(res.degraded),
+                "post_error": post_error,
+            })  # fmt: skip
+        await deps.store.note(
+            UUID(state["investigation_id"]), code={k: v for k, v in out.items() if k != "task"}
+        )
+        return {"code": out}
+
     def hist_post_error(state: InvestigationState) -> bool:
         return bool((state.get("history") or {}).get("post_error"))
 
@@ -334,7 +419,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     async def hypothesize(state: InvestigationState) -> dict[str, Any]:
         if not enabled(state):
             return {"reasoning": {"skipped": True}}
-        results = await evidence_results(state)
+        results = await reasoning_results(state)
         hist = await history_result(state)
         if hist is not None and results:
             # priors only: build() ignores this result, so observations (and the critic's
@@ -358,7 +443,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         ranked = hres.hypotheses if hres else []
         if not ranked:
             return {"reasoning": {**r, "critic": {"status": "SKIPPED", "error": "no candidate"}}}
-        results = await evidence_results(state)
+        results = await reasoning_results(state)
         # independence: the critic gets code statements + refs, never the ranker's prose/rank
         blind = [h.model_copy(update={"explanation": "", "explanation_refs": [],
                                       "rank": i + 1, "ranked_by": "rubric",
@@ -389,7 +474,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         crit = AgentRunResult.model_validate(crit_raw) if crit_raw else None
         if hyp is None:
             return None, crit, [], None
-        results = await evidence_results(state)
+        results = await reasoning_results(state)
         stored = {e.evidence_key for res in results.values() for e in res.evidence}
         final = validation.merge(hyp.hypotheses, crit)
         kept, report = validation.validate(
@@ -434,7 +519,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
             "error"
         ):
             return {"report": {"skipped": True}}
-        results = await evidence_results(state)
+        results = await reasoning_results(state)
         if not results:
             return {"report": {"skipped": True}}
         inv = state["investigation_id"]
@@ -590,6 +675,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         status, error = outcome(results, state.get("evidence", {}).get("error"))
         status, error = reasoning_outcome(status, error, state.get("reasoning") or {})
         status, error = history_outcome(status, error, state.get("history") or {})
+        status, error = code_outcome(status, error, state.get("code") or {})
         status, error = report_outcome(status, error, state.get("report") or {})
         # revoke BEFORE finish (review finding): a crash between them must not leave a live
         # grant behind a finished row. A crash after revoke re-runs finalize; revoke is
@@ -604,6 +690,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_node("run_agent", run_agent)  # type: ignore[arg-type]  # Send payload, not state
     g.add_node("collect_evidence", collect_evidence)
     g.add_node("history", history)
+    g.add_node("code", code)
     g.add_node("hypothesize", hypothesize)
     g.add_node("critique", critique)
     g.add_node("validate", validate)
@@ -613,7 +700,8 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_conditional_edges("plan", fan_out, ["run_agent"])
     g.add_edge("run_agent", "collect_evidence")
     g.add_edge("collect_evidence", "history")
-    g.add_edge("history", "hypothesize")
+    g.add_edge("history", "code")
+    g.add_edge("code", "hypothesize")
     g.add_edge("hypothesize", "critique")
     g.add_edge("critique", "validate")
     g.add_edge("validate", "report")

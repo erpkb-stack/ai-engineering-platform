@@ -52,6 +52,8 @@ class Settings(BaseServiceSettings):
     postmortem: bool = True
     # Phase 13 (ADR-023): similar past incidents after collect_evidence (needs reasoning on)
     history: bool = True
+    # Phase 14 (ADR-024): diff rules over the code the deploy(s) shipped (code only)
+    code: bool = True
     task_deadline_s: float = 180.0  # > agents' task deadline (150 s): one agent call
     # the whole investigation, all retries and resumes included; past it = FAILED
     investigation_deadline_s: float = 900.0
