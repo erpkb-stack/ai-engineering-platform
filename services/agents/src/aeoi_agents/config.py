@@ -103,9 +103,26 @@ class PostmortemBudget(BaseServiceSettings):
 
     route: str = "reasoning"
     allow_fallback: bool = False
-    max_tokens: int = 1800
+    # 1800 cut Sonnet off before `action_items` on the Mac (Phase 13 smokes); route cap 4096
+    max_tokens: int = 3000
     llm_timeout_s: float = 115.0
     task_deadline_s: float = 150.0  # below the orchestrator's 180 s HTTP timeout
+
+
+class HistoryBudget(BaseServiceSettings):
+    """Historical incident agent (ADR-023): one search, one Haiku comparison."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AEOI_AGENTS_HISTORY_", extra="ignore", frozen=True
+    )
+
+    route: str = "fast"
+    k: int = 8  # hits asked for; only those shared with every engineer are kept
+    same_service: int = 2  # first list: this service's own history (0 = off)
+    max_compared: int = 5
+    max_tokens: int = 900
+    llm_timeout_s: float = 40.0
+    task_deadline_s: float = 60.0
 
 
 class Settings(BaseServiceSettings):

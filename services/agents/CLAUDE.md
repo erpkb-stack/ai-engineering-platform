@@ -19,8 +19,9 @@ uncitable observation into a Fact (use `notes`); call anything but the two gatew
 - `knowledge/agent.py` runbook/doc POINTERS only (rag ACLs are per group; evidence is per incident)
 - `reasoning/` (Phase 11, ADR-021): `observations.py` timeline (code), `candidates.py` causes + rubric bands (code), `hypothesis.py` Haiku ranks/explains with refs, `critic.py` Sonnet critique (route fixed, fallback off, refuses a different observation set)
 - `postmortem/agent.py` (Phase 12, ADR-022): timeline + negative evidence + trigger (code), Sonnet sentences (route fixed, fallback off), `check()`: refs, markup, unknown numbers
+- `history/agent.py` (Phase 13, ADR-023): query (code) → search_incidents AS THE USER, twice (own service = filter, then anywhere = boost) → keep `open_to_engineering` only → Haiku claims, kept only if `relations()` (code) agrees → `priors()` → INCIDENT pointers. `candidates.attach_priors` + `rubric_order` tie-break (after band/support/contradiction)
 - `common.py` one traced tool call (`ToolResult | Failure`)
-- `api.py` task endpoint · `config.py` budgets (`AEOI_AGENTS_LOG_*`, `_METRICS_*`, `_DEPLOY_*`, `_KNOWLEDGE_*`) · `main.py` factory
+- `api.py` task endpoint · `config.py` budgets (`AEOI_AGENTS_LOG_*`, `_METRICS_*`, `_DEPLOY_*`, `_KNOWLEDGE_*`, `_HISTORY_*`) · `main.py` factory
 
 ## Adding an agent (`/new-agent` skill)
 Justify it (what can't code do?). Copy the Log Analysis shape: budgets + one deadline, facts by

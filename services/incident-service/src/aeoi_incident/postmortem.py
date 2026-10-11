@@ -26,6 +26,7 @@ from aeoi_common.ids import uuid7
 from aeoi_db.models.incident import Evidence, Incident, IncidentEvent, Postmortem
 from aeoi_incident.events import stage_event
 from aeoi_incident.service import REDACTED_TEXT, _event, hypotheses, load
+from aeoi_models.api.history import Claim, SimilarIncident
 from aeoi_models.api.postmortem import (
     SECTION_TITLES,
     ActionItem,
@@ -167,6 +168,7 @@ def _cited(pm: PostmortemIn) -> set[str]:
         | {k for a in pm.action_items for k in a.evidence_keys}
         | {k for n in pm.no_change for k in n.evidence_keys}
         | {k for p in pm.points for k in p.evidence_keys}
+        | {x.evidence_id for x in pm.similar}  # Phase 13: pointers must be stored first
     )
 
 
@@ -184,7 +186,8 @@ async def add_postmortem(
     await _require_stored(session, incident.id, _cited(pm))
     content = pm.model_dump(
         mode="json", include={"no_change", "sections", "action_items", "sentences_dropped",
-                              "numbers_rejected", "root_cause_state", "points", "trigger_ref"},
+                              "numbers_rejected", "root_cause_state", "points", "trigger_ref",
+                              "similar"},
     )  # fmt: skip
     stmt = (
         insert(Postmortem)
@@ -214,6 +217,22 @@ async def add_postmortem(
         )  # fmt: skip
         await session.flush()
     return inserted
+
+
+# a claim's VALUE comes from THIS incident's evidence: "same error code (ERR_X)" is log data,
+# a symptom is metric data, deploy timing is deploy data (review: MANAGER read them)
+CLAIM_KINDS = {"error_code": "LOG", "symptom": "METRIC", "deploy_before": "DEPLOY"}
+
+
+def _similar_for(similar: list[SimilarIncident], readable: list[str]) -> list[SimilarIncident]:
+    if "INCIDENT" not in readable:
+        return []
+    return [
+        x.model_copy(update={"claims": [
+            c for c in x.claims if CLAIM_KINDS.get(c.field, "INCIDENT") in readable
+        ]})
+        for x in similar
+    ]  # fmt: skip
 
 
 def _minutes(a: datetime | None, b: datetime | None) -> float | None:
@@ -283,6 +302,7 @@ async def postmortem_doc(
             confirmed_by_human=top.status == "CONFIRMED",
             explanation=str(d["explanation"]) if d.get("explanation") else None,
             refinement=str(d["refinement"]) if d.get("refinement") else None,
+            history_prior=str(d["history_prior"]) if d.get("history_prior") else None,
         )  # fmt: skip
 
     shown, hidden = await timeline_for(session, incident.id, readable)
@@ -311,6 +331,8 @@ async def postmortem_doc(
         hidden_timeline_rows=hidden, sections=sections, action_items=actions,
         redacted_sentences=redacted, sentences_dropped=stored.sentences_dropped,
         numbers_rejected=stored.numbers_rejected,
+        # past incidents shared with every engineer, as INCIDENT evidence pointers (ADR-023)
+        similar=_similar_for(stored.similar, readable),
     )  # fmt: skip
 
 
@@ -363,6 +385,10 @@ ROOT_STATE_TEXT = {
 }
 
 
+def _claim(c: Claim) -> str:
+    return f"{c.field.replace('_', ' ')}" + (f" ({c.value})" if c.value else "")
+
+
 def render_markdown(doc: PostmortemDoc) -> str:
     """Plain code template. Model text is marked; every number above the line is code's."""
     rc = doc.root_cause
@@ -396,6 +422,11 @@ def render_markdown(doc: PostmortemDoc) -> str:
         ]  # fmt: skip
         if rc.refinement:
             lines += ["", f"Mechanism proposed by the critic (model text): {_md(rc.refinement)}"]
+        if rc.history_prior:
+            lines += [
+                "",
+                f"History (a base rate, not evidence for this incident): {rc.history_prior}",
+            ]
     if doc.ruled_out:
         lines += ["", "Ruled out by code:"] + [f"- {s}" for s in doc.ruled_out]
     if doc.no_change:
@@ -406,6 +437,22 @@ def render_markdown(doc: PostmortemDoc) -> str:
         if sec.sentences:
             lines += ["", f"## {SECTION_TITLES[sec.name]} (model text, cites observations)"]
             lines += [_sentence(s) for s in sec.sentences]
+    if doc.similar:
+        lines += [
+            "",
+            "## Similar past incidents (shared with all engineers; claims checked by code)",
+        ]
+        for x in doc.similar:
+            same = [_claim(c) for c in x.claims if c.relation == "same"]
+            diff = [_claim(c) for c in x.claims if c.relation == "different"]
+            lines.append(
+                f"- {x.incident_key} ({x.root_cause_category}, {_t(x.occurred_at)[:10]}, "
+                f"{', '.join(x.service_keys)}): same {', '.join(same) or '-'}; "
+                f"different {', '.join(diff) or '-'}"
+                + (" [this service's history]" if x.scope == "service" else "")
+                + (" (compared by code)" if x.compared_by == "code" else "")
+            )
+        lines.append("Similar is not the same: a past root cause is not evidence for this one.")
     if doc.action_items:
         lines += ["", "## Proposed action items (model text; no owner, nothing executes them)"]
         lines += [f"- [{a.category}] {_sentence(a)}" for a in doc.action_items]

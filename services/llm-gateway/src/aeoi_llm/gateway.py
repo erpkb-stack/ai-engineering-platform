@@ -509,6 +509,15 @@ class Gateway:
         errors = _schema_errors(validator, result.data)
         if not errors:
             return result, False, Usage()
+        if result.stop_reason == "max_tokens":
+            # Cut off, not wrong: a repair round-trip with the same limit is cut off again (Mac
+            # run, Phase 13: the postmortem lost its LAST required field twice). Say so.
+            raise StructuredOutputError(
+                f"output cut off at max_tokens={req.max_tokens} "
+                f"({result.usage.output_tokens} tokens written) - the caller must allow more; "
+                f"not repaired: {'; '.join(errors[:3])}",
+                usage=result.usage,
+            )
 
         repair_req = replace(
             req,
@@ -528,8 +537,9 @@ class Gateway:
         )
         errors = _schema_errors(validator, second.data)
         if errors:
+            cut = " (repair cut off at max_tokens)" if second.stop_reason == "max_tokens" else ""
             raise StructuredOutputError(
-                f"Still invalid after one repair: {'; '.join(errors[:3])}",
+                f"Still invalid after one repair{cut}: {'; '.join(errors[:3])}",
                 usage=_add(result.usage, second.usage),
             )
         return second, True, result.usage

@@ -96,3 +96,23 @@ def test_first_symptom_is_this_runs_first_sustained_effect() -> None:
     assert _first_symptom(pts) == t + timedelta(minutes=49)  # a blip never anchors
     assert _first_symptom(pts[:1]) == t + timedelta(minutes=40)  # log-only: best available
     assert _first_symptom([]) is None
+
+
+def test_similar_claims_are_filtered_by_the_kind_their_value_comes_from() -> None:
+    """Phase 13 review: "same error code (ERR_X)" is LOG data, a symptom METRIC data, deploy
+    timing DEPLOY data - a reader without those permissions sees only the service claim."""
+    from aeoi_incident.postmortem import _similar_for
+    from aeoi_models.api.history import Claim, SimilarIncident
+
+    x = SimilarIncident(
+        incident_key="INC-1", rank=1, retrieval="hybrid", root_cause_category="c",
+        occurred_at="2025-01-01T00:00:00+00:00", evidence_id=f"INCIDENT-{'a' * 32}-0",  # type: ignore[arg-type]
+        claims=[Claim(field="service", relation="same", value="checkout-api"),
+                Claim(field="error_code", relation="same", value="ERR_X"),
+                Claim(field="symptom", relation="same", value="latency: both"),
+                Claim(field="deploy_before", relation="same", value="both")],
+    )  # fmt: skip
+    assert [c.field for c in _similar_for([x], ["INCIDENT"])[0].claims] == ["service"]
+    every = ["INCIDENT", "LOG", "METRIC", "DEPLOY"]
+    assert len(_similar_for([x], every)[0].claims) == 4
+    assert _similar_for([x], ["LOG", "METRIC"]) == []  # INCIDENT not readable: no section

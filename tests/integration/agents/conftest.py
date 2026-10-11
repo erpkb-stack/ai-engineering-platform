@@ -242,12 +242,13 @@ def make_orch(
             environment="test",
             log_json=False,
             # Phase 9 tests pin ONE agent (their counts assume it); Phase 10 tests pass agents=
-            # Phase 11 reasoning and Phase 12 postmortem are OFF unless a test turns them on
+            # Phase 11 reasoning, 12 postmortem and 13 history are OFF unless a test turns them on
             **{
                 "resume_on_startup": False,
                 "agents": ("log_analysis",),
                 "reasoning": False,
                 "postmortem": False,
+                "history": False,  # Phase 13: on only where a test asks (its Haiku call)
                 **overrides,
             },
         )  # type: ignore[call-arg]

@@ -1,7 +1,7 @@
 """The investigation graph (ADR-019, ADR-020, ADR-021, ADR-022).
 
     START -> plan --(Send per task)--> run_agent --> collect_evidence
-          -> hypothesize -> critique -> validate -> report -> finalize -> END
+          -> history -> hypothesize -> critique -> validate -> report -> finalize -> END
 
 Phase 11: hypothesize (code candidates, LLM ranks) and critique (LLM attacks, code merges) are
 agent tasks like the evidence agents (recorded, reused on resume); validate is plain code.
@@ -14,6 +14,8 @@ again, so every node is idempotent (see store.py):
                     for a recorded task. (A kill DURING the agent call does call it again: new
                     tool calls, task attempt + 1. That is recorded, not hidden.)
 - collect_evidence: the evidence endpoint is idempotent per evidence key
+- history:          same reuse guard; its INCIDENT pointers go through the idempotent
+                    evidence endpoint (Phase 13, ADR-023)
 - hypothesize/critique: same reuse guard as run_agent (deterministic task ids per agent)
 - validate:         the hypotheses POST is idempotent per (investigation, key)
 - report:           postmortem task: same reuse guard; timeline POST idempotent per point,
@@ -71,6 +73,8 @@ class InvestigationState(TypedDict, total=False):
     reasoning: dict[str, Any]  # hypothesis / critic task summaries + validation report
     postmortem_enabled: bool  # Phase 12; absent in older checkpoints -> config
     report: dict[str, Any]  # postmortem task summary + what was stored
+    history_enabled: bool  # Phase 13; absent in older checkpoints -> config
+    history: dict[str, Any]  # historical_incident task summary + what was stored
     outcome: dict[str, Any]
 
 
@@ -180,6 +184,26 @@ def report_outcome(status: str, error: str | None, rep: dict[str, Any]) -> tuple
     return status, joined or None
 
 
+def history_outcome(status: str, error: str | None, h: dict[str, Any]) -> tuple[str, str | None]:
+    """Phase 13 (ADR-023): a missing source like any other - the search failed, the past
+    incidents were compared by code only (model down), or the pointers were not stored ->
+    PARTIAL, named. Worst status wins."""
+    if not h or h.get("skipped") or status == "FAILED":
+        return status, error
+    t = h.get("task") or {}
+    problems: list[str] = []
+    if t.get("status") != "SUCCEEDED":
+        problems.append(f"historical_incident: {t.get('error') or t.get('status')}")
+    else:
+        for k in ("degraded", "post_error"):
+            if h.get(k):
+                problems.append(f"historical_incident: {h[k]}")
+    if problems and SEVERITY["PARTIAL"] > SEVERITY.get(status, 0):
+        status = "PARTIAL"
+    joined = "; ".join(p for p in [error, *problems] if p)
+    return status, joined or None
+
+
 def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     s = deps.settings
 
@@ -245,6 +269,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         return ReasoningTask(
             incident_id=UUID(inc["id"]), investigation_id=UUID(state["investigation_id"]),
             task_id=task_id, incident_title=(inc.get("title") or "")[:300] or None,
+            service_keys=list(inc.get("services") or [])[:3],
             detected_at=datetime.fromisoformat(inc["detected_at"]) if inc.get("detected_at") else None,
             results=results,  # route: the reasoning budget decides (fast = Haiku), not the log override
             llm_cache=state.get("llm_cache", True), **kw,
@@ -255,10 +280,66 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
             "evidence", {}
         ).get("error")
 
+    async def history_result(state: InvestigationState) -> AgentRunResult | None:
+        h = state.get("history") or {}
+        if (h.get("task") or {}).get("status") != "SUCCEEDED":
+            return None
+        raw = await deps.store.output(task_id_for(state["investigation_id"], "historical_incident"))
+        return AgentRunResult.model_validate(raw) if raw else None
+
+    def hist_post_error(state: InvestigationState) -> bool:
+        return bool((state.get("history") or {}).get("post_error"))
+
+    async def history(state: InvestigationState) -> dict[str, Any]:
+        """Phase 13 (ADR-023): similar past incidents, AS THE USER (rag applies their groups).
+        Only incidents shared with every engineer come back from the agent; their POINTERS are
+        stored as INCIDENT evidence (idempotent per key)."""
+        if not enabled(state) or not state.get("history_enabled", s.history):
+            return {"history": {"skipped": True}}
+        results = await evidence_results(state)
+        if not results:
+            return {"history": {"skipped": True}}
+        summary, res = await reason(
+            state, "historical_incident", lambda tid: reasoning_task(state, results, tid)
+        )
+        out: dict[str, Any] = {"task": summary}
+        if res is not None and res.status == "SUCCEEDED":
+            post_error = None
+            if res.evidence:
+                try:
+                    await deps.incidents.post_evidence(
+                        state["incident"]["id"], UUID(state["investigation_id"]),
+                        "historical_incident", res.evidence,
+                        f"historical_incident: {len(res.evidence)} similar past incident(s)",
+                    )  # fmt: skip
+                except CallError as exc:
+                    post_error = f"similar incidents were not stored: {exc}"
+            st = res.history
+            out.update({
+                "similar": [x.incident_key for x in res.similar],
+                "priors": {p.cause_kind: f"{p.n}/{p.of}" for p in res.priors},
+                # no `not_shared` here: the plan is readable by every incident reader, and a count
+                # of restricted matches is itself information about them (review). Trace only.
+                "retrieval": st.retrieval if st else None,
+                "claims_kept": st.claims_kept if st else 0,
+                "claims_rejected": st.claims_rejected if st else 0,
+                "degraded": res.degraded,
+                "post_error": post_error,
+            })  # fmt: skip
+        await deps.store.note(
+            UUID(state["investigation_id"]), history={k: v for k, v in out.items() if k != "task"}
+        )
+        return {"history": out}
+
     async def hypothesize(state: InvestigationState) -> dict[str, Any]:
         if not enabled(state):
             return {"reasoning": {"skipped": True}}
         results = await evidence_results(state)
+        hist = await history_result(state)
+        if hist is not None and results:
+            # priors only: build() ignores this result, so observations (and the critic's
+            # fingerprint check) are unchanged
+            results = {**results, "historical_incident": hist}
         if not results:
             return {"reasoning": {"hypothesis": {"status": "SKIPPED",
                                                  "error": "no evidence agent succeeded"}}}  # fmt: skip
@@ -280,7 +361,8 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         results = await evidence_results(state)
         # independence: the critic gets code statements + refs, never the ranker's prose/rank
         blind = [h.model_copy(update={"explanation": "", "explanation_refs": [],
-                                      "rank": i + 1, "ranked_by": "rubric"})
+                                      "rank": i + 1, "ranked_by": "rubric",
+                                      "history_prior": "", "history_n": 0, "history_refs": []})
                  for i, h in enumerate(sorted(ranked, key=lambda h: h.key))]  # fmt: skip
         summary, _ = await reason(
             state, "critic",
@@ -358,6 +440,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         inv = state["investigation_id"]
         inc = state["incident"]
         hyp, _crit, kept, _ = await validated(state)
+        hist = await history_result(state)
         rsum = state.get("reasoning") or {}
         root_state: RootCauseState
         # why there is (no) root cause - "none survived" must never stand in for "not analysed"
@@ -397,6 +480,8 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
                     root_cause_state=root_state, points=pm.timeline, trigger_ref=pm.trigger_ref,
                     no_change=pm.no_change, sections=pm.sections, action_items=pm.action_items,
                     sentences_dropped=pm.sentences_dropped, numbers_rejected=pm.numbers_rejected,
+                    # pointers not stored -> nothing to point at (review): leave the section out
+                    similar=hist.similar if hist and not hist_post_error(state) else [],
                 ))  # fmt: skip
             except CallError as exc:
                 errors.append(f"postmortem was not stored: {exc}")
@@ -504,6 +589,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         results = state.get("results", [])
         status, error = outcome(results, state.get("evidence", {}).get("error"))
         status, error = reasoning_outcome(status, error, state.get("reasoning") or {})
+        status, error = history_outcome(status, error, state.get("history") or {})
         status, error = report_outcome(status, error, state.get("report") or {})
         # revoke BEFORE finish (review finding): a crash between them must not leave a live
         # grant behind a finished row. A crash after revoke re-runs finalize; revoke is
@@ -517,6 +603,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_node("plan", plan)
     g.add_node("run_agent", run_agent)  # type: ignore[arg-type]  # Send payload, not state
     g.add_node("collect_evidence", collect_evidence)
+    g.add_node("history", history)
     g.add_node("hypothesize", hypothesize)
     g.add_node("critique", critique)
     g.add_node("validate", validate)
@@ -525,7 +612,8 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_edge(START, "plan")
     g.add_conditional_edges("plan", fan_out, ["run_agent"])
     g.add_edge("run_agent", "collect_evidence")
-    g.add_edge("collect_evidence", "hypothesize")
+    g.add_edge("collect_evidence", "history")
+    g.add_edge("history", "hypothesize")
     g.add_edge("hypothesize", "critique")
     g.add_edge("critique", "validate")
     g.add_edge("validate", "report")

@@ -316,6 +316,11 @@ class DocSearchOut(Out):
 class IncidentSearchIn(In):
     query: str = Field(min_length=2, max_length=500)
     service_key: str | None = Field(default=None, pattern=SERVICE_KEY, max_length=100)
+    # Phase 13 (ADR-023): hybrid keyword + vector; the service is a ranking boost, not a
+    # filter (a similar incident on another service is still relevant). Defaults = Phase 7.
+    mode: Literal["keyword", "hybrid"] = "keyword"
+    boost_service: bool = False
+    shared_only: bool = False  # only incidents every engineer may read (ADR-023)
     k: int = Field(default=5, ge=1, le=10)
 
 
@@ -330,6 +335,10 @@ class IncidentHitItem(Item):
     severity: str
     occurred_at: datetime
     resolved_at: datetime
+    rank_k: int | None = None
+    rank_v: int | None = None
+    retrieval: Literal["hybrid", "keyword", "vector"] = "keyword"
+    open_to_engineering: bool = False
 
 
 class IncidentSearchOut(Out):

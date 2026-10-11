@@ -75,7 +75,7 @@ make check && make test-integration
 
 ## 7. Config
 `AEOI_AGENTS_POSTMORTEM_*`: `route` (reasoning), `allow_fallback` (false — do not change),
-`max_tokens` 1800, `llm_timeout_s` 115, `task_deadline_s` 150. `AEOI_ORCH_POSTMORTEM` (true).
+`max_tokens` 3000 (was 1800: cut off on the Mac in Phase 13), `llm_timeout_s` 115, `task_deadline_s` 150. `AEOI_ORCH_POSTMORTEM` (true).
 Prompts: postmortem v1.
 
 ## 8. Tests

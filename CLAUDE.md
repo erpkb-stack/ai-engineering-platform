@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 12 — Incident timeline + postmortem** (Phases 1–11 built; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-022).
+**Phase 13 — Historical incident intelligence** (Phases 1–12 built; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-023).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
@@ -58,6 +58,7 @@ unnecessary" when it is. Never flatter. Use the `architecture-critic` subagent f
 - Delegation (ADR-019): a background run acts for the user ONLY via an investigation+incident-bound delegated token from the api's token exchange; delegated tokens are accepted ONLY in `X-On-Behalf-Of` (`Authenticator.verify_obo`), never as a bearer. Graph nodes must be idempotent (a kill re-runs the interrupted node).
 - Multi-agent (Phase 10, ADR-020): `make investigate INCIDENT=INC-n [AGENTS=a,b]` · `make multi-smoke` (needs run-rag + `make tools-tokens` for `rag:obo`). metrics/deployment/knowledge are CODE ONLY (no LLM); knowledge stores POINTERS, never doc text. Outcome COMPLETE / PARTIAL / FAILED. Evidence is readable per kind (`EVIDENCE_KIND_PERMS`).
 - Postmortem (Phase 12, ADR-022): `make pm-smoke` · `make postmortem INCIDENT=INC-n [ROLE=MANAGER]`. Timeline points are CODE (observations → `incident_events`, source = stored evidence kind); Sonnet (`reasoning`, fallback OFF) writes sentences only, each citing observations; code drops uncited / markup / unknown-number sentences; incident-service assembles the doc at READ time and redacts per reader. Times: always `astimezone(UTC)` before a "Z".
+- History (Phase 13, ADR-023): `make embed-history` · `make history-eval` · `make history-smoke`. Incident search is hybrid (ACL in BOTH branches' SQL); the historical_incident agent keeps only `open_to_engineering` hits, stores POINTERS (INCIDENT), Haiku claims are kept only if code computes the same relation; the history prior is a TIE-BREAK inside a band, never shown to the ranker/critic.
 - Reasoning (Phase 11, ADR-021): CODE proposes causes + rubric bands; Haiku (`fast`) only ranks/explains with refs; Sonnet (`reasoning`, fallback OFF) critiques blind to the ranker's prose; code validates. `make hypo-smoke`. A critic on the ranker's model or on a fallback = PARTIAL, never hidden.
 - Agent pattern (ADR-018): facts by CODE citing tool evidence ids; LLM only labels/interprets, citations validated; uncitable → `notes`; prompt `services/agents/prompts/<agent>/vN.md` pinned by sha.
 - Agents reach systems only via the tool-gateway (service token `tools:invoke` + `X-On-Behalf-Of` user token). New tool = `/new-tool` skill + contract lint + security test.

@@ -13,6 +13,7 @@ from aeoi_agents import __version__
 from aeoi_agents.api import router
 from aeoi_agents.config import (
     DeploymentBudget,
+    HistoryBudget,
     KnowledgeBudget,
     LogAgentBudget,
     MetricsBudget,
@@ -22,6 +23,8 @@ from aeoi_agents.config import (
 )
 from aeoi_agents.deployment.agent import DeploymentAgent
 from aeoi_agents.deployment.agent import Deps as DeployDeps
+from aeoi_agents.history.agent import Deps as HistoryDeps
+from aeoi_agents.history.agent import HistoryAgent
 from aeoi_agents.knowledge.agent import Deps as KnowledgeDeps
 from aeoi_agents.knowledge.agent import KnowledgeAgent
 from aeoi_agents.log_analysis.agent import Deps, LogAnalysisAgent
@@ -120,5 +123,9 @@ def build_app(
     # Phase 12 (ADR-022): the narrative writer, also LLM-only, no tool client
     app.state.postmortem_agent = PostmortemAgent(
         PostmortemDeps(llm=llm_client, budget=PostmortemBudget())
+    )
+    # Phase 13 (ADR-023): the one reasoning-input agent that also calls a tool (search_incidents)
+    app.state.history_agent = HistoryAgent(
+        HistoryDeps(tools=tool_client, llm=llm_client, budget=HistoryBudget())
     )
     return app

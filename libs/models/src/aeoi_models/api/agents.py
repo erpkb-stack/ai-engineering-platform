@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from aeoi_models.api.history import HistoryPrior, HistoryStats, SimilarIncident
 from aeoi_models.api.hypotheses import Critique, HypothesisOut, Observation, RuledOut
 from aeoi_models.api.postmortem import PostmortemDraft
 from aeoi_models.findings import EvidenceId, Fact
@@ -25,7 +26,8 @@ MAX_WINDOW = timedelta(hours=24)
 
 
 AgentName = Literal["log_analysis", "metrics", "deployment", "knowledge"]  # evidence agents
-ReasoningAgent = Literal["hypothesis", "critic", "postmortem"]  # Phase 11/12: no tool calls
+# Phase 11/12: no tool calls; Phase 13 historical_incident: reasoning input + one rag tool
+ReasoningAgent = Literal["hypothesis", "critic", "postmortem", "historical_incident"]
 AGENT_NAMES: tuple[str, ...] = ("log_analysis", "metrics", "deployment", "knowledge")
 
 
@@ -259,6 +261,10 @@ class AgentRunResult(BaseModel):
     ruled_out: list[RuledOut] = Field(default_factory=list, max_length=12)
     critique: Critique | None = None
     postmortem: PostmortemDraft | None = None  # Phase 12 (ADR-022)
+    # Phase 13 (ADR-023): past incidents shared with every engineer, claims checked by code
+    similar: list[SimilarIncident] = Field(default_factory=list, max_length=10)
+    priors: list[HistoryPrior] = Field(default_factory=list, max_length=3)
+    history: HistoryStats | None = None
     evidence: list[EvidenceItem] = Field(default_factory=list)
     label_quality: LabelQuality = Field(default_factory=LabelQuality)
     trace: AgentTrace

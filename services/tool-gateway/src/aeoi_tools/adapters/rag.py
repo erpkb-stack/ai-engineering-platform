@@ -85,8 +85,11 @@ class RagAdapter:
         self, q: s.IncidentSearchIn, ctx: ToolContext
     ) -> s.IncidentSearchOut:
         data = await self._post(
-            "/v1/incidents/search", {"query": q.query, "service_key": q.service_key, "k": q.k}, ctx
-        )
+            "/v1/incidents/search",
+            {"query": q.query, "service_key": q.service_key, "k": q.k, "mode": q.mode,
+             "boost_service": q.boost_service, "shared_only": q.shared_only},
+            ctx,
+        )  # fmt: skip
         fields = s.IncidentHitItem.model_fields
         return s.IncidentSearchOut(
             items=[

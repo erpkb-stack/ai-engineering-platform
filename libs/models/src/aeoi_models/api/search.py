@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -91,12 +91,20 @@ class DocumentOut(BaseModel):
 
 
 class IncidentSearchRequest(BaseModel):
-    """Keyword search over closed historical incidents (vector similarity: Phase 13)."""
+    """Similar past incidents (Phase 7 keyword; Phase 13 hybrid keyword + vector, ADR-023)."""
 
     model_config = ConfigDict(extra="forbid")
 
     query: str = Field(min_length=1, max_length=500)
+    # Phase 7: a FILTER. Phase 13 (`boost_service`): a ranking boost instead, so a similar
+    # incident on another service still shows (pool exhaustion on orders-api is relevant)
     service_key: str | None = Field(default=None, max_length=100)
+    boost_service: bool = False
+    mode: Literal["hybrid", "keyword", "vector"] = "keyword"  # default = Phase 7 behaviour
+    exclude_key: str | None = Field(default=None, pattern=r"^INC-[0-9]+$")  # eval hold-out
+    # only incidents shared with every engineer (`eng-all`): what an agent may store on another
+    # incident. Restricted ones are filtered IN the SQL, so they are never read (ADR-023)
+    shared_only: bool = False
     k: int = Field(default=5, ge=1, le=20)
 
 
@@ -112,3 +120,10 @@ class HistoricalIncidentHit(BaseModel):
     occurred_at: datetime
     resolved_at: datetime
     score: float
+    # Phase 13: which branch found it (None = not in that branch's top list)
+    rank_k: int | None = None
+    rank_v: int | None = None
+    retrieval: Literal["hybrid", "keyword", "vector"] = "keyword"
+    # shared with every engineer (`eng-all`): only such incidents may be stored on another
+    # incident's record (ADR-023)
+    open_to_engineering: bool = False

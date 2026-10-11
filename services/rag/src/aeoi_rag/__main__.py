@@ -5,6 +5,9 @@ python -m aeoi_rag chunk-db                                 chunk the seeded rag
 python -m aeoi_rag embed [--reembed]                        embed pending chunks (resumable)
 python -m aeoi_rag stats
 python -m aeoi_rag eval [--modes hybrid,vector,keyword] [--rerank]
+python -m aeoi_rag embed-history [--reembed]                 vectors for rag.historical_incidents
+python -m aeoi_rag history-eval                              similar-incident search eval (ADR-023)
+python -m aeoi_rag history-explain --query "..." [--service s]  why each past incident ranked
 """
 
 from __future__ import annotations
@@ -12,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 import time
 from typing import Any
@@ -19,6 +23,7 @@ from typing import Any
 from sqlalchemy import text
 
 from aeoi_db.config import find_repo_root
+from aeoi_rag import history, history_eval
 from aeoi_rag.config import Settings
 from aeoi_rag.db import make_engine, make_sessionmaker
 from aeoi_rag.evaluation import (
@@ -141,7 +146,7 @@ async def _main(args: argparse.Namespace) -> int:
             out_dir = root / "data" / "eval" / "results"
             out_dir.mkdir(parents=True, exist_ok=True)
             out = out_dir / f"rag-sweep-{env['timestamp'][:19].replace(':', '')}.json"
-            out.write_text(json.dumps({"environment": env, "sweep": sweep}, indent=1))
+            out.write_text(json.dumps({"environment": env, "sweep": sweep}, indent=1) + "\n")
             if env["warning"]:
                 print(f"!! {env['warning']}")
             print(format_sweep(sweep))
@@ -156,6 +161,87 @@ async def _main(args: argparse.Namespace) -> int:
             )
             print(f"-> {out.relative_to(root)}")
             return 0
+        if args.command == "embed-history":
+            n, model = await history.embed_pending(sessions, embedder, reembed=args.reembed)
+            async with sessions() as s:
+                left = await s.scalar(
+                    text("SELECT count(*) FROM rag.historical_incidents WHERE embedding IS NULL")
+                )
+            print(json.dumps({"embedded": n, "model": model, "without_vector": left}))
+            return 0 if not left else 1
+        if args.command == "history-explain":
+            # operator debugging: groups come from the ARGUMENT (this CLI is the rag_svc login,
+            # like eval), never use it as a user-facing path
+            qvec = await embedder.embed_query(args.query)
+            iterative = await detect_iterative_scan(sessions)
+            rows = await history.search(
+                sessions, args.query, args.groups.split(","), k=args.k, qvec=qvec,
+                model=embedder.model, service_key=args.service, shared_only=args.shared_only,
+                iterative_scan=iterative,
+            )  # fmt: skip
+            print(
+                f"model={embedder.model} iterative_scan={iterative} ef_search={history.EF_SEARCH}"
+                f" vector_branch_rows={rows[0]['vec_hits'] if rows else 0} (depth {history.DEPTH})"
+            )
+            print(
+                f"{'#':>3} {'incident':<10} {'service':<24} {'category':<28} {'kw':>4} {'vec':>4} {'score':>7}"
+            )
+            for i, r in enumerate(rows, 1):
+                print(
+                    f"{i:>3} {r['incident_key']:<10} {(r['service_keys'] or ['-'])[0]:<24} "
+                    f"{r['root_cause_category']:<28} {r['rank_k'] or '-':>4} {r['rank_v'] or '-':>4} "
+                    f"{r['score']:>7.4f}"
+                )
+            async with sessions() as s, s.begin():
+                await s.execute(
+                    text("SELECT set_config('hnsw.ef_search', :v, true)"),
+                    {"v": str(history.EF_SEARCH)},
+                )
+                plan = (await s.execute(text(
+                    "EXPLAIN SELECT h.id FROM rag.historical_incidents h WHERE h.embedding IS NOT "
+                    "NULL AND h.embedding_model = :m ORDER BY h.embedding <=> CAST(:v AS vector) "
+                    "LIMIT :n"), {"m": embedder.model or "", "v": history._vec(qvec),
+                                  "n": history.DEPTH})).scalars().all()  # fmt: skip
+            steps = [re.sub(r"'\[[^']*\]'::vector", "<query vector>", x.split("(cost")[0].strip())
+                     for x in plan]  # fmt: skip
+            print("vector branch plan:", " | ".join(steps))
+            return 0
+        if args.command == "history-eval":
+            dataset = root / args.dataset
+            hqueries = history_eval.load(dataset)
+            await embedder.embed_query("warm-up")
+            async with sessions() as s:
+                pgv = await s.scalar(
+                    text("SELECT extversion FROM pg_extension WHERE extname='vector'")
+                )
+                missing = await s.scalar(
+                    text(
+                        "SELECT count(*) FROM rag.historical_incidents "
+                        "WHERE embedding IS NULL OR embedding_model <> :m"
+                    ),
+                    {"m": embedder.model or ""},
+                )
+            if missing:
+                print(
+                    f"!! {missing} past incidents have no vector for {embedder.model}: "
+                    "run `make embed-history` first (vector numbers would be wrong)"
+                )
+                return 1
+            results = await history_eval.run(
+                sessions, embedder, hqueries, iterative_scan=await detect_iterative_scan(sessions)
+            )
+            env = environment(embedder.model, pgv, dataset)
+            out_dir = root / "data" / "eval" / "results"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out = out_dir / f"history-{env['timestamp'][:19].replace(':', '')}.json"
+            out.write_text(json.dumps({"environment": env, "results": results}, indent=1) + "\n")
+            if env["warning"]:
+                print(f"!! {env['warning']}")
+            print(history_eval.format_table(results))
+            print("note: symptom+code is easy for keyword BY CONSTRUCTION (1 code per category)")
+            print(f"\nembedding_model={env['embedding_model']} -> {out.relative_to(root)}")
+            leaks = sum(r["summary"]["leakage_violations"] for r in results.values())
+            return 1 if leaks else 0
         if args.command == "eval":
             dataset = root / args.dataset
             queries = load_queries(dataset)
@@ -190,7 +276,7 @@ async def _main(args: argparse.Namespace) -> int:
             out_dir = root / "data" / "eval" / "results"
             out_dir.mkdir(parents=True, exist_ok=True)
             out = out_dir / f"rag-{env['timestamp'][:19].replace(':', '')}.json"
-            out.write_text(json.dumps(out_report, indent=1))
+            out.write_text(json.dumps(out_report, indent=1) + "\n")
             if env["warning"]:
                 print(f"!! {env['warning']}")
             print(format_table(results))
@@ -225,6 +311,16 @@ def main(argv: list[str] | None = None) -> int:
     ev.add_argument("--dataset", default="data/eval/rag_queries_v1.jsonl")
     ev.add_argument("--modes", default="keyword,vector,hybrid")
     ev.add_argument("--rerank", action="store_true", help="also run hybrid+rerank (LLM calls!)")
+    eh = sub.add_parser("embed-history")
+    eh.add_argument("--reembed", action="store_true", help="clear all vectors first")
+    he = sub.add_parser("history-eval")
+    he.add_argument("--dataset", default="data/eval/history_queries_v1.jsonl")
+    hx = sub.add_parser("history-explain")
+    hx.add_argument("--query", required=True)
+    hx.add_argument("--service", default=None, help="boost this service (as the agent does)")
+    hx.add_argument("--groups", default="eng-all")
+    hx.add_argument("--k", type=int, default=20)
+    hx.add_argument("--shared-only", action="store_true", default=True)
     sw = sub.add_parser("sweep")
     sw.add_argument("--dataset", default="data/eval/rag_queries_v1.jsonl")
     bn = sub.add_parser("bench")
