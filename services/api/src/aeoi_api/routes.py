@@ -3,8 +3,8 @@
 Order of checks on every route: authenticate (401) -> rate limit (429) -> permission (403)
 -> validate body (422) -> forward. Unauthorised requests never reach internal services.
 
-Spec endpoints that belong to later phases (approvals, metrics) are added by those phases -
-not stubbed here, so the OpenAPI never lies. Search/documents: Phase 6. Investigations
+Spec endpoints that belong to later phases (metrics) are added by those phases - not stubbed
+here, so the OpenAPI never lies. Approvals: Phase 16 (ADR-026). Search/documents: Phase 6. Investigations
 (start, agents, trace, cancel): Phase 9, served by the orchestrator (ADR-019).
 """
 
@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from aeoi_api.proxy import Upstream
 from aeoi_common.errors import RateLimitedError
+from aeoi_models.api.approvals import ActionRequest, ApprovalOut, DecisionIn, DecisionResult
 from aeoi_models.api.audit import AuditPage
 from aeoi_models.api.common import Page
 from aeoi_models.api.hypotheses import HypothesisRecord
@@ -397,3 +398,65 @@ async def list_release_risk(
 ) -> Response:
     """Latest assessments of a service (`?service_key=`) or a deploy (`?deploy_key=`)."""
     return await up.forward(request, "/v1/release-risk")
+
+
+# ------------------------------------------------------------------ Phase 16 (ADR-026)
+@router.post("/incidents/{ref}/actions", status_code=201, response_model=ApprovalOut,
+             tags=["approvals"])  # fmt: skip
+async def request_action(
+    ref: str,
+    body: ActionRequest,
+    request: Request,
+    up: Incidents,
+    _: Annotated[Principal, Depends(guard(Perm.ACTIONS_REQUEST))],
+) -> Response:
+    """An SRE asks for ONE consequential action with ONE exact argument set (Idempotency-Key
+    required). Another incident commander must approve it; nothing runs here."""
+    return await up.forward(request, f"/v1/incidents/{ref}/actions", body=_json(body))
+
+
+@router.get("/incidents/{ref}/approvals", response_model=list[ApprovalOut], tags=["approvals"])
+async def list_approvals(
+    ref: str,
+    request: Request,
+    up: Incidents,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+) -> Response:
+    """The decision record: who asked, who decided, why, what ran."""
+    return await up.forward(request, f"/v1/incidents/{ref}/approvals")
+
+
+@router.get("/approvals/{approval_id}", response_model=ApprovalOut, tags=["approvals"])
+async def get_approval(
+    approval_id: UUID,
+    request: Request,
+    up: Incidents,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+) -> Response:
+    return await up.forward(request, f"/v1/approvals/{approval_id}")
+
+
+@router.post("/approvals/{approval_id}/decision", response_model=DecisionResult,
+             tags=["approvals"])  # fmt: skip
+async def decide(
+    approval_id: UUID,
+    body: DecisionIn,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.ACTIONS_APPROVE))],
+) -> Response:
+    """APPROVED / REJECTED / MORE_INFO with a reason. APPROVED runs the action now, as the
+    approver; the response says whether it ran (bounded: 12 s)."""
+    return await up.forward(request, f"/v1/approvals/{approval_id}/decision", body=_json(body))
+
+
+@router.post("/approvals/{approval_id}/execute", response_model=DecisionResult,
+             tags=["approvals"])  # fmt: skip
+async def execute(
+    approval_id: UUID,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.ACTIONS_APPROVE))],
+) -> Response:
+    """Retry an approved action whose result is unknown. Safe: one approval runs at most once."""
+    return await up.forward(request, f"/v1/approvals/{approval_id}/execute")

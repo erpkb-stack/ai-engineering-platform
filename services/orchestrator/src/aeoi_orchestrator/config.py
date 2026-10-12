@@ -36,7 +36,8 @@ class Settings(BaseServiceSettings):
     incident_service_url: str = "http://localhost:8001"
     agents_url: str = "http://localhost:8003"
     api_url: str = "http://localhost:8000"  # token exchange (STS) lives in the api, ADR-019
-    # scopes agents:run + evidence:write + delegation:create (make agents-tokens)
+    # scopes agents:run + evidence:write + delegation:create + actions:propose/record
+    # (make agents-tokens)
     service_token_file: Path = Field(
         default_factory=lambda: _secret("orchestrator_service_token.txt")
     )
@@ -54,6 +55,10 @@ class Settings(BaseServiceSettings):
     history: bool = True
     # Phase 14 (ADR-024): diff rules over the code the deploy(s) shipped (code only)
     code: bool = True
+    # Phase 16 (ADR-026): propose a rollback when the top validated cause is a deploy
+    actions: bool = True
+    # one approved action while the IC waits: api 15 s > this > executor->gateway 10 s
+    action_timeout_s: float = 12.0
     task_deadline_s: float = 180.0  # > agents' task deadline (150 s): one agent call
     # Phase 15 (ADR-025): release risk runs while the api waits (its upstream timeout is 15 s)
     release_timeout_s: float = 12.0  # > the release agent's own deadline (10 s)

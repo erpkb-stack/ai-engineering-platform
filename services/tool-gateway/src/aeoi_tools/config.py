@@ -48,6 +48,15 @@ class Settings(BaseServiceSettings):
     egress_allowlist: list[str] = ["localhost:8004"]
     http_timeout_s: float = 10.0
 
+    # Phase 16 (ADR-026): approvals are verified + consumed at incident-service (scope
+    # approvals:consume, WITH the acting user's own token); the rollback writes through the
+    # insert-only CD login (cd_svc). A missing token/login = consequential tools refused.
+    incident_service_url: str = "http://localhost:8001"
+    approvals_token_file: Path = Field(default_factory=lambda: _secret("tools_incident_token.txt"))
+    cd_db_user: str = "cd_svc"
+    cd_db_password_file: Path = Field(default_factory=lambda: _secret("cd_svc_password.txt"))
+    cd_db_url_override: SecretStr | None = None
+
     # per (user, tool) token bucket. [P] in memory; [Prod] Redis (Phase 19)
     rate_limit_per_minute: int = 60
     rate_limit_burst: int = 20
@@ -63,6 +72,15 @@ class Settings(BaseServiceSettings):
     audit_token_file: Path = Field(default_factory=lambda: _secret("tools_audit_token.txt"))
     relay_interval_s: float = 1.0
     relay_batch_size: int = 200
+
+    def cd_sqlalchemy_url(self) -> str | None:
+        if self.cd_db_url_override is not None:
+            return self.cd_db_url_override.get_secret_value()
+        if not self.cd_db_password_file.is_file():
+            return None  # no login yet (make db-users): rollback refuses, nothing else changes
+        return service_database_url(
+            user=self.cd_db_user, password_file=self.cd_db_password_file
+        ).render_as_string(hide_password=False)
 
     def sqlalchemy_url(self) -> str:
         if self.db_url_override is not None:

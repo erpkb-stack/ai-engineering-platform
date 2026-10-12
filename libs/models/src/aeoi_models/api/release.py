@@ -48,7 +48,7 @@ class ReleaseRiskRequest(BaseModel):
     service_key: str | None = Field(default=None, pattern=r"^[a-z0-9-]{2,100}$")
     base_sha: str | None = Field(default=None, pattern=SHA)
     head_sha: str | None = Field(default=None, pattern=SHA)
-    deploy_key: str | None = Field(default=None, pattern=r"^DEPLOY-[0-9]{1,10}$")
+    deploy_key: str | None = Field(default=None, pattern=r"^DEPLOY-[0-9]{1,24}$")
 
     @model_validator(mode="after")
     def _one_target(self) -> Self:

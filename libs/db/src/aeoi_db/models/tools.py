@@ -14,7 +14,8 @@ from aeoi_db.base import EMPTY_JSON, Base, created_at_col, in_list, uuid_pk
 
 SCHEMA = "tools"
 SIDE_EFFECTS = ("READ", "WRITE", "CONSEQUENTIAL")
-CALL_STATUSES = ("OK", "DENIED", "ERROR", "TIMEOUT")
+# PENDING (0024): the recorded INTENT of a consequential call, written before it executes
+CALL_STATUSES = ("OK", "DENIED", "ERROR", "TIMEOUT", "PENDING")
 
 
 class ToolCall(Base):
@@ -37,6 +38,20 @@ class ToolCall(Base):
         Index("ix_tool_calls_tool_name_created_at", "tool_name", text("created_at DESC")),
         # serves: security dashboard "recent denials" - partial, denials are rare
         Index("ix_tool_calls_denied", "created_at", postgresql_where=text("status = 'DENIED'")),
+        # enforces: one recorded intent per approval (a replay cannot start a second execution)
+        Index(
+            "uq_tool_calls_approval_intent",
+            "approval_id",
+            unique=True,
+            postgresql_where=text("status = 'PENDING'"),
+        ),
+        # enforces: at most one successful execution per approval
+        Index(
+            "uq_tool_calls_approval_ok",
+            "approval_id",
+            unique=True,
+            postgresql_where=text("status = 'OK' AND approval_id IS NOT NULL"),
+        ),
         {"schema": SCHEMA},
     )
     id: Mapped[uuid.UUID] = uuid_pk()

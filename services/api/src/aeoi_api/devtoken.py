@@ -30,7 +30,7 @@ HAVING (%(role)s::text IS NULL OR %(role)s = ANY(array_agg(ur.role_name)))
    AND (%(group)s::text IS NULL OR %(group)s = ANY(array_agg(ug.group_name)))
    AND (%(without)s::text IS NULL OR NOT (%(without)s = ANY(array_agg(ug.group_name))))
 ORDER BY u.email
-LIMIT 1
+LIMIT 1 OFFSET %(skip)s
 """
 
 
@@ -44,6 +44,12 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--email", help="exact user email")
     p.add_argument("--group", help="...who is in this group (e.g. security-team)")
     p.add_argument("--without-group", help="...who is NOT in this group (outsider tests)")
+    p.add_argument(
+        "--nth",
+        type=int,
+        default=1,
+        help="the n-th matching user (by email): two different ICs for approvals",
+    )
     g.add_argument("--service", help="service name -> token with sub=service:<name>")
     p.add_argument("--scope", action="append", default=[], help="service scope (repeatable)")
     p.add_argument("--ttl-minutes", type=int, default=60)
@@ -73,6 +79,7 @@ def main(argv: list[str] | None = None) -> int:
                 "role": args.role,
                 "group": args.group,
                 "without": args.without_group,
+                "skip": max(args.nth, 1) - 1,
             },
         ).fetchone()
     if row is None:

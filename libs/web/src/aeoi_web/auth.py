@@ -100,7 +100,7 @@ def require_scope(scope: str) -> Callable[[Principal], Awaitable[Principal]]:
 
 
 def require_acting_user(
-    perm: Perm, obo_scope: str, *, allow_delegated: bool = True
+    perm: Perm, obo_scope: str, *, allow_delegated: bool = True, service_only: bool = False
 ) -> Callable[..., Awaitable[Principal]]:
     """Dependency: the USER this request acts for, holding `perm` (ADR-020).
 
@@ -112,12 +112,16 @@ def require_acting_user(
       itself on user data (no confused deputy). A delegated token as the bearer: 401.
     `allow_delegated=False`: only a USER token in the on-behalf-of slot (an endpoint the
     investigation flow never needs - least privilege for the delegated token, review finding).
+    `service_only=True`: a user token as the bearer is refused too - internal machinery a user
+    must never call directly (Phase 16 review: an IC consuming their own approval by hand).
     """
 
     async def _check(
         request: Request, principal: Annotated[Principal, Depends(current_principal)]
     ) -> Principal:
         user = principal
+        if service_only and not principal.is_service:
+            raise ForbiddenError(f"Requires a service token with scope '{obo_scope}'.")
         if principal.is_service:
             if obo_scope not in principal.scopes:
                 raise ForbiddenError(f"Service calls need scope '{obo_scope}'.")

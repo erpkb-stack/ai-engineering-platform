@@ -268,6 +268,12 @@ def audit_token_file(tmp_path: Path, tkeys: KeyPair) -> Path:
 
 def tools_settings(db_url: str, pub: Path, catalog: Path, token_file: Path, **kw: Any) -> Settings:
     rag_token = token_file.parent / "tools_rag_token.txt"  # written by audit_token_file
+    # Phase 16: never the developer's real secrets/ files or services from a test - the
+    # defaults point at secrets/tools_incident_token.txt, localhost:8001 and the cd_svc login
+    # of the DEV database. Unset here = approvals unverifiable, rollback refused.
+    kw.setdefault("incident_service_url", "http://incident.invalid")
+    kw.setdefault("approvals_token_file", token_file.parent / "no_approvals_token.txt")
+    kw.setdefault("cd_db_password_file", token_file.parent / "no_cd_password.txt")
     return Settings(
         db_url_override=SecretStr(db_url), jwt_public_key_file=pub, catalog_file=catalog,
         audit_token_file=token_file, relay_enabled=False, environment="test", log_json=False,

@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, Request
 from aeoi_common.correlation import get_correlation_id
 from aeoi_common.errors import ForbiddenError, NotFoundError
 from aeoi_models.api.agents import AgentName, AgentRunResult, AgentTask
+from aeoi_models.api.approvals import ActionTask
 from aeoi_models.api.reasoning import ReasoningTask
 from aeoi_models.api.release import ReleaseRiskTask
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
@@ -104,6 +105,18 @@ async def run_release_risk(task: ReleaseRiskTask, request: Request, _: Caller) -
     investigation and incident, and this task has neither)."""
     user_token = _user_token(request, None, None)
     result: AgentRunResult = await request.app.state.release_agent.run(
+        task, user_token, get_correlation_id()
+    )
+    return result
+
+
+@router.post("/action_executor/run", response_model=AgentRunResult)
+async def run_action(task: ActionTask, request: Request, _: Caller) -> AgentRunResult:
+    """Phase 16 (ADR-026): run ONE approved action AS THE APPROVER. The on-behalf-of token
+    must be the approver's own user token: a delegated (investigation) token is refused here
+    (bound to an investigation, and this task has none) and again by the gateway policy."""
+    user_token = _user_token(request, None, None)
+    result: AgentRunResult = await request.app.state.action_executor.run(
         task, user_token, get_correlation_id()
     )
     return result

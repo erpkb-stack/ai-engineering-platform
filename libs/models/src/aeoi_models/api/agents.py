@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from aeoi_models.api.approvals import ActionExecution
 from aeoi_models.api.code import CodeFinding, CodeStats
 from aeoi_models.api.history import HistoryPrior, HistoryStats, SimilarIncident
 from aeoi_models.api.hypotheses import Critique, HypothesisOut, Observation, RuledOut
@@ -275,6 +276,7 @@ class AgentRunResult(BaseModel):
     code_findings: list[CodeFinding] = Field(default_factory=list, max_length=30)
     code: CodeStats | None = None
     release: ReleaseRiskReport | None = None  # Phase 15 (ADR-025), advisory
+    action: ActionExecution | None = None  # Phase 16 (ADR-026): one approved action
     evidence: list[EvidenceItem] = Field(default_factory=list)
     label_quality: LabelQuality = Field(default_factory=LabelQuality)
     trace: AgentTrace

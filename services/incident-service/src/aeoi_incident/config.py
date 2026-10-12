@@ -31,6 +31,11 @@ class Settings(BaseServiceSettings):
     db_pool_size: int = 10
 
     jwt_public_key_file: Path = Field(default_factory=lambda: _secret("jwt_public.pem"))
+    # Phase 16 (ADR-026): an investigation's PROPOSAL arrives with the delegated token in
+    # X-On-Behalf-Of (only there: require_acting_user). No file = delegated tokens refused.
+    delegation_public_key_file: Path = Field(
+        default_factory=lambda: _secret("delegation_public.pem")
+    )
     jwt_issuer: str = "aeoi-dev-issuer"
     jwt_audience: str = "aeoi-api"
 

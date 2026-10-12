@@ -24,6 +24,7 @@ SERVICE_LOGINS: dict[str, str] = {
     "audit_svc": "svc_audit",
     "orch_svc": "svc_orchestrator",
     "api_svc": "svc_api",  # Phase 9: identity schema only (token exchange, ADR-019)
+    "cd_svc": "svc_cd",  # Phase 16: the simulated CD system - INSERT on devdata.deployments only
 }
 
 

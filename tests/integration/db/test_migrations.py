@@ -58,3 +58,62 @@ def test_0019_downgrade_records_partial_as_failed(migrated_db: str) -> None:
         c.execute("DELETE FROM orchestrator.investigations WHERE id=%s", (inv,))
     assert status == "FAILED"
     assert error == "[was PARTIAL, downgraded by 0019] missing sources - knowledge: rag down"
+
+
+def test_0024_downgrade_maps_phase16_records(migrated_db: str) -> None:
+    """EXPIRED and PENDING do not exist before 0024: downgrade maps them and says so. Two
+    expired requests and a PENDING one for the SAME args (what request() produces after an
+    expiry) must survive the pending-request unique index (review H4)."""
+    import psycopg
+
+    from aeoi_db.config import libpq_dsn
+
+    cfg = alembic_config(database_url(database=migrated_db).render_as_string(hide_password=False))
+    ins = (
+        "INSERT INTO incident.approvals (id, incident_id, action, action_args, args_sha256, "
+        "recommendation, evidence_keys, requested_by, requested_at, expires_at, decision, "
+        "decided_at, reason, source) VALUES (gen_random_uuid(), %(inc)s, 'rollback_deployment', "
+        "'{}', repeat('a', 64), '{}', '{}', 'user:x', now() - interval '40 minutes', "
+        "now() + %(exp)s::interval, %(dec)s::text, "
+        "CASE WHEN %(dec)s::text IS NULL THEN NULL ELSE now() END, "
+        "%(why)s::text, 'investigation') RETURNING id"
+    )
+    with psycopg.connect(libpq_dsn(database=migrated_db), autocommit=True) as c:
+        inc = c.execute(
+            "INSERT INTO incident.incidents (id, title, severity, detected_at, created_by) "
+            "VALUES (gen_random_uuid(), 'm24', 'SEV3', now(), 'user:x') RETURNING id"
+        ).fetchone()[0]
+        old = {
+            "inc": inc,
+            "exp": "-10 minutes",
+            "dec": "EXPIRED",
+            "why": "expired before a decision",
+        }
+        expired = [c.execute(ins, old).fetchone()[0] for _ in range(2)]
+        live = {"inc": inc, "exp": "20 minutes", "dec": None, "why": None}
+        pending = c.execute(ins, live).fetchone()[0]
+        t = c.execute(
+            "INSERT INTO tools.tool_calls (id, on_behalf_of, tool_name, side_effect, input, "
+            "status, approval_id) VALUES (gen_random_uuid(), gen_random_uuid(), "
+            "'rollback_deployment', 'CONSEQUENTIAL', '{}', 'PENDING', %s) RETURNING id",
+            (pending,),
+        ).fetchone()[0]
+        command.downgrade(cfg, "0023")
+        appr = c.execute(
+            "SELECT decision, decided_by::text, reason FROM incident.approvals WHERE id = ANY(%s)",
+            (expired,),
+        ).fetchall()
+        still = c.execute(
+            "SELECT decision FROM incident.approvals WHERE id=%s", (pending,)
+        ).fetchone()
+        call = c.execute(
+            "SELECT status, denial_reason FROM tools.tool_calls WHERE id=%s", (t,)
+        ).fetchone()
+        command.upgrade(cfg, "head")
+        c.execute("DELETE FROM tools.tool_calls WHERE id=%s", (t,))
+        c.execute("DELETE FROM incident.approvals WHERE incident_id=%s", (inc,))
+        c.execute("DELETE FROM incident.incidents WHERE id=%s", (inc,))
+    assert appr == [("REJECTED", "00000000-0000-0000-0000-000000000000",
+                     "[was EXPIRED, downgraded by 0024] expired before a decision")] * 2  # fmt: skip
+    assert still == (None,)  # the live request is untouched
+    assert call == ("ERROR", "[was PENDING intent, downgraded by 0024]")

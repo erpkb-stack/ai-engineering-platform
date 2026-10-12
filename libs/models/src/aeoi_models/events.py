@@ -31,6 +31,9 @@ class EventType(StrEnum):
     HUMAN_REVIEW_REQUIRED = "HumanReviewRequired"
     HUMAN_APPROVED = "HumanApproved"
     HUMAN_REJECTED = "HumanRejected"
+    HUMAN_MORE_INFO = "HumanMoreInfoRequested"  # Phase 16 (ADR-026)
+    ACTION_EXECUTED = "ActionExecuted"  # Phase 16: an approved action ran (or failed)
+    ACTION_EXPIRED = "ActionExpired"  # Phase 16: no decision in time (system, not a human)
     INCIDENT_RESOLVED = "IncidentResolved"
     POSTMORTEM_GENERATED = "PostmortemGenerated"  # Phase 12 (ADR-022)
 

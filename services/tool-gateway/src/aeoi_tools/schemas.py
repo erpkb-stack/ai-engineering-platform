@@ -156,7 +156,7 @@ class MetricsOut(Out):
 
 # ------------------------------------------------------------------ deployments
 class DeploymentsIn(In):
-    deploy_key: str | None = Field(default=None, pattern=r"^DEPLOY-[0-9]{1,10}$")
+    deploy_key: str | None = Field(default=None, pattern=r"^DEPLOY-[0-9]{1,24}$")
     service_key: str | None = Field(default=None, pattern=SERVICE_KEY, max_length=100)
     start: datetime | None = None
     end: datetime | None = None
@@ -195,7 +195,7 @@ class DeploymentsOut(Out):
 
 
 class ConfigDiffIn(In):
-    deploy_key: str = Field(pattern=r"^DEPLOY-[0-9]{1,10}$")
+    deploy_key: str = Field(pattern=r"^DEPLOY-[0-9]{1,24}$")
 
 
 class ConfigChange(BaseModel):
@@ -425,13 +425,17 @@ class IncidentSearchOut(Out):
 
 # ------------------------------------------------------------------ consequential
 class RollbackIn(In):
-    deploy_key: str = Field(pattern=r"^DEPLOY-[0-9]{1,10}$")
+    deploy_key: str = Field(pattern=r"^DEPLOY-[0-9]{1,24}$")
     reason: str = Field(min_length=10, max_length=500)
 
 
 class RollbackItem(Item):
-    deploy_key: str
-    rolled_back_to: str
+    deploy_key: str  # the NEW deploy that restores the previous release
+    rolled_back_to: str  # its commit (the previous successful deploy's)
+    rolled_back_from: str  # the deploy that was undone
+    service_key: str
+    environment: str
+    config_restored: list[str] = Field(default_factory=list, max_length=50)
 
 
 class RollbackOut(Out):

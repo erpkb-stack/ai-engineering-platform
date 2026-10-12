@@ -373,22 +373,31 @@ async def test_user_cannot_pose_as_agent_or_send_obo(
 
 
 async def test_consequential_tool_is_denied_without_and_with_approval(
-    tools: httpx.AsyncClient, tok: Tokens, planted: Planted, owner: psycopg.Connection
-) -> None:
+    tools: httpx.AsyncClient, tok: Tokens, planted: Planted, owner: psycopg.Connection,
+    tkeys: KeyPair,
+) -> None:  # fmt: skip
     args = {"deploy_key": planted.deploy_key, "reason": "p95 regression after deploy"}
-    r = await call(tools, "rollback_deployment", tok.h("INCIDENT_COMMANDER"), args=args)
-    assert r.status_code == 403 and r.json()["reason"] == "approval_required"
-    r = await call(
-        tools,
-        "rollback_deployment",
-        tok.h("INCIDENT_COMMANDER"),
-        args=args,
-        approval_id=str(uuid4()),
-    )  # a made-up approval id must NOT work
-    assert r.status_code == 403 and r.json()["reason"] == "approval_unverifiable"
+    # manual mode never runs it (Phase 16, review H1): only the action_executor identity
+    r = await call(tools, "rollback_deployment", tok.h("INCIDENT_COMMANDER"), args=args,
+                   approval_id=str(uuid4()), incident_id=str(uuid4()))  # fmt: skip
+    assert r.status_code == 403 and r.json()["reason"] == "executor_only"
     assert row(owner, r.json()["tool_call_id"])["status"] == "DENIED"
     r = await call(tools, "rollback_deployment", tok.h("ENGINEER"), args=args)
     assert r.json()["reason"] == "missing_permission"  # perms are checked first
+    # the executor identity, no approval / no incident / a made-up one (no way to verify it
+    # in this fixture: fail closed, recorded)
+    svc = service_token_for(tkeys, "action_executor", "tools:invoke")
+    ex = {"Authorization": f"Bearer {svc}",
+          "X-On-Behalf-Of": f"Bearer {tok.user('INCIDENT_COMMANDER')}"}  # fmt: skip
+    r = await call(tools, "rollback_deployment", ex, args=args, agent_name="action_executor")
+    assert r.status_code == 403 and r.json()["reason"] == "approval_required"
+    r = await call(tools, "rollback_deployment", ex, args=args, agent_name="action_executor",
+                   approval_id=str(uuid4()))  # fmt: skip
+    assert r.status_code == 403 and r.json()["reason"] == "approval_needs_incident"
+    r = await call(tools, "rollback_deployment", ex, args=args, agent_name="action_executor",
+                   approval_id=str(uuid4()), incident_id=str(uuid4()))  # fmt: skip
+    assert r.status_code == 503 and r.json()["reason"] == "approval_unverifiable", r.text
+    assert row(owner, r.json()["tool_call_id"])["status"] == "DENIED"
 
 
 async def test_list_tools_is_filtered(tools: httpx.AsyncClient, tok: Tokens) -> None:

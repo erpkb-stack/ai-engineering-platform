@@ -7,7 +7,7 @@ output sanitisation, audit. ADR-017.
 **Callers:** users (manual mode, via api `/api/v1/tools`) and services with scope `tools:invoke`
 + `X-On-Behalf-Of: Bearer <user JWT>` + `agent_name` (trusted per `config/agents.yaml`).
 **Must never:** run a tool without a verified human; trust identity from a body field; execute a
-CONSEQUENTIAL tool without a VERIFIED approval (Phase 7: always deny); return data it could not
+CONSEQUENTIAL tool without a VERIFIED approval; return data it could not
 record; reach a host outside the egress allow-list; drop (instead of flag) suspicious output.
 
 ## Code map (`src/aeoi_tools/`)
@@ -16,6 +16,7 @@ record; reach a host outside the egress allow-list; drop (instead of flag) suspi
 - `service.py` invoke pipeline, one-transaction recording · `sanitize.py` caps/redaction/flags/evidence ids
 - `relay.py` outbox → audit · `api.py` caller modes · `adapters/` devdata SQL, catalog JSON, rag HTTP, egress
 - rag calls (ADR-020): bearer = OUR `secrets/tools_rag_token.txt` (scope `rag:obo`, `make tools-tokens`), `X-On-Behalf-Of` = the caller's token unchanged (user or delegated). Never the user token as a bearer.
+- Consequential (Phase 16, ADR-026): policy (ONLY agent = service = action_executor - `executor_only`; user token only - DELEGATED_CANNOT_ACT; approval_id + incident_id) → validate → `args_sha256` over the VALIDATED input → consume at incident-service (bearer `secrets/tools_incident_token.txt` scope approvals:consume + the user's token) → prior OK? `approval_already_executed`; recent unfinished intent? `approval_in_progress` → intent row PENDING (committed first) → `adapters/deployer.py` (reads via devdata login, writes via `cd_svc` INSERT-only; refuses stale/unknown targets; per-service advisory lock; key from the approval, CHECKED) → OK/ERROR row. 409 from the record = `approval_unusable`.
 - `sanitize.py`: a canonical UUID string skips the PII scrubber (it mangled digit-only ids)
 
 ## Adding a tool (`/new-tool` skill)

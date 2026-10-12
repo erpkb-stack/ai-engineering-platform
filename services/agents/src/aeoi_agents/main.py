@@ -10,6 +10,8 @@ import httpx
 from fastapi import FastAPI
 
 from aeoi_agents import __version__
+from aeoi_agents.action.executor import ActionExecutor
+from aeoi_agents.action.executor import Deps as ExecutorDeps
 from aeoi_agents.api import router
 from aeoi_agents.code.agent import CodeAgent
 from aeoi_agents.code.agent import Deps as CodeDeps
@@ -65,6 +67,7 @@ def build_app(
     settings: Settings | None = None,
     *,
     tools: ToolClient | None = None,
+    executor_tools: ToolClient | None = None,
     llm: LLMClient | None = None,
     budget: LogAgentBudget | None = None,
     tool_transport: httpx.AsyncBaseTransport | None = None,
@@ -75,6 +78,13 @@ def build_app(
     tool_client = tools or HttpToolClient(
         settings.tool_gateway_url, token, transport=tool_transport
     )
+    # Phase 16: the executor's own gateway client, its own token (never the investigation one)
+    executor_client = executor_tools or HttpToolClient(
+        settings.tool_gateway_url,
+        FileToken(settings.action_executor_token_file),
+        timeout_s=10.0,  # < the orchestrator's action timeout (12 s) < the api's (15 s)
+        transport=tool_transport,
+    )
     llm_client = llm or HttpLLMClient(
         settings.llm_gateway_url, token, timeout_s=130.0, transport=llm_transport
     )
@@ -84,7 +94,7 @@ def build_app(
         try:
             yield
         finally:
-            for c in (tool_client, llm_client):
+            for c in (tool_client, executor_client, llm_client):
                 close = getattr(c, "aclose", None)
                 if close is not None:
                     await close()
@@ -139,4 +149,5 @@ def build_app(
     app.state.release_agent = ReleaseRiskAgent(
         ReleaseDeps(tools=tool_client, budget=ReleaseBudget())
     )
+    app.state.action_executor = ActionExecutor(ExecutorDeps(tools=executor_client))
     return app

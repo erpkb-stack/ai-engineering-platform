@@ -56,13 +56,19 @@ def user(*roles: str, groups: tuple[str, ...] = ("eng-all",)) -> Principal:
     )
 
 
-def ctx(*roles: str, agent: str | None = None, approval: bool = False) -> ToolContext:
+def ctx(
+    *roles: str, agent: str | None = None, approval: bool = False, incident: bool = False
+) -> ToolContext:
     return ToolContext(
         user=user(*roles),
         user_token="t",
         agent=agent,
-        service="service:agents" if agent else None,
+        # the executor runs under its own service identity (Phase 16); every other agent: agents
+        service=(f"service:{agent}" if agent == "action_executor" else "service:agents")
+        if agent
+        else None,
         approval_id=uuid4() if approval else None,
+        incident_id=uuid4() if incident else None,
     )
 
 
