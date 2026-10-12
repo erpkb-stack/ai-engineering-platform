@@ -104,3 +104,21 @@ def metric_value(metric: str, v: float) -> str:
     if metric.endswith(RATIO_SUFFIXES):
         return f"{v * 100:.4g}%"
     return f"{v:.4g}"
+
+
+# A model's free text is bounded in the JSON schema only against RUNAWAY output; the stored
+# length is enforced HERE, by cutting at a word. A tight schema maxLength made a sentence a few
+# characters too long reject the WHOLE answer (Mac, 2026-10-12: the critic's `missing` > 200
+# chars twice -> no critique -> PARTIAL). Prompts still ask for short sentences.
+PROSE_MAX = 1200
+
+
+def clip(text: object, n: int) -> str:
+    """One line, at most n characters, cut at a word boundary with an ellipsis."""
+    s = " ".join(str(text or "").split())
+    if len(s) <= n:
+        return s
+    cut = s[: n - 1]
+    if " " in cut[n // 2 :]:
+        cut = cut[: cut.rfind(" ")]
+    return cut.rstrip(" ,;:-") + "…"

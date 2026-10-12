@@ -1,0 +1,6 @@
+{"deploy_key": "DEPLOY-4821", "why": "planted PR #812: a query added inside a loop on tier-1 checkout-api, shipped with a flag change the code does not read", "expect": {"band": "HIGH", "findings_band": "HIGH", "kinds": ["code_mechanism"], "rollback": ["redeploy", "flag_not_read"]}}
+{"deploy_key": "DEPLOY-1501", "why": "planted PR #377: ShipmentResponse.address renamed, still read by 4 other services", "expect": {"band": "HIGH", "findings_band": "HIGH", "kinds": ["breaking_change"], "rollback": ["redeploy"]}}
+{"deploy_key": "DEPLOY-1186", "why": "routine commits with no rule finding", "expect": {"band": "LOW", "findings_band": "LOW", "kinds": [], "rollback": ["none"]}}
+{"deploy_key": "DEPLOY-1822", "why": "a timeout/retry constant tuned: shown as context, never raises the band", "expect": {"band": "LOW", "findings_band": "LOW", "kinds": [], "rollback": ["none"]}}
+{"deploy_key": "DEPLOY-1247", "why": "a redeploy of the commit already running: nothing new ships", "expect": {"band": "LOW", "findings_band": "LOW", "kinds": [], "rollback": ["none"]}}
+{"deploy_key": "DEPLOY-2014", "why": "first deploy in the synthetic window: only its own commit can be checked - unknown is not safe, but nothing was FOUND", "expect": {"band": "MEDIUM", "findings_band": "LOW", "kinds": ["not_checked"], "rollback": ["none"]}}

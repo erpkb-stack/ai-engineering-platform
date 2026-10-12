@@ -285,6 +285,9 @@ class Finding:
     symbol: str  # what changed: the called method, the constant, the removed field
     detail: str  # code-written, one line
     container: str | None = None  # enclosing method / class
+    # Phase 15 (ADR-025): the feature-flag condition the finding sits behind, if any - such a
+    # change can be switched off; an unguarded one needs a rollback
+    guard: str | None = None
 
 
 def _in_loop(node: Node, lang: Lang) -> bool:
@@ -346,6 +349,91 @@ def pre_image(content_after: str, patch: str) -> str:
     return "".join(out)
 
 
+# ONE positive flag check, nothing else (review: `!flags.isEnabled(x)`, `flag || legacy`,
+# `i.isFlagged()`, `featureCount > 0` were taken as guards and the advice was INVERTED):
+#   a call to an is-enabled method:  flags.isEnabled("x") / is_enabled('x') / IsEnabled("x")
+#   or a bare flag-named value:       featureFlags.orderBatching / FEATURE_X / cfg.flag_y
+FLAG_CALL = re.compile(r"^[A-Za-z_][\w.]*\.?(?:isEnabled|is_enabled|IsEnabled|isFeatureEnabled|Enabled|enabled)"
+                       r"\(\s*[\"'][\w.\-]+[\"']\s*\)$")  # fmt: skip
+FLAG_NAME = re.compile(r"^[A-Za-z_][\w.]*$")
+FLAG_WORD = re.compile(r"(flag|feature|toggle)", re.IGNORECASE)
+NOT_A_SINGLE_CHECK = re.compile(r"(!|\bnot\b|\|\||\bor\b|&&|\band\b|[<>=?:])")
+IF_NODES = {"java": "if_statement", "python": "if_statement", "go": "if_statement"}
+
+
+def positive_flag_check(cond: str) -> bool:
+    """True only for a single, positive feature-flag check: turning that flag OFF is then
+    guaranteed to skip the THEN branch. Anything else (negated, combined, compared, a method
+    that merely mentions a flag) is not a guard - the safe advice (a redeploy) applies."""
+    text = " ".join(cond.split())
+    while text.startswith("(") and text.endswith(")"):
+        text = text[1:-1].strip()
+    if not text or NOT_A_SINGLE_CHECK.search(text.replace('"', "").replace("'", "")
+                                             if FLAG_CALL.match(text) else text):  # fmt: skip
+        return False
+    if FLAG_CALL.match(text):
+        return True
+    return bool(FLAG_NAME.match(text)) and bool(FLAG_WORD.search(text.rsplit(".", 1)[-1]))
+
+
+def flag_guard(node: Node, lang: Lang) -> str | None:
+    """The condition of the nearest enclosing `if` that is ONE positive feature-flag check
+    (`positive_flag_check`), when `node` is in its THEN branch (not in the condition, not in an
+    else) - up to the function boundary. [P] by name; a flag read into a local variable first
+    is not seen (ADR-025): then there is no guard and the advice is a redeploy (safe side)."""
+    prev, n = node, node.parent
+    while n is not None:
+        if n.type == IF_NODES[lang]:
+            cond = n.child_by_field_name("condition")
+            then = n.child_by_field_name("consequence")
+            if (cond is not None and then is not None and positive_flag_check(_text(cond))
+                    and then.start_byte <= prev.start_byte and prev.end_byte <= then.end_byte):  # fmt: skip
+                text = " ".join(_text(cond).split())
+                while text.startswith("(") and text.endswith(")"):
+                    text = text[1:-1].strip()
+                return text[:160]
+        if n.type in ("method_declaration", "function_definition", "function_declaration",
+                      "constructor_declaration", "lambda_expression", "func_literal"):  # fmt: skip
+            return None
+        prev, n = n, n.parent
+    return None
+
+
+GENERIC_FLAG_LEAVES = {"enabled", "on", "active", "value", "flag", "enable", "disabled"}
+
+
+IDENT_NODES = {"identifier", "field_identifier", "type_identifier", "property_identifier",
+               "constant"}  # fmt: skip
+STRING_NODES = {"string", "string_literal", "interpreted_string_literal", "raw_string_literal",
+                "string_content", "string_fragment"}  # fmt: skip
+
+
+def names_and_strings(lang: Lang, source: str) -> set[str]:
+    """Every identifier and every string literal's text in the source - comments EXCLUDED
+    (review: a `// TODO remove orderBatching` comment counted as reading the flag)."""
+    out: set[str] = set()
+    for n in _walk(parser(lang).parse(source.encode()).root_node):
+        if n.type in IDENT_NODES:
+            out.add(_text(n))
+        elif n.type in STRING_NODES:
+            out.add(_text(n).strip("\"'`"))
+    return out
+
+
+def flag_variants(key: str) -> set[str]:
+    """`feature_flags.order_batching` -> the names code may use for that flag:
+    order_batching, orderBatching, OrderBatching, ORDER_BATCHING, order-batching."""
+    parts = key.split(".")
+    leaf = parts[-1]
+    if leaf.lower() in GENERIC_FLAG_LEAVES and len(parts) > 1:  # features.order_batching.enabled
+        leaf = parts[-2]
+    words = [w for w in re.split(r"[_\-]", leaf) if w]
+    if not words:
+        return set()
+    camel = words[0].lower() + "".join(w.capitalize() for w in words[1:])
+    return {leaf, camel, camel[:1].upper() + camel[1:], "_".join(words).upper(), "-".join(words)}
+
+
 def _loop_calls(lang: Lang, root: Node) -> list[tuple[Node, str, str, str | None]]:
     """(node, receiver's last name, called name, enclosing function) of every call in a loop body."""
     out = []
@@ -381,7 +469,7 @@ def calls_in_loops(
             rule, path, _line(n), f"{last}.{name}",
             f"{last}.{name}() is called inside a loop in {where or 'the file'} (line {_line(n)}): "
             + ("one database query per item" if rule == "query_in_loop" else "one remote call per item"),
-            where,
+            where, flag_guard(n, lang),
         ))  # fmt: skip
     return out
 

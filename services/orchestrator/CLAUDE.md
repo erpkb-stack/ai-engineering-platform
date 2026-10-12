@@ -3,7 +3,7 @@
 **Purpose:** start, run, resume, cancel and record investigations (ADR-019). A FastAPI service;
 the investigation is a LangGraph graph (`graph.py`) checkpointed in Postgres
 (`AsyncPostgresSaver`, tables in the `orchestrator` schema, DDL owned by migration 0018).
-**Owns schema:** `orchestrator` (investigations, tasks, agent_executions, messages, checkpoint*); login `orch_svc`.
+**Owns schema:** `orchestrator` (investigations, tasks, agent_executions, messages, checkpoint*, release_assessments); login `orch_svc`.
 **Calls:** incident-service (read + mark INVESTIGATING AS THE USER, only inside the start
 request; write evidence with `evidence:write`), api token exchange (`delegation:create`),
 agents (`agents:run` + the DELEGATED token in `X-On-Behalf-Of`). Token: `secrets/orchestrator_service_token.txt`.
@@ -18,6 +18,7 @@ schema; leave a live grant behind a finished investigation (revoke BEFORE finish
 - `history` node (Phase 13, ADR-023): historical_incident task (reuse guard) → INCIDENT pointers via the evidence endpoint; priors go to hypothesize ONLY (critic copies are blanked); `history_outcome()` PARTIAL when search failed / compared by code / not stored
 - `code` node (Phase 14, ADR-024): code_intelligence task (needs the deployment result) → COMMIT/CODE evidence; `reasoning_results()` adds its result to hypothesize/critique/validate/report ONLY when that evidence was stored; `code_outcome()` PARTIAL when it failed / degraded / not stored. `AEOI_ORCH_CODE` (true)
 - `report` node (Phase 12): postmortem task → POST timeline points + postmortem (both idempotent); `report_outcome()` PARTIAL when the writer failed/was empty/not stored
+- `release.py` (Phase 15, ADR-025): `POST /v1/release-risk` runs the release_risk agent SYNCHRONOUSLY with the caller's OWN token (not delegated, never stored; 12 s), stores one advisory report per request; Idempotency-Key per requester (retry = 200 + first report, other target = 409); agents unreachable = 503 + nothing stored; every read needs code:read + deploys:read. Nothing reads a report to gate a deploy.
 - `salvage.py` post recorded evidence of SUCCEEDED tasks (deadline → PARTIAL; `repost-evidence`)
 - `engine.py` background runs, deadline (from the first slot), resume on startup, cancel, shutdown (rows stay RUNNING)
 - `store.py` every DB write, each safe to repeat · `delegation.py` STS client (5-min tokens, refresh from the grant)

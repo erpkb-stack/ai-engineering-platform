@@ -38,6 +38,7 @@ from aeoi_models.api.investigations import (
     InvestigationTrace,
 )
 from aeoi_models.api.postmortem import PostmortemDoc
+from aeoi_models.api.release import ReleaseRiskOut, ReleaseRiskRequest
 from aeoi_models.api.search import DocumentOut, SearchRequest, SearchResponse
 from aeoi_models.api.tools import ToolInfo, ToolInvokeRequest, ToolResult
 from aeoi_security.auth import Principal
@@ -362,3 +363,37 @@ async def audit_events(
 ) -> Response:
     """Scope (all / incident / own) is decided by the audit service from permissions."""
     return await up.forward(request, "/v1/events")
+
+
+# ------------------------------------------------------------------ Phase 15 (ADR-025)
+@router.post("/release-risk", status_code=201, response_model=ReleaseRiskOut, tags=["release-risk"])
+async def release_risk(
+    body: ReleaseRiskRequest,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.CODE_READ))],
+) -> Response:
+    """ADVISORY release risk for a pull request or a deploy (code only, never blocks a deploy).
+    Synchronous and bounded (the orchestrator gives the agent 12 s). Optional Idempotency-Key:
+    a retry returns the first report (200)."""
+    return await up.forward(request, "/v1/release-risk", body=_json(body))
+
+
+@router.get("/release-risk/{assessment_id}", response_model=ReleaseRiskOut, tags=["release-risk"])
+async def get_release_risk(
+    assessment_id: UUID,
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.CODE_READ))],
+) -> Response:
+    return await up.forward(request, f"/v1/release-risk/{assessment_id}")
+
+
+@router.get("/release-risk", response_model=list[ReleaseRiskOut], tags=["release-risk"])
+async def list_release_risk(
+    request: Request,
+    up: Orchestrator,
+    _: Annotated[Principal, Depends(guard(Perm.CODE_READ))],
+) -> Response:
+    """Latest assessments of a service (`?service_key=`) or a deploy (`?deploy_key=`)."""
+    return await up.forward(request, "/v1/release-risk")

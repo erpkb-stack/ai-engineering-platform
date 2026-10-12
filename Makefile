@@ -26,7 +26,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         rag-token docpack codepack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         embed-history history-eval history-explain code-index \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke release-risk risk-scan risk-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -401,6 +401,16 @@ multi-smoke: ## End-to-end Phase 10 check: 4 agents in parallel (needs dev, run-
 agent-run: ## Run the Log Analysis agent on an incident: make agent-run INCIDENT=INC-10001 [ROLE=SRE] [ROUTE=local|fast] [NOCACHE=1]
 	@test -n "$(INCIDENT)" || { echo "usage: make agent-run INCIDENT=INC-10001 [ROUTE=local|fast]"; exit 2; }
 	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE)) $(ORCH) run-log-agent $(INCIDENT) $(if $(ROUTE),--route $(ROUTE),) $(if $(NOCACHE),--no-cache,)
+
+release-risk: ## Phase 15: advisory release risk: make release-risk DEPLOY=DEPLOY-4821 | PR=northwind/checkout#812 | RANGE=svc:BASE..HEAD [ROLE=SRE] [JSON=1]
+	@test -n "$(DEPLOY)$(PR)$(RANGE)" || { echo "usage: make release-risk DEPLOY=DEPLOY-4821 | PR=northwind/checkout#812 | RANGE=checkout-api:BASE..HEAD"; exit 2; }
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE)) $(ORCH) release-risk $(if $(DEPLOY),--deploy $(DEPLOY),) $(if $(PR),--pr '$(PR)',) $(if $(RANGE),--range '$(RANGE)',) $(if $(JSON),--json,)
+
+risk-scan: ## Phase 15: band distribution of the rubric over EVERY synthetic deploy (offline; selectivity, not accuracy)
+	uv run python -m aeoi_agents.release.scan
+
+risk-smoke: ## End-to-end Phase 15 check: release risk for the demo deploy + PR, advisory, MANAGER denied
+	@./scripts/smoke-phase15.sh
 
 investigate: ## Phase 10: all agents in parallel on an incident: make investigate INCIDENT=INC-10001 [AGENTS=metrics,deployment] [NOCACHE=1]
 	@test -n "$(INCIDENT)" || { echo "usage: make investigate INCIDENT=INC-10001 [AGENTS=a,b]"; exit 2; }

@@ -17,6 +17,7 @@ from aeoi_common.correlation import get_correlation_id
 from aeoi_common.errors import ForbiddenError, NotFoundError
 from aeoi_models.api.agents import AgentName, AgentRunResult, AgentTask
 from aeoi_models.api.reasoning import ReasoningTask
+from aeoi_models.api.release import ReleaseRiskTask
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 from aeoi_security.auth import AuthError, Principal
 from aeoi_web import require_scope
@@ -91,6 +92,18 @@ async def run_code(task: ReasoningTask, request: Request, _: Caller) -> AgentRun
     (delegated token forwarded: rag applies the user's groups to code references)."""
     user_token = _user_token(request, task.investigation_id, task.incident_id)
     result: AgentRunResult = await request.app.state.code_agent.run(
+        task, user_token, get_correlation_id()
+    )
+    return result
+
+
+@router.post("/release_risk/run", response_model=AgentRunResult)
+async def run_release_risk(task: ReleaseRiskTask, request: Request, _: Caller) -> AgentRunResult:
+    """Phase 15 (ADR-025): advisory release risk, synchronous, AS THE USER. Not part of an
+    investigation: a token delegated to an investigation is refused here (it is bound to that
+    investigation and incident, and this task has neither)."""
+    user_token = _user_token(request, None, None)
+    result: AgentRunResult = await request.app.state.release_agent.run(
         task, user_token, get_correlation_id()
     )
     return result

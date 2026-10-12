@@ -18,6 +18,7 @@ from aeoi_models.api.agents import AgentRunResult, AgentTask, EvidenceBatch, Evi
 from aeoi_models.api.hypotheses import HypothesisBatch
 from aeoi_models.api.postmortem import PostmortemIn, TimelineBatch
 from aeoi_models.api.reasoning import ReasoningTask
+from aeoi_models.api.release import ReleaseRiskTask
 from aeoi_models.api.tools import ON_BEHALF_OF_HEADER
 
 
@@ -189,7 +190,7 @@ class AgentsClient:
         self._timeout = timeout_s
 
     async def run(
-        self, agent: str, task: AgentTask | ReasoningTask, delegated_token: str
+        self, agent: str, task: AgentTask | ReasoningTask | ReleaseRiskTask, delegated_token: str
     ) -> AgentRunResult:
         try:
             r = await self._http.post(

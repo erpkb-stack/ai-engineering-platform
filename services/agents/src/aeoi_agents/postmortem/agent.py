@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from aeoi_agents.common import hhmm
+from aeoi_agents.common import PROSE_MAX, clip, hhmm
 from aeoi_agents.config import PostmortemBudget
 from aeoi_agents.prompts import Prompt, load_prompt
 from aeoi_agents.reasoning import llm as llm_call
@@ -50,7 +50,7 @@ MAX_SENTENCES = 8
 SENTENCE: dict[str, Any] = {
     "type": "object",
     "properties": {
-        "text": {"type": "string", "maxLength": 400},
+        "text": {"type": "string", "maxLength": PROSE_MAX},
         "refs": {"type": "array", "maxItems": 4, "items": REF},
     },
     "required": ["text", "refs"],
@@ -65,7 +65,7 @@ SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "text": {"type": "string", "maxLength": 300},
+                    "text": {"type": "string", "maxLength": PROSE_MAX},
                     "category": {"type": "string",
                                  "enum": ["prevent", "detect", "mitigate", "process"]},
                     "refs": {"type": "array", "maxItems": 4, "items": REF},
@@ -324,7 +324,7 @@ def check(
 
     def keep(raw: dict[str, Any]) -> tuple[str, list[str], list[str]] | None:
         nonlocal dropped, numbers
-        text = " ".join(str(raw.get("text", "")).split())[:400]
+        text = clip(raw.get("text", ""), 400)
         refs = list(dict.fromkeys(r for r in raw.get("refs", []) if r in by_ref))[:4]
         keys = list(dict.fromkeys(e.evidence_id for r in refs for e in by_ref[r].evidence))
         if len(text) < 3 or not refs or not keys or MARKUP.search(text):
@@ -348,7 +348,7 @@ def check(
         k = keep(raw)
         if k and raw.get("category") in ("prevent", "detect", "mitigate", "process") \
                 and len(k[0]) >= 5:  # fmt: skip
-            actions.append(ActionItem(text=k[0][:300], category=raw["category"], refs=k[1],
+            actions.append(ActionItem(text=clip(k[0], 300), category=raw["category"], refs=k[1],
                                       evidence_keys=k[2]))  # fmt: skip
     written = any(s.sentences for s in sections) or bool(actions)
     return draft.model_copy(update={

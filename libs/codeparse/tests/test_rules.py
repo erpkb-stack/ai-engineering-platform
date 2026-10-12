@@ -126,3 +126,54 @@ def test_a_changed_limit_is_reported_with_both_values() -> None:
     assert [(f.rule, f.symbol, f.detail) for f in found] == [
         ("limit_changed", "TIMEOUT_MS", "TIMEOUT_MS changed from 200 to 900")
     ]
+
+
+# ------------------------------------------------------------------ Phase 15: flag guard
+def guards(lang: cp.Lang, before: str, after: str) -> list[str | None]:
+    return [f.guard for f in cp.analyze_diff(lang, "x", after, diff(before, after))
+            if f.rule in ("query_in_loop", "remote_call_in_loop")]  # fmt: skip
+
+
+def test_a_loop_query_behind_a_feature_flag_names_the_flag() -> None:
+    after = JAVA_BEFORE.replace(
+        "t += item.price();",
+        'if (featureFlags.isEnabled("per_item_lookup")) {\n'
+        "                t += orderRepository.count(item.sku());\n            }",
+    )
+    assert guards("java", JAVA_BEFORE, after) == ['featureFlags.isEnabled("per_item_lookup")']
+
+
+def test_an_unguarded_query_and_one_in_the_else_branch_have_no_guard() -> None:
+    plain = JAVA_BEFORE.replace("t += item.price();", "t += orderRepository.count(item.sku());")
+    assert guards("java", JAVA_BEFORE, plain) == [None]
+    in_else = JAVA_BEFORE.replace(
+        "t += item.price();",
+        'if (featureFlags.isEnabled("x")) {\n                t += 1;\n            } else {\n'
+        "                t += orderRepository.count(item.sku());\n            }",
+    )
+    assert guards("java", JAVA_BEFORE, in_else) == [None]  # runs when the flag is OFF
+    not_a_flag = JAVA_BEFORE.replace(
+        "t += item.price();",
+        "if (item.price() > 0) {\n                t += orderRepository.count(item.sku());\n            }",
+    )
+    assert guards("java", JAVA_BEFORE, not_a_flag) == [None]
+
+
+def test_python_and_go_guards() -> None:
+    py_b = "def f(items, client, flags):\n    out = []\n    for i in items:\n        out.append(i)\n    return out\n"
+    py_a = py_b.replace(
+        "        out.append(i)",
+        "        if flags.is_enabled('remote_lookup'):\n            out.append(client.get(i))",
+    )
+    assert guards("python", py_b, py_a) == ["flags.is_enabled('remote_lookup')"]
+    go_b = "package p\n\nfunc F(ids []string) int {\n\tn := 0\n\tfor _, id := range ids {\n\t\tn += len(id)\n\t}\n\treturn n\n}\n"
+    go_a = go_b.replace(
+        "\t\tn += len(id)", '\t\tif features.Enabled("count") {\n\t\t\tn += db.Count(id)\n\t\t}'
+    )
+    assert guards("go", go_b, go_a) == ['features.Enabled("count")']
+
+
+def test_flag_variants() -> None:
+    assert cp.flag_variants("feature_flags.order_batching") == {
+        "order_batching", "orderBatching", "OrderBatching", "ORDER_BATCHING", "order-batching"
+    }  # fmt: skip

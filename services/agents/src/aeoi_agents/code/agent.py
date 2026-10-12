@@ -83,6 +83,48 @@ def hunk_excerpt(patch: str, line: int, removed: str | None = None) -> str:
     return "\n".join(hunks[0])[:EXCERPT] if hunks else ""
 
 
+@dataclass
+class FileHit:
+    path: str
+    hit: cp.Finding
+    excerpt: str
+    symbol: str  # Type.field for a removed field, receiver.method for a call
+    content_after: str
+
+
+def scan_commit(item: dict[str, Any]) -> tuple[list[FileHit], list[str], int]:
+    """The diff rules over one commit of a compare_commits result (shared by the code agent and
+    the release-risk agent - one place decides what a finding is). Returns (hits, files that
+    could NOT be checked with the reason, number of files checked). Non-source files are
+    neither checked nor skipped."""
+    hits: list[FileHit] = []
+    skipped: list[str] = []
+    checked = 0
+    if item.get("more_files"):
+        skipped.append(f"commit {item['sha'][:7]} changed more than "
+                       f"{len(item.get('files', []))} files: the rest not returned")  # fmt: skip
+    for f in item.get("files", []):
+        lang = cp.language_of(f["path"])
+        if lang is None:
+            continue  # not source code (config, docs): nothing to parse
+        if f.get("truncated"):
+            skipped.append(f"{f['path']} at {item['sha'][:7]} too long to check")
+            continue
+        try:
+            found = cp.analyze_diff(lang, f["path"], f["content_after"], f["patch"])
+        except cp.PatchMismatchError:
+            skipped.append(f"{f['path']} at {item['sha'][:7]}: diff does not fit the file")
+            continue
+        checked += 1
+        for hit in found:
+            removed = hit.symbol if hit.rule == "field_removed" else None
+            symbol = (f"{hit.container}.{hit.symbol}"
+                      if hit.rule == "field_removed" and hit.container else hit.symbol)  # fmt: skip
+            hits.append(FileHit(f["path"], hit, hunk_excerpt(f["patch"], hit.line, removed),
+                                symbol, f["content_after"]))  # fmt: skip
+    return hits, skipped, checked
+
+
 def _commit_evidence(item: dict[str, Any], excerpt: str, tool_call_id: Any) -> EvidenceItem:
     body = (
         f"commit {item['sha'][:12]} by {item['author']} ({item['repository']}"
@@ -165,42 +207,26 @@ class CodeAgent:
                                f"only the newest {b.max_commits} checked")  # fmt: skip
             for item in res.data.get("items", []):
                 stats.commits_checked += 1
-                for f in item.get("files", []):
-                    lang = cp.language_of(f["path"])
-                    if lang is None:
-                        continue  # not source code (config, docs): nothing to parse
-                    if f.get("truncated"):
-                        stats.files_skipped += 1
-                        partial.append(f"{f['path']} at {item['sha'][:7]} too long to check")
-                        continue
-                    try:
-                        hits = cp.analyze_diff(lang, f["path"], f["content_after"], f["patch"])
-                    except cp.PatchMismatchError:
-                        stats.files_skipped += 1
-                        partial.append(
-                            f"{f['path']} at {item['sha'][:7]}: diff does not fit the file"
-                        )
-                        continue
-                    stats.files_checked += 1
-                    for hit in hits:
-                        removed = hit.symbol if hit.rule == "field_removed" else None
-                        excerpt = hunk_excerpt(f["patch"], hit.line, removed)
-                        ev = _commit_evidence(item, excerpt, res.tool_call_id)
-                        evidence.setdefault(ev.evidence_key, ev)
-                        symbol = (f"{hit.container}.{hit.symbol}"
-                                  if hit.rule == "field_removed" and hit.container else hit.symbol)  # fmt: skip
-                        findings.append(CodeFinding(
-                            rule=hit.rule,  # type: ignore[arg-type]
-                            deploy_key=dep.deploy_key, deploy_started_at=dep.started_at,
-                            service_key=dep.service_key, commit_sha=item["sha"],
-                            committed_at=_dt(item["committed_at"]),
-                            pull_request=item.get("pull_request"), path=f["path"], line=hit.line,
-                            symbol=symbol[:200],
-                            statement=(f"{dep.deploy_key} shipped commit {item['sha'][:7]}"
-                                       + (f" (PR #{item['pull_request']})" if item.get("pull_request") else "")
-                                       + f": {hit.detail}")[:500],
-                            evidence_id=ev.evidence_key,
-                        ))  # fmt: skip
+                hits, skipped, checked = scan_commit(item)
+                stats.files_checked += checked
+                stats.files_skipped += len(skipped)
+                partial.extend(skipped)
+                for fh in hits:
+                    hit = fh.hit
+                    ev = _commit_evidence(item, fh.excerpt, res.tool_call_id)
+                    evidence.setdefault(ev.evidence_key, ev)
+                    findings.append(CodeFinding(
+                        rule=hit.rule,  # type: ignore[arg-type]
+                        deploy_key=dep.deploy_key, deploy_started_at=dep.started_at,
+                        service_key=dep.service_key, commit_sha=item["sha"],
+                        committed_at=_dt(item["committed_at"]),
+                        pull_request=item.get("pull_request"), path=fh.path, line=hit.line,
+                        symbol=fh.symbol[:200],
+                        statement=(f"{dep.deploy_key} shipped commit {item['sha'][:7]}"
+                                   + (f" (PR #{item['pull_request']})" if item.get("pull_request") else "")
+                                   + f": {hit.detail}")[:500],
+                        evidence_id=ev.evidence_key,
+                    ))  # fmt: skip
         findings = findings[:30]
         for i, fnd in enumerate(findings):
             if fnd.rule != "field_removed":

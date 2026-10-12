@@ -6,7 +6,8 @@ version: 1
 # Which SERVICE (token subject "service:<name>") may act as which agents. A service not listed
 # here cannot call tools at all; a listed service cannot claim an agent it is not trusted for.
 trusted_services:
-  agents: [triage, log_analysis, metrics, code_intelligence, deployment, knowledge, historical_incident]
+  agents: [triage, log_analysis, metrics, code_intelligence, deployment, knowledge, historical_incident,
+           release_risk]
   orchestrator: [triage]
   copilot: [copilot]
   action_executor: [action_executor]
@@ -26,6 +27,10 @@ agents:
     # least privilege (review): only the two tools the agent calls; get_commit/PR/search stay
     # with the copilot (architecture.md §10 #5 listed them before compare_commits existed)
     tools: [compare_commits, find_references]
+  release_risk:
+    description: Advisory release risk for a PR or a deploy (code only; never blocks a deploy)
+    tools: [get_pull_request, get_commit, get_deployment, compare_commits, find_references,
+            query_service_catalog]
   deployment:
     description: Deploy and config events in the window
     tools: [get_deployment, get_config_diff]

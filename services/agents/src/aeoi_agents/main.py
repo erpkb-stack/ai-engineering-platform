@@ -22,6 +22,7 @@ from aeoi_agents.config import (
     MetricsBudget,
     PostmortemBudget,
     ReasoningBudget,
+    ReleaseBudget,
     Settings,
 )
 from aeoi_agents.deployment.agent import DeploymentAgent
@@ -39,6 +40,8 @@ from aeoi_agents.reasoning.critic import CriticAgent
 from aeoi_agents.reasoning.critic import Deps as CriticDeps
 from aeoi_agents.reasoning.hypothesis import Deps as HypothesisDeps
 from aeoi_agents.reasoning.hypothesis import HypothesisAgent
+from aeoi_agents.release.agent import Deps as ReleaseDeps
+from aeoi_agents.release.agent import ReleaseRiskAgent
 from aeoi_llm_client import HttpLLMClient, LLMClient
 from aeoi_tool_client import HttpToolClient, ToolClient
 from aeoi_web import Authenticator, create_app
@@ -133,4 +136,7 @@ def build_app(
     )
     # Phase 14 (ADR-024): code only - a tool client, NO llm client
     app.state.code_agent = CodeAgent(CodeDeps(tools=tool_client, budget=CodeBudget()))
+    app.state.release_agent = ReleaseRiskAgent(
+        ReleaseDeps(tools=tool_client, budget=ReleaseBudget())
+    )
     return app

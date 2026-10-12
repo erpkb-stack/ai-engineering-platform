@@ -8,6 +8,7 @@ python -m aeoi_orchestrator status INC-10001
 python -m aeoi_orchestrator cancel <investigation_id> --reason "..."
 python -m aeoi_orchestrator resume <investigation_id>
 python -m aeoi_orchestrator repost-evidence <investigation_id>   # direct DB + service token
+python -m aeoi_orchestrator release-risk --deploy DEPLOY-4821 | --pr northwind/checkout#812 | --range svc:BASE..HEAD
 """
 
 from __future__ import annotations
@@ -556,6 +557,52 @@ async def repost(args: argparse.Namespace) -> int:
     return 0
 
 
+def release_risk(args: argparse.Namespace, token: str) -> int:
+    """Phase 15 (ADR-025): print one advisory report. Exit 0 whatever the band: it never gates."""
+    if sum(map(bool, (args.deploy, args.pr, args.range))) != 1:
+        raise CliError(
+            "give exactly one of --deploy DEPLOY-n, --pr owner/repo#n, --range svc:BASE..HEAD"
+        )
+    if args.range:
+        svc, _, shas = args.range.partition(":")
+        base, _, head = shas.partition("..")
+        if not (svc and base and head):
+            raise CliError("--range looks like checkout-api:<40-hex base>..<40-hex head>")
+        body: dict[str, Any] = {"service_key": svc, "base_sha": base, "head_sha": head}
+    elif args.pr:
+        repo, _, num = args.pr.partition("#")
+        if not num.isdigit():
+            raise CliError("--pr looks like northwind/checkout#812")
+        body = {"repository": repo, "pull_request": int(num)}
+    else:
+        body = {"deploy_key": args.deploy}
+    with _client(token) as c:
+        out = _check(c.post("/v1/release-risk", json=body), 200, 201)
+    if args.json:
+        print(json.dumps(out, indent=1))
+        return 0
+    rep = out.get("report") or {}
+    target = rep.get("deploy_key") or (
+        f"{rep.get('service_key')} {str(rep.get('base_sha'))[:7]}..{str(rep.get('head_sha'))[:7]}"
+        if rep.get("target_kind") == "range"
+        else f"{rep.get('repository')}#{rep.get('pull_request')}"
+    )
+    print(f"release risk {target} ({rep.get('service_key') or '?'}): band {out['band'] or '-'} "
+          f"· status {out['status']} · advisory only - this never blocks a deploy")  # fmt: skip
+    if rep.get("coverage") == "partial":
+        print(f"  coverage PARTIAL: risk found in what was checked = {rep.get('findings_band')}; "
+              "the band is raised because part could not be checked")  # fmt: skip
+    if out.get("error"):
+        print(f"  ! {out['error']}")
+    for f in rep.get("factors", []):
+        print(f"  [{f['severity']:>7}] {f['kind']}: {f['statement']}")
+    print("  way back:")
+    for step in rep.get("rollback", []):
+        print(f"    - ({step['kind']}) {step['statement']}")
+    print(f"  assessment {out['id']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
         prog="aeoi_orchestrator",
@@ -588,6 +635,11 @@ def main(argv: list[str] | None = None) -> int:
         else:
             sp.add_argument("--routes", default="local,fast")
             sp.add_argument("--allow-same-model", action="store_true")
+    rr = sub.add_parser("release-risk", help="advisory release risk (Phase 15)")
+    rr.add_argument("--deploy", help="DEPLOY-4821")
+    rr.add_argument("--pr", help="northwind/checkout#812")
+    rr.add_argument("--range", help="checkout-api:<base sha>..<head sha> (a release candidate)")
+    rr.add_argument("--json", action="store_true")
     args = p.parse_args(argv)
     configure_logging("orchestrator", level="WARNING", json_output=False)
     if args.cmd == "repost-evidence":
@@ -607,6 +659,8 @@ def main(argv: list[str] | None = None) -> int:
             return compare(args, token)
         if args.cmd == "status":
             return status(args, token)
+        if args.cmd == "release-risk":
+            return release_risk(args, token)
         return control(args, token)
     except CliError as exc:
         print(f"✘ {exc}", file=sys.stderr)

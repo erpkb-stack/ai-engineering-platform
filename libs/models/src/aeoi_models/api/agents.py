@@ -19,6 +19,7 @@ from aeoi_models.api.code import CodeFinding, CodeStats
 from aeoi_models.api.history import HistoryPrior, HistoryStats, SimilarIncident
 from aeoi_models.api.hypotheses import Critique, HypothesisOut, Observation, RuledOut
 from aeoi_models.api.postmortem import PostmortemDraft
+from aeoi_models.api.release import ReleaseRiskReport
 from aeoi_models.findings import EvidenceId, Fact
 
 ServiceKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9-]{1,99}$")]
@@ -273,6 +274,7 @@ class AgentRunResult(BaseModel):
     # Phase 14 (ADR-024): diff rules over the commits a deploy shipped (code only)
     code_findings: list[CodeFinding] = Field(default_factory=list, max_length=30)
     code: CodeStats | None = None
+    release: ReleaseRiskReport | None = None  # Phase 15 (ADR-025), advisory
     evidence: list[EvidenceItem] = Field(default_factory=list)
     label_quality: LabelQuality = Field(default_factory=LabelQuality)
     trace: AgentTrace

@@ -135,6 +135,18 @@ class CodeBudget(BaseServiceSettings):
     task_deadline_s: float = 60.0
 
 
+class ReleaseBudget(BaseServiceSettings):
+    """Release risk agent (ADR-025): code only, synchronous (the api waits): small deadline."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="AEOI_AGENTS_RELEASE_", extra="ignore", frozen=True
+    )
+
+    max_commits: int = 10
+    max_refs: int = 50
+    task_deadline_s: float = 10.0
+
+
 class Settings(BaseServiceSettings):
     model_config = SettingsConfigDict(env_prefix="AEOI_AGENTS_", extra="ignore", frozen=True)
 

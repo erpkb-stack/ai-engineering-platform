@@ -24,6 +24,7 @@
 | [ADR-022](ADR-022-timeline-and-postmortem.md) | Timeline by code in incident_events; postmortem narrative by Sonnet (checked: refs, numbers, markup); assembled at read time, redacted per reader | Proposed |
 | [ADR-023](ADR-023-historical-incident-intelligence.md) | Hybrid past-incident search (ACL in both branches); only incidents shared with all engineers stored, as pointers; Haiku claims checked by code; history prior = tie-break inside a band only | Proposed |
 | [ADR-024](ADR-024-code-intelligence.md) | Code only: tree-sitter rules over the deploy's diff (pre-image rebuilt), file-ACL code index for change impact; a loop query is ONE more source for its own deploy, only with a symptom on that service; plan holds counts only | Proposed |
+| [ADR-025](ADR-025-release-risk.md) | Advisory release risk (PR / range / deploy), code only: rubric band over cited factors, findings vs coverage reported apart, way back says when a flag flip would NOT undo the code; stored per request, never a gate | Proposed |
 | [ADR-020](ADR-020-multi-agent-code-first-specialists.md) | Multi-agent: code-only metrics/deployment/knowledge agents, PARTIAL outcome, rag on-behalf-of, evidence visibility by kind | Proposed |
 
 Rules: Accepted ADRs are immutable (enforced by `.claude/hooks/protect-files.sh`). Use the `/adr` skill to supersede.

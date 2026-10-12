@@ -21,6 +21,7 @@ from aeoi_orchestrator.config import Settings
 from aeoi_orchestrator.delegation import DelegationClient
 from aeoi_orchestrator.engine import Engine
 from aeoi_orchestrator.graph import Deps, build_graph
+from aeoi_orchestrator.release import router as release_router
 from aeoi_orchestrator.store import Store
 from aeoi_web import Authenticator, create_app
 
@@ -103,7 +104,7 @@ def build_app(
     app = create_app(
         service_name=settings.service_name,
         version=__version__,
-        routers=[router],
+        routers=[router, release_router],
         authenticator=Authenticator(
             settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
         ),
@@ -119,4 +120,8 @@ def build_app(
     app.state.incidents = incidents
     app.state.delegation = delegation
     app.state.db_engine = engine
+    # Phase 15: synchronous advisory runs - the api waits, so a short timeout of its own
+    app.state.release_agents = AgentsClient(
+        http, settings.agents_url, token, settings.release_timeout_s
+    )
     return app
