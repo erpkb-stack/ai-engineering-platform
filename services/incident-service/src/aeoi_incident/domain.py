@@ -15,10 +15,10 @@ from aeoi_models.api.incidents import IncidentStatus as S
 # Allowed status transitions. Anything else is a 409 - e.g. you cannot jump from CLOSED
 # back to INVESTIGATING (open a new incident instead), or skip from OPEN to CLOSED.
 TRANSITIONS: dict[S, frozenset[S]] = {
-    S.OPEN: frozenset({S.INVESTIGATING, S.MITIGATED, S.RESOLVED}),
+    S.OPEN: frozenset({S.INVESTIGATING, S.AWAITING_REVIEW, S.MITIGATED, S.RESOLVED}),
     S.INVESTIGATING: frozenset({S.AWAITING_REVIEW, S.MITIGATED, S.RESOLVED}),
     S.AWAITING_REVIEW: frozenset({S.INVESTIGATING, S.MITIGATED, S.RESOLVED}),
-    S.MITIGATED: frozenset({S.INVESTIGATING, S.RESOLVED}),
+    S.MITIGATED: frozenset({S.INVESTIGATING, S.AWAITING_REVIEW, S.RESOLVED}),
     S.RESOLVED: frozenset({S.INVESTIGATING, S.CLOSED}),  # reopen allowed until closed
     S.CLOSED: frozenset(),
 }

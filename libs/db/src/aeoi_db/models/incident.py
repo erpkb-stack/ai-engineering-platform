@@ -58,7 +58,9 @@ EVIDENCE_KINDS = (
 CONFIDENCE = ("LOW", "MEDIUM", "HIGH")
 HYPOTHESIS_STATUSES = ("PROPOSED", "CHALLENGED", "VALIDATED", "REJECTED", "CONFIRMED")
 STANCES = ("SUPPORTS", "CONTRADICTS")
-DECISIONS = ("APPROVED", "REJECTED", "MORE_INFO")
+DECISIONS = ("APPROVED", "REJECTED", "MORE_INFO", "EXPIRED")  # EXPIRED: by the system (0024)
+APPROVAL_SOURCES = ("investigation", "manual")
+OUTCOMES = ("EXECUTED", "FAILED")
 EVENT_SOURCES = ("DEPLOY", "CONFIG", "ALERT", "LOG", "METRIC", "TRACE", "HUMAN", "AGENT", "SYSTEM")
 
 incident_number_seq = Sequence("incident_number_seq", schema=SCHEMA, start=10000)
@@ -292,10 +294,20 @@ class Approval(Base):
         ),
         CheckConstraint("args_sha256 ~ '^[0-9a-f]{64}$'", name="args_sha256_hex"),
         CheckConstraint("expires_at > requested_at", name="expires_after_request"),
+        # a human decision names its human; EXPIRED is the system's (no decided_by)
         CheckConstraint(
-            "(decision IS NULL) = (decided_at IS NULL) AND (decision IS NULL) = (decided_by IS NULL)",
+            "(decision IS NULL) = (decided_at IS NULL) AND "
+            "(decision IS NULL OR decision = 'EXPIRED') = (decided_by IS NULL)",
             name="decision_fields_together",
         ),
+        # separation of duties (ADR-026), in the DB too: nobody decides their own request
+        CheckConstraint(
+            "decided_by IS NULL OR requested_by <> 'user:' || decided_by::text",
+            name="approver_is_not_requester",
+        ),
+        CheckConstraint(in_list("source", APPROVAL_SOURCES), name="source_valid"),
+        CheckConstraint(f"outcome IS NULL OR {in_list('outcome', OUTCOMES)}", name="outcome_valid"),
+        CheckConstraint("outcome IS NULL OR consumed_at IS NOT NULL", name="outcome_after_consume"),
         CheckConstraint(
             "decision IS NULL OR length(btrim(reason)) >= 3", name="decision_needs_reason"
         ),
@@ -332,6 +344,15 @@ class Approval(Base):
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reason: Mapped[str | None] = mapped_column(Text)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 16 (0024, ADR-026)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, server_default="manual")
+    investigation_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    outcome: Mapped[str | None] = mapped_column(String(12))
+    outcome_detail: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
+    tool_call_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Feedback(Base):

@@ -1,7 +1,8 @@
 """The investigation graph (ADR-019, ADR-020, ADR-021, ADR-022).
 
     START -> plan --(Send per task)--> run_agent --> collect_evidence
-          -> history -> code -> hypothesize -> critique -> validate -> report -> finalize -> END
+          -> history -> code -> hypothesize -> critique -> validate -> report -> propose
+          -> finalize -> END
 
 Phase 11: hypothesize (code candidates, LLM ranks) and critique (LLM attacks, code merges) are
 agent tasks like the evidence agents (recorded, reused on resume); validate is plain code.
@@ -22,6 +23,8 @@ again, so every node is idempotent (see store.py):
 - validate:         the hypotheses POST is idempotent per (investigation, key)
 - report:           postmortem task: same reuse guard; timeline POST idempotent per point,
                     postmortem POST idempotent per (incident, investigation)
+- propose:          code rule (proposal.py); the proposals POST is idempotent per
+                    (investigation, exact args), whatever the request's status (Phase 16)
 - finalize:         only moves a RUNNING investigation
 
 Outcome (ADR-020): every task SUCCEEDED -> COMPLETE; some failed -> PARTIAL (the evidence that
@@ -47,6 +50,7 @@ from aeoi_models.api.code import CodeStats
 from aeoi_models.api.hypotheses import HypothesisOut, ValidationReport, observations_fingerprint
 from aeoi_models.api.postmortem import PostmortemIn, RootCauseState, TimelineBatch
 from aeoi_models.api.reasoning import ReasoningTask
+from aeoi_orchestrator import proposal as proposals
 from aeoi_orchestrator import validation
 from aeoi_orchestrator.clients import AgentsClient, CallError, IncidentClient
 from aeoi_orchestrator.config import Settings
@@ -80,6 +84,8 @@ class InvestigationState(TypedDict, total=False):
     history: dict[str, Any]  # historical_incident task summary + what was stored
     code_enabled: bool  # Phase 14; absent in older checkpoints -> config
     code: dict[str, Any]  # code_intelligence task summary + what was stored
+    actions_enabled: bool  # Phase 16; absent in older checkpoints -> config
+    proposal: dict[str, Any]  # Phase 16: the proposed action (or why none), never code text
     outcome: dict[str, Any]
 
 
@@ -230,6 +236,17 @@ def code_outcome(status: str, error: str | None, c: dict[str, Any]) -> tuple[str
         status = "PARTIAL"
     joined = "; ".join(p for p in [error, *problems] if p)
     return status, joined or None
+
+
+def proposal_outcome(status: str, error: str | None, p: dict[str, Any]) -> tuple[str, str | None]:
+    """Phase 16 (ADR-026): the rule held but the request was NOT recorded -> PARTIAL, named
+    (an IC would never see it). The rule not holding, or a starter who may not request
+    actions, is an answer, not a problem."""
+    if not p or not p.get("post_error") or status == "FAILED":
+        return status, error
+    if SEVERITY["PARTIAL"] > SEVERITY.get(status, 0):
+        status = "PARTIAL"
+    return status, "; ".join(x for x in [error, f"proposal: {p['post_error']}"] if x)
 
 
 def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
@@ -583,6 +600,40 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         await deps.store.note(UUID(inv), postmortem={k: v for k, v in out.items() if k != "task"})
         return {"report": out}
 
+    async def propose(state: InvestigationState) -> dict[str, Any]:
+        """Phase 16 (ADR-026): CODE decides whether to propose (proposal.py); a human decides
+        whether it runs. Recorded FOR the user who started the investigation (delegated
+        token): that user is the requester, so another incident commander must approve."""
+        if not state.get("actions_enabled", s.actions) or not enabled(state):
+            return {"proposal": {"skipped": True}}
+        inv = state["investigation_id"]
+        hyp, _crit, kept, _ = await validated(state)
+        if hyp is None:
+            return {"proposal": {"proposed": False, "why": "no validated hypotheses"}}
+        if (state.get("reasoning") or {}).get("validation", {}).get("post_error"):
+            # the IC could not see the hypothesis the request rests on
+            return {"proposal": {"proposed": False, "why": "hypotheses were not stored"}}
+        results = await reasoning_results(state)
+        req, why = proposals.propose(UUID(inv), kept, hyp.observations,
+                                     results.get("deployment"),
+                                     results.get("code_intelligence"))  # fmt: skip
+        out: dict[str, Any] = {"proposed": False, "why": why}
+        if req is not None:
+            out["deploy_key"] = req.args.deploy_key
+            try:
+                token = await deps.delegation.token(UUID(state["grant_id"]))
+                a = await deps.incidents.propose_action(state["incident"]["id"], req, token)
+                out.update({"proposed": True, "approval_id": str(a.id), "status": a.status})
+            except DelegationError as exc:
+                out["post_error"] = f"delegation refused: {exc}"
+            except CallError as exc:
+                if exc.status == 403:  # the starter may not request actions: an answer
+                    out["why"] = "not proposed: the user who started it cannot request actions"
+                else:
+                    out["post_error"] = f"not recorded: {exc}"[:300]
+        await deps.store.note(UUID(inv), proposal=out)
+        return {"proposal": out}
+
     async def plan(state: InvestigationState) -> dict[str, Any]:
         inv = state["investigation_id"]
         incident = state["incident"]
@@ -677,6 +728,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         status, error = history_outcome(status, error, state.get("history") or {})
         status, error = code_outcome(status, error, state.get("code") or {})
         status, error = report_outcome(status, error, state.get("report") or {})
+        status, error = proposal_outcome(status, error, state.get("proposal") or {})
         # revoke BEFORE finish (review finding): a crash between them must not leave a live
         # grant behind a finished row. A crash after revoke re-runs finalize; revoke is
         # idempotent and nothing after report (the last agent call) needs a token.
@@ -695,6 +747,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_node("critique", critique)
     g.add_node("validate", validate)
     g.add_node("report", report)
+    g.add_node("propose", propose)
     g.add_node("finalize", finalize)
     g.add_edge(START, "plan")
     g.add_conditional_edges("plan", fan_out, ["run_agent"])
@@ -705,6 +758,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
     g.add_edge("hypothesize", "critique")
     g.add_edge("critique", "validate")
     g.add_edge("validate", "report")
-    g.add_edge("report", "finalize")
+    g.add_edge("report", "propose")
+    g.add_edge("propose", "finalize")
     g.add_edge("finalize", END)
     return g

@@ -164,3 +164,8 @@ class Settings(BaseServiceSettings):
     llm_gateway_url: str = "http://localhost:8005"
     # ONE service identity for this worker: scopes tools:invoke + llm:invoke (make agents-tokens)
     service_token_file: Path = Field(default_factory=lambda: _secret("agents_service_token.txt"))
+    # Phase 16 (ADR-026): a SECOND identity, only for the action_executor (scope tools:invoke,
+    # subject service:action_executor). agents.yaml never lets service:agents claim it.
+    action_executor_token_file: Path = Field(
+        default_factory=lambda: _secret("action_executor_token.txt")
+    )

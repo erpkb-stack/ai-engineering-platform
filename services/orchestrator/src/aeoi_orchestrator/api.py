@@ -178,6 +178,7 @@ async def start_investigation(
         "postmortem_enabled": settings.postmortem,
         "history_enabled": settings.history,
         "code_enabled": settings.code,
+        "actions_enabled": settings.actions,
         "results": [],
     }
     try:

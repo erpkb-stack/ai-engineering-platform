@@ -15,6 +15,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from aeoi_orchestrator import __version__
+from aeoi_orchestrator.actions import router as actions_router
 from aeoi_orchestrator.api import router
 from aeoi_orchestrator.clients import AgentsClient, IncidentClient
 from aeoi_orchestrator.config import Settings
@@ -104,7 +105,7 @@ def build_app(
     app = create_app(
         service_name=settings.service_name,
         version=__version__,
-        routers=[router, release_router],
+        routers=[router, release_router, actions_router],
         authenticator=Authenticator(
             settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
         ),
@@ -123,5 +124,9 @@ def build_app(
     # Phase 15: synchronous advisory runs - the api waits, so a short timeout of its own
     app.state.release_agents = AgentsClient(
         http, settings.agents_url, token, settings.release_timeout_s
+    )
+    # Phase 16: one approved action, while the approver's request waits
+    app.state.action_agents = AgentsClient(
+        http, settings.agents_url, token, settings.action_timeout_s
     )
     return app

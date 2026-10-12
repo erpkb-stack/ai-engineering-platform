@@ -31,6 +31,9 @@ class CallContext:
     investigation_id: uuid.UUID | None = None
     task_id: uuid.UUID | None = None
     correlation_id: str | None = None
+    # Phase 16: a CONSEQUENTIAL call names the human approval it executes (the gateway verifies
+    # it at incident-service; the client only carries it)
+    approval_id: uuid.UUID | None = None
 
 
 class ToolCallError(Exception):
@@ -79,7 +82,7 @@ class HttpToolClient:
 
     async def call(self, tool: str, args: dict[str, Any], ctx: CallContext) -> ToolResult:
         body: dict[str, Any] = {"args": args, "agent_name": ctx.agent_name}
-        for key in ("incident_id", "investigation_id", "task_id"):
+        for key in ("incident_id", "investigation_id", "task_id", "approval_id"):
             value = getattr(ctx, key)
             if value is not None:
                 body[key] = str(value)

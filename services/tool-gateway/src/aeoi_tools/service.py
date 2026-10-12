@@ -10,7 +10,11 @@ Every path - allowed, denied, invalid, failed - ends in step 7. If step 7 fails,
 gets 503 and NO data: an unrecorded tool call is worse than a failed one (fail closed).
 
 [P] READ tools execute before they are recorded (a read leaves nothing to undo).
-[Phase 16] CONSEQUENTIAL tools record the intent FIRST (status PENDING), then execute.
+[Phase 16, ADR-026] CONSEQUENTIAL tools, after input validation: the approval is verified AND
+consumed at incident-service (this user = its approver, these exact args, this incident, not
+expired, not used) -> the INTENT is recorded (status PENDING, one per approval) -> execute
+(idempotent per approval) -> the outcome is recorded like any call. A retry of an execution
+that died after its intent resumes it; a second execution of a used approval is refused.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from uuid import UUID
 
 import structlog
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from aeoi_common.ids import uuid7
@@ -37,6 +42,8 @@ from aeoi_common.resilience import (
     with_retries,
 )
 from aeoi_db.models.tools import AuditOutbox, ToolCall
+from aeoi_models.api.approvals import ConsumeIn, args_sha256
+from aeoi_tools.adapters.approvals import ApprovalRefusedError, ApprovalsClient
 from aeoi_tools.contracts import (
     EgressBlockedError,
     SideEffect,
@@ -84,6 +91,40 @@ class _Deps:
     bulkhead: Bulkhead
 
 
+IN_PROGRESS_MARGIN_S = 5.0  # an intent younger than tool timeout + this = still running
+
+
+@dataclass
+class Prior:
+    ok: str | None = None  # tool call id of the successful execution
+    ok_user: UUID | None = None
+    intent_at: datetime | None = None
+    finished_at: list[datetime] = field(default_factory=list)  # ERROR / TIMEOUT attempts
+
+    @classmethod
+    def of(cls, rows: Any) -> Prior:
+        p = cls()
+        for r in rows:
+            if r.status == "OK":
+                p.ok, p.ok_user = str(r.id), r.on_behalf_of
+            elif r.status == "PENDING":
+                p.intent_at = r.created_at
+            else:
+                p.finished_at.append(r.created_at)
+        return p
+
+    def ok_by(self, user_id: UUID) -> str | None:
+        return self.ok if self.ok is not None and self.ok_user == user_id else None
+
+    def running(self, now: datetime, window_s: float) -> bool:
+        """An intent that is recent and has no finished attempt after it."""
+        if self.intent_at is None:
+            return False
+        if any(f >= self.intent_at for f in self.finished_at):
+            return False
+        return (now - self.intent_at).total_seconds() < window_s
+
+
 class ToolService:
     def __init__(
         self,
@@ -96,8 +137,10 @@ class ToolService:
         breaker_threshold: int = 5,
         breaker_cooldown_s: float = 30.0,
         retry: RetryPolicy | None = None,
+        approvals: ApprovalsClient | None = None,
     ) -> None:
         self.registry = registry
+        self._approvals = approvals
         self.policy = policy
         self._limiter = limiter
         self._sessions = sessions
@@ -151,8 +194,85 @@ class ToolService:
             ]
             return await self._finish(out, spec, raw_args, ctx, t0)
 
+        if spec.side_effect is SideEffect.CONSEQUENTIAL:
+            return await self._consequential(call_id, spec, args, raw_args, ctx, t0)
         out = await self._execute(call_id, spec, args, ctx)
         return await self._finish(out, spec, raw_args, ctx, t0)
+
+    async def _consequential(
+        self, call_id: UUID, spec: ToolSpec, args: Any, raw_args: Any, ctx: ToolContext, t0: float
+    ) -> Outcome:
+        """verify + consume -> intent -> execute -> outcome. Every refusal is recorded.
+
+        One approval runs at most once (review H2/H3/M4):
+        - an OK row for it -> `approval_already_executed` (not a failure: the caller records
+          EXECUTED), also when the record refuses a re-use, if THIS user ran it;
+        - a recent intent with no finished attempt after it -> `approval_in_progress` (result
+          unknown, never a failure); a concurrent second intent -> the same;
+        - an older unfinished intent (the process died, or the attempt failed) -> resume.
+        """
+        assert ctx.approval_id is not None  # noqa: S101 - policy
+        assert ctx.incident_id is not None  # noqa: S101 - policy
+
+        async def deny(status: int, reason: str, detail: str) -> Outcome:
+            out = Outcome(call_id, spec.name, "DENIED", status, reason=reason, detail=detail)
+            return await self._finish(out, spec, raw_args, ctx, t0)
+
+        if self._approvals is None:
+            return await deny(503, DenyReason.APPROVAL_UNVERIFIABLE,
+                              "Approvals cannot be verified (incident-service not configured).")  # fmt: skip
+        digest = args_sha256(spec.name, args.model_dump(mode="json"))
+        try:
+            consumed = await self._approvals.consume(
+                ctx.approval_id,
+                ConsumeIn(action=spec.name, args_sha256=digest, incident_id=ctx.incident_id),  # type: ignore[arg-type]
+                ctx.user_token, ctx.correlation_id,
+            )  # fmt: skip
+        except ApprovalRefusedError as exc:
+            ok = (await self._prior(ctx.approval_id)).ok_by(ctx.user.user_id)
+            if exc.status == 409 and ok is not None:  # used, expired - but by this user, done
+                return await deny(409, DenyReason.APPROVAL_EXECUTED,
+                                  f"This approval already executed (tool call {ok}).")  # fmt: skip
+            reason = (DenyReason.APPROVAL_UNVERIFIABLE if exc.status == 503 else
+                      DenyReason.APPROVAL_UNUSABLE if exc.status == 409 else DenyReason.APPROVAL_INVALID)  # fmt: skip
+            return await deny(exc.status if exc.status != 404 else 403, reason,
+                              f"Approval refused: {exc.detail}")  # fmt: skip
+        prior = await self._prior(ctx.approval_id)
+        if prior.ok is not None:  # it already ran: never twice, even when the record said "resume"
+            return await deny(409, DenyReason.APPROVAL_EXECUTED,
+                              f"This approval already executed (tool call {prior.ok}).")  # fmt: skip
+        if prior.intent_at is None:
+            try:
+                await self._record_intent(uuid7(), spec, raw_args, ctx)
+            except AuditWriteError:  # the unique intent index: another attempt got there first
+                return await deny(409, DenyReason.APPROVAL_IN_PROGRESS,
+                                  "Another execution of this approval is in progress.")  # fmt: skip
+        elif not consumed.resumed:  # an intent without a consume cannot exist - refuse
+            return await deny(409, DenyReason.APPROVAL_UNUSABLE,
+                              "Inconsistent approval state; nothing executed.")  # fmt: skip
+        elif prior.running(datetime.now(UTC), spec.timeout_s + IN_PROGRESS_MARGIN_S):
+            return await deny(409, DenyReason.APPROVAL_IN_PROGRESS,
+                              "Another execution of this approval is in progress.")  # fmt: skip
+        out = await self._execute(call_id, spec, args, ctx)
+        return await self._finish(out, spec, raw_args, ctx, t0)
+
+    async def _prior(self, approval_id: UUID) -> Prior:
+        """What was recorded earlier for this approval (intent, finished attempts, success)."""
+        async with self._sessions() as session:
+            rows = (await session.execute(
+                select(ToolCall.status, ToolCall.id, ToolCall.created_at, ToolCall.on_behalf_of)
+                .where(ToolCall.approval_id == approval_id,
+                       ToolCall.status.in_(("PENDING", "OK", "ERROR", "TIMEOUT")))
+            )).all()  # fmt: skip
+        return Prior.of(rows)
+
+    async def _record_intent(
+        self, call_id: UUID, spec: ToolSpec, raw_args: Any, ctx: ToolContext
+    ) -> None:
+        """The recorded INTENT, committed BEFORE the action runs: if the process dies during
+        the action, the record still says who was about to do what, under which approval."""
+        out = Outcome(call_id, spec.name, "PENDING", 202, reason="intent")
+        await self._finish(out, spec, raw_args, ctx, time.perf_counter())
 
     async def record_refusal(
         self,
@@ -326,7 +446,12 @@ class ToolService:
             tool=out.tool,
             incident_id=ctx.incident_id,
             correlation_id=ctx.correlation_id,
-            outcome={"OK": "SUCCESS", "DENIED": "DENIED"}.get(out.status, "FAILURE"),
+            # the audit vocabulary is SUCCESS / DENIED / FAILURE: an intent is its own ACTION
+            # ("tool.intent": the intent was recorded), never a fourth outcome
+            outcome={"OK": "SUCCESS", "DENIED": "DENIED", "PENDING": "SUCCESS"}.get(
+                out.status, "FAILURE"
+            ),
+            action="tool.intent" if out.status == "PENDING" else "tool.call",
             details={
                 "tool_call_id": str(out.call_id),
                 "on_behalf_of": str(ctx.user.user_id),
@@ -398,6 +523,7 @@ def _event(
     correlation_id: str | None,
     outcome: str,
     details: dict[str, Any],
+    action: str = "tool.call",
 ) -> dict[str, Any]:
     """Shape = audit service POST /v1/events item (aeoi_models.api.audit.AuditEventIn)."""
     return {
@@ -405,7 +531,7 @@ def _event(
         "occurred_at": datetime.now(UTC).isoformat(),
         "actor": actor,
         "actor_role": actor_role,
-        "action": "tool.call",
+        "action": action,
         "resource_type": "tool",
         "resource_id": tool,
         "incident_id": str(incident_id) if incident_id else None,

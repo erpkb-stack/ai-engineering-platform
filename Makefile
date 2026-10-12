@@ -26,7 +26,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         rag-token docpack codepack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         embed-history history-eval history-explain code-index \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke release-risk risk-scan risk-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke release-risk risk-scan risk-smoke approvals approve approval-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -166,9 +166,9 @@ db-users: ## Create/refresh least-privilege LOGIN users for services (passwords 
 	uv run python -m aeoi_db.users
 
 # ---------- services (Phase 4) ----------
-token: ## Dev JWT: export TOKEN=$$(make -s token ROLE=SRE) [GROUP=security-team] [WITHOUT=security-team]
+token: ## Dev JWT: export TOKEN=$$(make -s token ROLE=SRE) [GROUP=security-team] [WITHOUT=security-team] [NTH=2]
 	@uv run --quiet python -m aeoi_api.devtoken --role $(ROLE) $(if $(GROUP),--group $(GROUP),) \
-	  $(if $(WITHOUT),--without-group $(WITHOUT),)
+	  $(if $(WITHOUT),--without-group $(WITHOUT),) $(if $(NTH),--nth $(NTH),)
 
 run-incident: ## Run incident-service on :8001 (auto-reload)
 	$(UVICORN) aeoi_incident.main:build_app --port 8001 --reload --reload-dir services/incident-service/src --reload-dir libs
@@ -290,12 +290,14 @@ AUDIT_PORT ?= 8008
 TOOLS_PIDS = { lsof -nP -t -iTCP:$(TOOLS_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 AUDIT_PIDS = { lsof -nP -t -iTCP:$(AUDIT_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 
-tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, -> rag: rag:obo), dev only, 30 days
+tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, -> rag: rag:obo, -> incident: approvals:consume), dev only, 30 days
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope audit:write \
 	  --ttl-minutes 43200 > secrets/tools_audit_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope rag:obo \
 	  --ttl-minutes 43200 > secrets/tools_rag_token.txt
-	@echo "wrote secrets/tools_audit_token.txt (audit:write) and secrets/tools_rag_token.txt (rag:obo), 30 days"
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope approvals:consume \
+	  --ttl-minutes 43200 > secrets/tools_incident_token.txt
+	@echo "wrote secrets/tools_audit_token.txt (audit:write), secrets/tools_rag_token.txt (rag:obo), secrets/tools_incident_token.txt (approvals:consume), 30 days"
 
 stop-tools: ## Stop a running tool-gateway (only if it really is ours)
 	@pids=$$($(TOOLS_PIDS)); \
@@ -335,13 +337,16 @@ INCIDENT ?=
 ROUTE ?=
 ORCH := uv run --quiet python -m aeoi_orchestrator
 
-agents-tokens: ## Mint dev service tokens: agents (tools+llm) and orchestrator (agents:run, evidence:write, hypotheses:write, timeline:write, postmortems:write, delegation:create), 30 days
+agents-tokens: ## Mint dev service tokens: agents (tools+llm), action_executor (tools, Phase 16) and orchestrator (agents:run, evidence:write, hypotheses:write, timeline:write, postmortems:write, delegation:create, actions:propose, actions:record), 30 days
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service agents --scope tools:invoke \
 	  --scope llm:invoke --ttl-minutes 43200 > secrets/agents_service_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service orchestrator --scope agents:run \
 	  --scope evidence:write --scope hypotheses:write --scope timeline:write --scope postmortems:write \
-	  --scope delegation:create --ttl-minutes 43200 > secrets/orchestrator_service_token.txt
-	@echo "wrote secrets/agents_service_token.txt and secrets/orchestrator_service_token.txt"
+	  --scope delegation:create --scope actions:propose --scope actions:record \
+	  --ttl-minutes 43200 > secrets/orchestrator_service_token.txt
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service action_executor --scope tools:invoke \
+	  --ttl-minutes 43200 > secrets/action_executor_token.txt
+	@echo "wrote secrets/agents_service_token.txt, secrets/orchestrator_service_token.txt, secrets/action_executor_token.txt"
 
 stop-agents: ## Stop a running agents service (only if it really is ours)
 	@pids=$$($(AGENTS_PIDS)); \
@@ -411,6 +416,17 @@ risk-scan: ## Phase 15: band distribution of the rubric over EVERY synthetic dep
 
 risk-smoke: ## End-to-end Phase 15 check: release risk for the demo deploy + PR, advisory, MANAGER denied
 	@./scripts/smoke-phase15.sh
+
+approvals: ## Phase 16: the decision record of an incident: make approvals INCIDENT=INC-10001 [ROLE=SRE]
+	@test -n "$(INCIDENT)" || { echo "usage: make approvals INCIDENT=INC-10001"; exit 2; }
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(or $(ROLE),INCIDENT_COMMANDER)) $(ORCH) approvals $(INCIDENT)
+
+approve: ## Phase 16: decide as an IC: make approve ID=<approval id> [DECISION=APPROVED|REJECTED|MORE_INFO] REASON="..." [NTH=2]
+	@test -n "$(ID)" -a -n "$(REASON)" || { echo 'usage: make approve ID=<approval id> REASON="why" [DECISION=REJECTED] [NTH=2]'; exit 2; }
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=INCIDENT_COMMANDER NTH=$(or $(NTH),2)) $(ORCH) decide $(ID) --decision $(or $(DECISION),APPROVED) --reason '$(REASON)'
+
+approval-smoke: ## End-to-end Phase 16 check: proposal -> other IC approves -> rollback -> MITIGATED; refusals
+	@./scripts/smoke-phase16.sh
 
 investigate: ## Phase 10: all agents in parallel on an incident: make investigate INCIDENT=INC-10001 [AGENTS=metrics,deployment] [NOCACHE=1]
 	@test -n "$(INCIDENT)" || { echo "usage: make investigate INCIDENT=INC-10001 [AGENTS=a,b]"; exit 2; }

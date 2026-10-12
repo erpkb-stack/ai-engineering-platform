@@ -23,7 +23,7 @@
 | `incident` | incident-service | `svc_incident` | yes |
 | `orchestrator` | orchestrator | `svc_orchestrator` | yes |
 | `rag` | rag | `svc_rag` | yes |
-| `devdata` | tool-gateway | `svc_tool_gateway` | yes |
+| `devdata` | tool-gateway | `svc_tool_gateway` (+ `svc_cd`: INSERT on `deployments` ONLY - the simulated CD system the rollback writes through, Phase 16) | yes |
 | `tools` | tool-gateway | `svc_tool_gateway` | yes |
 | `llm` | llm-gateway | `svc_llm_gateway` | yes |
 | `audit` | audit | `svc_audit (INSERT+SELECT only)` | **no** (people / audit data) |
@@ -77,7 +77,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 ### `incident`
 | Table | Purpose | Columns |
 |---|---|---|
-| `approvals` | Human decision on a consequential recommendation (Feature 11, ADR-007). | 16 |
+| `approvals` | Human decision on a consequential recommendation (Feature 11, ADR-007). Phase 16 (0024, ADR-026): `source` (manual \| investigation), `investigation_id`, decision EXPIRED (system, no decider), `outcome` EXECUTED/FAILED + `outcome_detail`, `tool_call_id`, `executed_at`; CHECKs: approver is never the requester, outcome only after consume | 22 |
 | `evidence` | A piece of evidence retrieved during an investigation. Findings cite evidence_key. | 14 |
 | `feedback` | Thumbs up/down on findings, reports, answers, retrievals | 8 |
 | `hypotheses` | Ranked explanations with a confidence band and status; Phase 11 (0020) adds investigation_id, hypothesis_key (unique per investigation: idempotent POST) and detail JSONB (cause kind, origin, rubric, critic verdict, model explanation) | 12 |
@@ -123,7 +123,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 ### `tools`
 | Table | Purpose | Columns |
 |---|---|---|
-| `tool_calls` | Every Tool Gateway call, allowed or denied | 16 |
+| `tool_calls` | Every Tool Gateway call, allowed or denied. Phase 16 (0024): status PENDING = the recorded INTENT of a consequential call, committed before it runs | 16 |
 
 ### `llm`
 | Table | Purpose | Columns |
@@ -213,6 +213,8 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `tools.ix_tool_calls_denied` | serves: security dashboard recent tool denials; partial, denials are rare |
 | `tools.ix_tool_calls_incident_id_created_at` | serves: agent trace / evidence view per incident in time order |
 | `tools.ix_tool_calls_tool_name_created_at` | serves: per-tool success/latency dashboards |
+| `tools.uq_tool_calls_approval_intent` | enforces: one recorded intent per approval (a replay cannot start a second execution) |
+| `tools.uq_tool_calls_approval_ok` | enforces: at most one successful execution per approval |
 
 Plus indexes created by PRIMARY KEY / UNIQUE constraints (each `UniqueConstraint` in the models notes the query it also serves).
 

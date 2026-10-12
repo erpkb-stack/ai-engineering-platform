@@ -32,8 +32,8 @@ def test_manual_mode_follows_role_permissions_exactly(role: str, tool: str) -> N
     d = decide(spec, ctx(role), CFG)
     has_perms = spec.permissions <= ROLE_PERMISSIONS[Role(role)]
     if spec.side_effect.value == "CONSEQUENTIAL":
-        assert not d.allowed  # nobody, in Phase 7
-        assert d.reason in (DenyReason.MISSING_PERMISSION, DenyReason.APPROVAL_REQUIRED)
+        assert not d.allowed  # never in manual mode (Phase 16: only the executor identity)
+        assert d.reason in (DenyReason.MISSING_PERMISSION, DenyReason.EXECUTOR_ONLY)
     else:
         assert d.allowed == has_perms, (role, tool, d)
 
@@ -61,14 +61,52 @@ def test_unknown_agent_denied() -> None:
     assert d.reason is DenyReason.UNKNOWN_AGENT
 
 
-def test_consequential_needs_approval_and_is_unverifiable_until_phase16() -> None:
+def test_consequential_policy_lets_only_an_approver_with_an_approval_try() -> None:
+    """Phase 16 (ADR-026): policy is the FIRST gate; the approval itself is verified + consumed
+    at incident-service after input validation (tested in integration)."""
     spec = REG["rollback_deployment"]
-    assert decide(spec, ctx("SRE", agent="action_executor"), CFG).reason is (
+    ic = "INCIDENT_COMMANDER"
+    # an SRE may request, never execute: executing needs actions:approve (the approver acts)
+    sre = decide(spec, ctx("SRE", agent="action_executor", approval=True, incident=True), CFG)
+    assert sre.reason is DenyReason.MISSING_PERMISSION and "actions:approve" in sre.detail
+    assert decide(spec, ctx(ic, agent="action_executor"), CFG).reason is (
         DenyReason.APPROVAL_REQUIRED
     )
-    with_approval = decide(spec, ctx("SRE", agent="action_executor", approval=True), CFG)
-    assert not with_approval.allowed
-    assert with_approval.reason is DenyReason.APPROVAL_UNVERIFIABLE
+    no_inc = decide(spec, ctx(ic, agent="action_executor", approval=True), CFG)
+    assert no_inc.reason is DenyReason.APPROVAL_NEEDS_INCIDENT
+    assert decide(spec, ctx(ic, agent="action_executor", approval=True, incident=True), CFG).allowed
+    # ADMIN: separation of duties - policy, not production actions
+    assert not decide(spec, ctx("ADMIN", approval=True, incident=True), CFG).allowed
+
+
+def test_only_the_executor_identity_runs_a_consequential_tool() -> None:
+    """Review H1: the approving IC calling the tool in MANUAL mode consumed the approval and
+    ran it, and nothing recorded the outcome. Only action_executor, under its own service."""
+    from dataclasses import replace
+
+    spec = REG["rollback_deployment"]
+    ic = "INCIDENT_COMMANDER"
+    manual = decide(spec, ctx(ic, approval=True, incident=True), CFG)
+    assert manual.reason is DenyReason.EXECUTOR_ONLY
+    other = decide(spec, ctx(ic, agent="copilot", approval=True, incident=True), CFG)
+    assert not other.allowed  # not in its allow-list either
+    c = replace(ctx(ic, agent="action_executor", approval=True, incident=True),
+                service="service:agents")  # fmt: skip
+    assert decide(spec, c, CFG).reason is DenyReason.EXECUTOR_ONLY
+
+
+def test_a_delegated_token_never_acts_even_with_an_approval() -> None:
+    """A background investigation may PROPOSE; it can never execute (ADR-019/026)."""
+    from dataclasses import replace
+
+    from aeoi_security.auth import Delegation
+
+    c = ctx("INCIDENT_COMMANDER", agent="action_executor", approval=True, incident=True)
+    deleg = Delegation(grant_id=uuid4(), investigation_id=uuid4(), incident_id=c.incident_id,
+                       actor="service:orchestrator")  # fmt: skip
+    c = replace(c, user=replace(c.user, delegation=deleg))
+    d = decide(REG["rollback_deployment"], c, CFG)
+    assert d.reason is DenyReason.DELEGATED_CANNOT_ACT
 
 
 def test_trusted_services() -> None:

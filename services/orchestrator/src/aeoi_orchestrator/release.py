@@ -179,7 +179,7 @@ async def list_assessments(
     request: Request,
     who: CodeReader,
     service_key: Annotated[str | None, Query(pattern=r"^[a-z0-9-]{2,100}$")] = None,
-    deploy_key: Annotated[str | None, Query(pattern=r"^DEPLOY-[0-9]{1,10}$")] = None,
+    deploy_key: Annotated[str | None, Query(pattern=r"^DEPLOY-[0-9]{1,24}$")] = None,
     limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> list[ReleaseRiskOut]:
     _readable(who)

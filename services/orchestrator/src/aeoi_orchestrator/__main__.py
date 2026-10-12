@@ -496,9 +496,62 @@ def status(args: argparse.Namespace, token: str) -> int:
             print(f"    next step: {', '.join(inv['graph_next'])}")
         if inv.get("error"):
             print(f"    error: {inv['error']}")
+        prop = (inv.get("plan") or {}).get("proposal") or {}
+        if prop.get("proposed"):
+            print(f"    proposed: rollback {prop.get('deploy_key')} -> approval {prop['approval_id']}"
+                  f" ({prop.get('status')})")  # fmt: skip
+        elif prop.get("why") or prop.get("post_error"):
+            print(f"    no action proposed: {prop.get('post_error') or prop['why']}")
         for t in inv["tasks"]:
             if t.get("degraded"):
                 print(f"    degraded ({t['agent']}): {t['degraded']}")
+    return 0
+
+
+def _incident_client(token: str) -> httpx.Client:
+    base = os.environ.get("AEOI_INCIDENT_URL", "http://localhost:8001").rstrip("/")
+    return httpx.Client(base_url=base, headers={"Authorization": f"Bearer {token}"},
+                        timeout=30.0, trust_env=False)  # fmt: skip
+
+
+def approvals(args: argparse.Namespace, token: str) -> int:
+    """Phase 16: the decision record of an incident (read from incident-service)."""
+    with _incident_client(token) as c:
+        rows = _check(c.get(f"/v1/incidents/{args.incident}/approvals"), 200)
+    if not rows:
+        print("no approval requests")
+    for a in rows:
+        print(f"{_utc(a['requested_at'])}  {a['status']:<9} {a['action']} "
+              f"{a['action_args'].get('deploy_key', '')}  ({a['source']}) by {a['requested_by']}"
+              f"  {a['id']}")  # fmt: skip
+        if a.get("decided_by"):
+            print(f"    decided by user:{a['decided_by']} ({a.get('decider_role')}): {a['reason']}")
+        elif a["status"] == "EXPIRED":
+            print(f"    {a['reason']}")
+        else:
+            print(f"    expires {_utc(a['expires_at'])}")
+        if a.get("outcome"):
+            print(f"    outcome {a['outcome']}: {json.dumps(a.get('outcome_detail'))[:300]}")
+        for line in (a.get("recommendation") or {}).get("way_back") or []:
+            print(f"    way back: {line}")
+    return 0
+
+
+def decide(args: argparse.Namespace, token: str) -> int:
+    """Phase 16: decide as the IC; APPROVED runs the action now, as that IC."""
+    with _client(token) as c:
+        out = _check(c.post(f"/v1/approvals/{args.approval_id}/decision",
+                            json={"decision": args.decision, "reason": args.reason}), 200)  # fmt: skip
+    a = out["approval"]
+    print(f"{a['id']}  {a['status']}  {a['action']} {a['action_args'].get('deploy_key', '')}")
+    if out.get("executed"):
+        for item in (out.get("result") or {}).get("items", []):
+            print(f"  ✔ rolled back {item['rolled_back_from']} -> {item['deploy_key']} "
+                  f"(commit {item['rolled_back_to'][:12]}, config restored: "
+                  f"{', '.join(item['config_restored']) or 'none'})")  # fmt: skip
+    if out.get("execution_error"):
+        print(f"  ✘ {out['execution_error']}")
+        return 1
     return 0
 
 
@@ -640,6 +693,12 @@ def main(argv: list[str] | None = None) -> int:
     rr.add_argument("--pr", help="northwind/checkout#812")
     rr.add_argument("--range", help="checkout-api:<base sha>..<head sha> (a release candidate)")
     rr.add_argument("--json", action="store_true")
+    ap = sub.add_parser("approvals", help="decision record of an incident (Phase 16)")
+    ap.add_argument("incident")
+    dp = sub.add_parser("decide", help="decide an approval request as an IC (Phase 16)")
+    dp.add_argument("approval_id")
+    dp.add_argument("--decision", choices=["APPROVED", "REJECTED", "MORE_INFO"], required=True)
+    dp.add_argument("--reason", required=True)
     args = p.parse_args(argv)
     configure_logging("orchestrator", level="WARNING", json_output=False)
     if args.cmd == "repost-evidence":
@@ -661,6 +720,10 @@ def main(argv: list[str] | None = None) -> int:
             return status(args, token)
         if args.cmd == "release-risk":
             return release_risk(args, token)
+        if args.cmd == "approvals":
+            return approvals(args, token)
+        if args.cmd == "decide":
+            return decide(args, token)
         return control(args, token)
     except CliError as exc:
         print(f"✘ {exc}", file=sys.stderr)

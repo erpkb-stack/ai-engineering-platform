@@ -4,6 +4,11 @@
 - AS THE ORCHESTRATOR (service token): run an agent (+ the DELEGATED token on behalf of the
   user), post evidence (`evidence:write`), hypotheses (`hypotheses:write`), timeline points
   (`timeline:write`) and postmortems (`postmortems:write`).
+Phase 16 (ADR-026):
+- propose an action FOR the investigation's user (service token `actions:propose` + the
+  delegated token): incident-service records that user as the requester;
+- decide AS THE APPROVER (their own token, inside their request, never stored);
+- record what an execution did (service token `actions:record`).
 """
 
 from __future__ import annotations
@@ -15,6 +20,7 @@ import httpx
 
 from aeoi_common.correlation import CORRELATION_HEADER, get_correlation_id
 from aeoi_models.api.agents import AgentRunResult, AgentTask, EvidenceBatch, EvidenceItem
+from aeoi_models.api.approvals import ActionRequest, ActionTask, ApprovalOut, DecisionIn, OutcomeIn
 from aeoi_models.api.hypotheses import HypothesisBatch
 from aeoi_models.api.postmortem import PostmortemIn, TimelineBatch
 from aeoi_models.api.reasoning import ReasoningTask
@@ -143,7 +149,7 @@ class IncidentClient:
 
     async def _post_idempotent(self, path: str, body: str) -> dict[str, Any]:
         """For endpoints that are idempotent server-side: one retry on transport/5xx."""
-        last = ""
+        last, status = "", 0
         for _ in range(2):
             try:
                 r = await self._http.post(
@@ -160,10 +166,10 @@ class IncidentClient:
                 continue
             if r.status_code == 200:
                 return r.json()  # type: ignore[no-any-return]
-            last = f"HTTP {r.status_code} {_detail(r)}"
+            last, status = f"HTTP {r.status_code} {_detail(r)}", r.status_code
             if r.status_code < 500:
                 break
-        raise CallError(last)
+        raise CallError(last, status)
 
     async def post_timeline(self, incident_id: str, batch: TimelineBatch) -> int:
         """Phase 12: idempotent per (incident, source|subject|time) (ADR-022)."""
@@ -179,6 +185,70 @@ class IncidentClient:
         )
         return bool(out["inserted"])
 
+    # --- Phase 16 (ADR-026) ------------------------------------------------------------------
+
+    async def propose_action(
+        self, incident_id: str, req: ActionRequest, delegated_token: str
+    ) -> ApprovalOut:
+        """Idempotent per (investigation, args) at incident-service: one retry is safe."""
+        last, status = "", 0
+        for _ in range(2):
+            try:
+                r = await self._http.post(
+                    f"{self._base}/v1/incidents/{incident_id}/actions/proposals",
+                    content=req.model_dump_json(),
+                    headers={
+                        "Authorization": f"Bearer {self._service_token}",
+                        ON_BEHALF_OF_HEADER: f"Bearer {delegated_token}",
+                        CORRELATION_HEADER: _cid(),
+                        "Content-Type": "application/json",
+                    },
+                )
+            except httpx.TransportError as exc:
+                last = type(exc).__name__
+                continue
+            if r.status_code == 200:
+                return ApprovalOut.model_validate(r.json())
+            last, status = f"HTTP {r.status_code} {_detail(r)}", r.status_code
+            if r.status_code < 500:
+                break
+        raise CallError(last, status)
+
+    async def _as_user(
+        self, method: str, path: str, user_token: str, body: str | None = None
+    ) -> dict[str, Any]:
+        """One call AS THE USER. Never retried: a decision is not something to send twice."""
+        headers = {"Authorization": f"Bearer {user_token}", CORRELATION_HEADER: _cid()}
+        if body is not None:
+            headers["Content-Type"] = "application/json"
+        try:
+            r = await self._http.request(method, f"{self._base}{path}", content=body,
+                                         headers=headers)  # fmt: skip
+        except httpx.TransportError as exc:
+            raise CallError(f"incident-service unreachable: {type(exc).__name__}") from exc
+        if r.status_code != 200:
+            raise CallError(_detail(r), r.status_code)
+        return r.json()  # type: ignore[no-any-return]
+
+    async def get_approval(self, approval_id: UUID, user_token: str) -> ApprovalOut:
+        return ApprovalOut.model_validate(
+            await self._as_user("GET", f"/v1/approvals/{approval_id}", user_token)
+        )
+
+    async def decide(self, approval_id: UUID, d: DecisionIn, user_token: str) -> ApprovalOut:
+        """incident-service enforces everything: IC role, not the requester, not decided,
+        not expired (an expired one is recorded EXPIRED and answered 409)."""
+        return ApprovalOut.model_validate(await self._as_user(
+            "POST", f"/v1/approvals/{approval_id}/decision", user_token, d.model_dump_json()
+        ))  # fmt: skip
+
+    async def record_outcome(self, approval_id: UUID, o: OutcomeIn) -> ApprovalOut:
+        """Idempotent for the same outcome + tool call: one retry is safe."""
+        out = await self._post_idempotent(
+            f"/v1/approvals/{approval_id}/outcome", o.model_dump_json()
+        )
+        return ApprovalOut.model_validate(out)
+
 
 class AgentsClient:
     def __init__(
@@ -190,8 +260,16 @@ class AgentsClient:
         self._timeout = timeout_s
 
     async def run(
-        self, agent: str, task: AgentTask | ReasoningTask | ReleaseRiskTask, delegated_token: str
+        self,
+        agent: str,
+        task: AgentTask | ReasoningTask | ReleaseRiskTask | ActionTask,
+        delegated_token: str,
+        *,
+        timeout_s: float | None = None,
     ) -> AgentRunResult:
+        """`delegated_token` = whatever on-behalf-of token the task runs as: the delegated one
+        for an investigation, the caller's OWN token for release risk and actions."""
+        timeout = timeout_s or self._timeout
         try:
             r = await self._http.post(
                 f"{self._base}/v1/agents/{agent}/run",
@@ -202,10 +280,10 @@ class AgentsClient:
                     CORRELATION_HEADER: _cid(),
                     "Content-Type": "application/json",
                 },
-                timeout=self._timeout,
+                timeout=timeout,
             )
         except httpx.TimeoutException as exc:
-            raise CallError(f"agent timed out after {self._timeout:.0f}s") from exc
+            raise CallError(f"agent timed out after {timeout:.0f}s") from exc
         except httpx.TransportError as exc:
             raise CallError(
                 f"agents service unreachable: {type(exc).__name__}", retryable=True

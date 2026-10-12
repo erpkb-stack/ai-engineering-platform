@@ -96,11 +96,12 @@ def incident_db_url(migrated_db: str) -> str:
 
 
 @pytest.fixture
-async def incident_app(incident_db_url: str, tpub: Path) -> AsyncIterator[FastAPI]:
+async def incident_app(incident_db_url: str, tpub: Path, dpub: Path) -> AsyncIterator[FastAPI]:
     app = build_incident(
         IncidentSettings(
             db_url_override=SecretStr(incident_db_url),
             jwt_public_key_file=tpub,
+            delegation_public_key_file=dpub,  # Phase 16: proposals carry the delegated token
             relay_enabled=False,
             environment="test",
             db_pool_size=3,
@@ -141,6 +142,8 @@ async def agents_app(
             jwt_public_key_file=tpub,
             delegation_public_key_file=dpub,
             service_token_file=agents_token_file,
+            # Phase 16: never the developer's real secrets/action_executor_token.txt
+            action_executor_token_file=agents_token_file.parent / "no_executor_token.txt",
             tool_gateway_url="http://tools",
             llm_gateway_url="http://llm",
             environment="test",

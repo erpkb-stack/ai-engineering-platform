@@ -3,6 +3,7 @@
 Status: Proposed
 Date: 2026-10-02
 Supersedes: —
+Refined by: ADR-026 (2026-10-12) - no `interrupt`: the investigation ends with a pending request and the decision runs the action in the approver's own request
 
 ## Context
 AI output is probabilistic; production changes have blast radius; accountability needs a named human.

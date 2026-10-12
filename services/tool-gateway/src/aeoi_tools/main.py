@@ -14,7 +14,9 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from aeoi_common.ratelimit import InMemoryTokenBucket, RateLimiter
 from aeoi_tools import __version__
+from aeoi_tools.adapters.approvals import ApprovalsClient
 from aeoi_tools.adapters.catalog import CatalogAdapter
+from aeoi_tools.adapters.deployer import Deployer
 from aeoi_tools.adapters.devdata import DevDataAdapter
 from aeoi_tools.adapters.http import make_client, origin_of
 from aeoi_tools.adapters.rag import RagAdapter
@@ -34,6 +36,7 @@ def build_app(
     *,
     rag_transport: httpx.AsyncBaseTransport | None = None,
     audit_transport: httpx.AsyncBaseTransport | None = None,
+    incident_transport: httpx.AsyncBaseTransport | None = None,
     limiter: RateLimiter | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
@@ -49,11 +52,24 @@ def build_app(
     if origin_of(settings.rag_url) not in allowed:
         log.warning("rag_url_not_in_egress_allowlist", rag=origin_of(settings.rag_url))
     tool_http = make_client(allowed, timeout_s=settings.http_timeout_s, transport=rag_transport)
+    cd_url = settings.cd_sqlalchemy_url()
+    cd_engine = (create_async_engine(cd_url, pool_size=1, max_overflow=1, pool_pre_ping=True,
+                                     pool_timeout=2) if cd_url else None)  # fmt: skip
+    if cd_engine is None:
+        log.warning("deployer_not_configured", hint="make db-users (cd_svc login)")
     registry = build_registry(
         CatalogAdapter(settings.catalog_file),
         DevDataAdapter(sessions),
         RagAdapter(tool_http, settings.rag_url, FileToken(settings.rag_token_file)),
+        Deployer(
+            sessions, async_sessionmaker(cd_engine, expire_on_commit=False) if cd_engine else None
+        ),
     )
+    # control plane, not tool egress: the approval record lives in incident-service
+    incident_http = httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=1.0),
+                                      transport=incident_transport, trust_env=False)  # fmt: skip
+    approvals = ApprovalsClient(incident_http, settings.incident_service_url,
+                                FileToken(settings.approvals_token_file))  # fmt: skip
     policy = PolicyConfig.load(settings.agents_file, set(registry))
     service = ToolService(
         registry,
@@ -66,6 +82,7 @@ def build_app(
         bulkhead_limits=settings.bulkhead,
         breaker_threshold=settings.breaker_threshold,
         breaker_cooldown_s=settings.breaker_cooldown_s,
+        approvals=approvals,
     )
     audit_http = httpx.AsyncClient(
         base_url=settings.audit_url,
@@ -97,6 +114,9 @@ def build_app(
                     await asyncio.wait_for(task, timeout=5)
             await tool_http.aclose()
             await audit_http.aclose()
+            await incident_http.aclose()
+            if cd_engine is not None:
+                await cd_engine.dispose()
             await engine.dispose()
 
     async def db_ready() -> None:

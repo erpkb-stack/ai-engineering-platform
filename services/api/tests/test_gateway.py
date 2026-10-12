@@ -191,7 +191,10 @@ async def test_openapi_lists_only_real_routes(client: httpx.AsyncClient) -> None
     assert "/api/v1/incidents" in paths
     assert "/api/v1/search" in paths  # Phase 6
     assert "/api/v1/documents/{document_id}" in paths
-    assert "/api/v1/approvals" not in paths  # Phase 16 adds it; no stubs that lie
+    # Phase 16 (ADR-026): the approval routes exist, and only those
+    assert "/api/v1/approvals/{approval_id}/decision" in paths
+    assert "/api/v1/incidents/{ref}/actions" in paths
+    assert "/api/v1/approvals" not in paths  # no "list every approval" route
 
 
 # ------------------------------------------------------------------ Phase 15 (ADR-025)

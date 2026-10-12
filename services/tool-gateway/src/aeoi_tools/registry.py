@@ -1,4 +1,5 @@
-"""The tool registry: 11 READ tools + 1 CONSEQUENTIAL tool (always denied until Phase 16).
+"""The tool registry: READ tools + 1 CONSEQUENTIAL tool (rollback_deployment: executes only
+with a verified, single-use human approval - Phase 16, ADR-026).
 
 Adding a tool = a ToolSpec here + bounded schemas + a security test (`/new-tool` skill).
 Descriptions are written for a model: what it returns, its limits, and when NOT to use it.
@@ -11,6 +12,7 @@ from typing import Any
 from aeoi_security.rbac import Perm
 from aeoi_tools import schemas as s
 from aeoi_tools.adapters.catalog import CatalogAdapter
+from aeoi_tools.adapters.deployer import Deployer
 from aeoi_tools.adapters.devdata import DevDataAdapter
 from aeoi_tools.adapters.rag import RagAdapter
 from aeoi_tools.contracts import SideEffect, ToolContext, ToolExecutionError, ToolSpec
@@ -18,7 +20,12 @@ from aeoi_tools.contracts import SideEffect, ToolContext, ToolExecutionError, To
 Registry = dict[str, ToolSpec]
 
 
-def build_registry(catalog: CatalogAdapter, devdata: DevDataAdapter, rag: RagAdapter) -> Registry:
+def build_registry(
+    catalog: CatalogAdapter,
+    devdata: DevDataAdapter,
+    rag: RagAdapter,
+    deployer: Deployer | None = None,
+) -> Registry:
     async def query_service_catalog(q: s.CatalogIn, _: ToolContext) -> s.CatalogOut:
         return await catalog.query(q)
 
@@ -58,10 +65,12 @@ def build_registry(catalog: CatalogAdapter, devdata: DevDataAdapter, rag: RagAda
     async def search_incidents(q: s.IncidentSearchIn, ctx: ToolContext) -> s.IncidentSearchOut:
         return await rag.search_incidents(q, ctx)
 
-    async def rollback_deployment(q: s.RollbackIn, _: ToolContext) -> s.RollbackOut:
-        # Unreachable in Phase 7: policy denies every CONSEQUENTIAL call (no approval
-        # verification yet). Kept as a real spec so the deny path is tested end to end.
-        raise ToolExecutionError("rollback is not implemented before Phase 16", status=501)
+    async def rollback_deployment(q: s.RollbackIn, ctx: ToolContext) -> s.RollbackOut:
+        # reached ONLY after the approval was verified and consumed and the intent recorded
+        # (service.py _consequential); the simulated CD system (Phase 16, ADR-026)
+        if deployer is None:
+            raise ToolExecutionError("the deployer is not configured (cd_svc login)", status=503)
+        return await deployer.rollback(q, ctx)
 
     specs = [
         ToolSpec(
@@ -307,12 +316,13 @@ def build_registry(catalog: CatalogAdapter, devdata: DevDataAdapter, rag: RagAda
             ),
             input_model=s.RollbackIn,
             output_model=s.RollbackOut,
-            permissions=frozenset({Perm.ACTIONS_REQUEST}),
+            # the approver executes (incident-service checks decided_by == this user)
+            permissions=frozenset({Perm.ACTIONS_REQUEST, Perm.ACTIONS_APPROVE}),
             side_effect=SideEffect.CONSEQUENTIAL,
             handler=rollback_deployment,
             dependency="deployer",
             evidence_kind="DEPLOY",
-            timeout_s=30.0,
+            timeout_s=8.0,  # < the executor's client (10 s) < orchestrator (12 s) < api (15 s)
             max_attempts=1,
             idempotent=False,
             audit_fields=("deploy_key", "reason"),

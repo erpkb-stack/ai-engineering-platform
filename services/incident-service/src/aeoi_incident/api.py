@@ -13,13 +13,21 @@ from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from aeoi_common.errors import NotFoundError
-from aeoi_incident import postmortem, service
+from aeoi_common.errors import ConflictError, ForbiddenError, NotFoundError, ValidationFailedError
+from aeoi_incident import approvals, postmortem, service
 from aeoi_incident.config import Settings
 from aeoi_incident.db import session_dep
 from aeoi_incident.domain import parse_if_match, parse_incident_ref
 from aeoi_incident.idempotency import Result, run_idempotent, validate_key
 from aeoi_models.api.agents import EvidenceBatch, EvidenceBatchResult
+from aeoi_models.api.approvals import (
+    ActionRequest,
+    ApprovalOut,
+    ConsumeIn,
+    ConsumeOut,
+    DecisionIn,
+    OutcomeIn,
+)
 from aeoi_models.api.common import Page
 from aeoi_models.api.hypotheses import HypothesisBatch, HypothesisRecord
 from aeoi_models.api.incidents import (
@@ -37,7 +45,7 @@ from aeoi_models.api.incidents import (
 from aeoi_models.api.postmortem import PostmortemDoc, PostmortemIn, PostmortemStored, TimelineBatch
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import EVIDENCE_KIND_PERMS, Perm, may_read_evidence
-from aeoi_web.auth import require, require_scope
+from aeoi_web.auth import require, require_acting_user, require_scope
 
 router = APIRouter(prefix="/v1", tags=["incidents"])
 Session = Annotated[AsyncSession, Depends(session_dep)]
@@ -331,3 +339,143 @@ async def post_feedback(
 
 
 __all__ = ["UUID", "router"]
+
+
+# ------------------------------------------------------------------ Phase 16 (ADR-026)
+def _code_reader(who: Principal) -> bool:
+    return who.has(Perm.CODE_READ)
+
+
+@router.post("/incidents/{ref}/actions", status_code=201, response_model=ApprovalOut)
+async def request_action(
+    ref: str,
+    body: ActionRequest,
+    request: Request,
+    who: Annotated[Principal, Depends(require(Perm.ACTIONS_REQUEST))],
+    idempotency_key: IdemKey = None,
+) -> JSONResponse:
+    """An SRE asks for an action by hand. Idempotency-Key required; the same pending
+    request (same incident + same exact arguments) is returned, never duplicated."""
+    key = validate_key(idempotency_key, required=True)
+    if body.investigation_id is not None:
+        raise ValidationFailedError("investigation_id is set only by an investigation's proposal.")
+
+    async def work(session: AsyncSession) -> tuple[int, dict[str, object]]:
+        a, inc, created = await approvals.request(session, parse_incident_ref(ref), body, who,
+                                                  source="manual")  # fmt: skip
+        return (201 if created else 200), approvals.to_out(
+            a, inc.key, code_reader=_code_reader(who)).model_dump(mode="json")  # fmt: skip
+
+    result = await run_idempotent(
+        _sessions(request), principal=who.subject, scope=f"POST /v1/incidents/{ref}/actions",
+        key=key, body=body.model_dump(mode="json"), ttl=_settings(request).idempotency_ttl,
+        work=work,
+    )  # fmt: skip
+    return _result_response(result, location=f"/v1/approvals/{result.body['id']}")
+
+
+@router.post("/incidents/{ref}/actions/proposals", response_model=ApprovalOut)
+async def propose_action(
+    ref: str,
+    body: ActionRequest,
+    session: Session,
+    who: Annotated[
+        Principal,
+        Depends(require_acting_user(Perm.ACTIONS_REQUEST, "actions:propose", service_only=True)),
+    ],
+) -> ApprovalOut:
+    """Service-only (orchestrator): an investigation proposes an action FOR the user who
+    started it (delegated token in X-On-Behalf-Of) - that user is the requester, so that user
+    can never approve it. Idempotent per (investigation, exact args), whatever its status.
+    Review: a USER bearer here could store a fake "code-written AI proposal" - refused, and the
+    on-behalf-of token must be the investigation's delegated token."""
+    if body.investigation_id is None:
+        raise ValidationFailedError("A proposal names its investigation.")
+    if who.delegation is None:
+        raise ForbiddenError("A proposal carries the investigation's delegated token.")
+    if who.delegation.investigation_id != body.investigation_id:
+        raise ForbiddenError("The delegated token is bound to another investigation.")
+    async with session.begin():
+        a, inc, _ = await approvals.request(session, parse_incident_ref(ref), body, who,
+                                            source="investigation")  # fmt: skip
+        # the token is bound to ONE incident too (Phase 9 review lesson): raising here rolls
+        # the whole request back - nothing is recorded for another incident
+        if who.delegation.incident_id != inc.id:
+            raise ForbiddenError("The delegated token is bound to another incident.")
+        out = approvals.to_out(a, inc.key)
+    return out
+
+
+@router.get("/incidents/{ref}/approvals", response_model=list[ApprovalOut])
+async def list_approvals(
+    ref: str,
+    session: Session,
+    who: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+) -> list[ApprovalOut]:
+    """The decision record of an incident (every incident reader: who asked, who decided,
+    why, what ran). Code-quoting parts of a recommendation need code:read."""
+    inc, rows = await approvals.list_for_incident(session, parse_incident_ref(ref))
+    return [approvals.to_out(a, inc.key, code_reader=_code_reader(who)) for a in rows]
+
+
+@router.get("/approvals/{approval_id}", response_model=ApprovalOut)
+async def get_approval(
+    approval_id: UUID,
+    session: Session,
+    who: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+) -> ApprovalOut:
+    a, inc = await approvals.get(session, approval_id)
+    return approvals.to_out(a, inc.key, code_reader=_code_reader(who))
+
+
+@router.post("/approvals/{approval_id}/decision", response_model=ApprovalOut)
+async def decide(
+    approval_id: UUID,
+    body: DecisionIn,
+    request: Request,
+    who: Annotated[Principal, Depends(require(Perm.ACTIONS_APPROVE))],
+) -> ApprovalOut:
+    """INCIDENT_COMMANDER only, never the requester; reason mandatory. Executing an approved
+    action is NOT done here (incident-service never executes): the orchestrator does it."""
+    if who.is_service:
+        raise ForbiddenError("A decision is a human's: user token only.")
+    async with _sessions(request)() as session, session.begin():
+        a, inc, expired = await approvals.decide(session, approval_id, body, who)
+        out = approvals.to_out(a, inc.key, code_reader=_code_reader(who))
+    if expired:  # recorded as EXPIRED above (committed) - THEN refused
+        raise ConflictError("This request expired before a decision; request it again.")
+    return out
+
+
+@router.post("/approvals/{approval_id}/consume", response_model=ConsumeOut)
+async def consume_approval(
+    approval_id: UUID,
+    body: ConsumeIn,
+    session: Session,
+    who: Annotated[
+        Principal,
+        Depends(
+            require_acting_user(
+                Perm.ACTIONS_APPROVE, "approvals:consume", allow_delegated=False, service_only=True
+            )
+        ),
+    ],
+) -> ConsumeOut:
+    """Tool gateway only (a SERVICE bearer - an IC may not consume their own approval by hand,
+    review H3), AS the acting user (never a delegated token: a background run can never
+    execute a consequential action). Single use."""
+    async with session.begin():
+        return await approvals.consume(session, approval_id, body, who)
+
+
+@router.post("/approvals/{approval_id}/outcome", response_model=ApprovalOut)
+async def record_outcome(
+    approval_id: UUID,
+    body: OutcomeIn,
+    session: Session,
+    who: Annotated[Principal, Depends(require_scope("actions:record"))],
+) -> ApprovalOut:
+    """Orchestrator only: what the execution did (EXECUTED -> incident MITIGATED)."""
+    async with session.begin():
+        a, inc = await approvals.record_outcome(session, approval_id, body, who)
+        return approvals.to_out(a, inc.key)
