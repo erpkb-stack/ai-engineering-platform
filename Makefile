@@ -417,9 +417,9 @@ risk-scan: ## Phase 15: band distribution of the rubric over EVERY synthetic dep
 risk-smoke: ## End-to-end Phase 15 check: release risk for the demo deploy + PR, advisory, MANAGER denied
 	@./scripts/smoke-phase15.sh
 
-approvals: ## Phase 16: the decision record of an incident: make approvals INCIDENT=INC-10001 [ROLE=SRE]
+approvals: ## Phase 16: the decision record of an incident: make approvals INCIDENT=INC-10001 [ROLE=SRE (default)|INCIDENT_COMMANDER|MANAGER]
 	@test -n "$(INCIDENT)" || { echo "usage: make approvals INCIDENT=INC-10001"; exit 2; }
-	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(or $(ROLE),INCIDENT_COMMANDER)) $(ORCH) approvals $(INCIDENT)
+	@AEOI_USER_TOKEN=$$($(MAKE) -s token ROLE=$(ROLE)) $(ORCH) approvals $(INCIDENT)
 
 approve: ## Phase 16: decide as an IC: make approve ID=<approval id> [DECISION=APPROVED|REJECTED|MORE_INFO] REASON="..." [NTH=2]
 	@test -n "$(ID)" -a -n "$(REASON)" || { echo 'usage: make approve ID=<approval id> REASON="why" [DECISION=REJECTED] [NTH=2]'; exit 2; }

@@ -112,12 +112,16 @@ Approving an investigation's proposal for a demo deploy DOES change the demo dat
 row). Reject it, or approve only on purpose.
 
 ## 10. Verify (gate for Phase 17)
-- [ ] `make approval-smoke` all ✔ on the Mac
-- [ ] the `make code-smoke` incident proposes the DEPLOY-4821 rollback (`make agent-status`),
-      the request + way back is read by a human (`make approvals`), then REJECTED with a reason
-      (every investigation smoke now leaves such a PENDING proposal; it expires in 30 minutes)
-- [ ] `make test-integration` green on the Mac
-- [ ] regressions: `make risk-smoke`, `make code-smoke` (deploy-key patterns widened)
+- [x] `make approval-smoke` 23/23 on the Mac (2026-10-12): requester, SRE, MANAGER and a manual
+      tool call refused; IC #2 approved; rollback to the previous commit + flag restored;
+      EXECUTED, MITIGATED; replay and second decision 409
+- [x] INC-10054 (`make code-smoke`) proposed the DEPLOY-4821 rollback FOR its starter (SRE);
+      the request and way back were read by a human (0742889, flag alone does not undo the
+      per-item query), then REJECTED by another IC with a reason
+- [x] `make test-integration` 243 passed, 1 skipped (Kafka), 8 min 45 s on the Mac (after fix1)
+- [x] regressions: `make code-smoke` 21/21, `make risk-smoke` 19/19
+- Note: `make approvals` runs as `ROLE` (default SRE); the "IC default" in the first package was
+  dead code (`ROLE ?= SRE` in the Makefile) - fixed in fix2.
 
 ## 11. Failure scenarios
 | Symptom | Cause | Fix |
