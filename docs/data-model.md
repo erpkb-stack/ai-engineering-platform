@@ -95,6 +95,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `agent_executions` | What an agent actually did: model, prompt version, tokens, latency, cost (Feature 12). | 17 |
 | `checkpoint_blobs` / `checkpoint_migrations` / `checkpoint_writes` / `checkpoints` | LangGraph `AsyncPostgresSaver` tables, DDL owned by Alembic (0018), thread_id = investigation id (ADR-019) | 6 / 1 / 9 / 7 |
 | `investigations` | One AI investigation run with budget and outcome; Phase 9 adds delegation_grant_id, deadline_at, error; Phase 10 (0019) adds status PARTIAL (some agents failed, named in `error`) | 12 |
+| `release_assessments` | Phase 15 (0023, ADR-025): one ADVISORY release-risk report per request (PR, commit range or deploy): band, code-written factors + the evidence excerpts they cite (JSONB), coverage; never read by a deploy gate | 17 |
 | `messages` | Scrubbed LLM conversation turns of an execution (debugging/replay; NOT in traces). | 7 |
 | `tasks` | One unit of agent work (an AgentTask event). Idempotent on idempotency_key. | 12 |
 
@@ -189,6 +190,9 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `orchestrator.ix_investigations_incident_id_started_at` | serves: "investigations for incident X, latest first" (incident page) |
 | `orchestrator.ix_tasks_investigation_id` | serves: fan-in "all tasks of investigation X" |
 | `orchestrator.ix_tasks_live_deadline` | serves: reaper finding stuck PENDING/RUNNING tasks past deadline; partial = live tasks only |
+| `orchestrator.ix_release_assessments_deploy_key` | serves: assessments that targeted deploy X (GET /release-risk?deploy_key=) |
+| `orchestrator.ix_release_assessments_service_key_requested_at` | serves: risk history of service X, latest first (GET /release-risk?service_key=) |
+| `orchestrator.uq_release_assessments_requester_idempotency_key` | enforces: a retried POST with the same Idempotency-Key returns the first report (per requester) |
 | `orchestrator.uq_investigations_one_running` | enforces: one RUNNING investigation per incident (duplicate deliveries cannot start a second) |
 | `rag.ix_code_files_service_key` | serves: files of service X (impact grouped by service) |
 | `rag.ix_code_refs_file_id` | serves: FK lookup + delete-on-reindex of one file |

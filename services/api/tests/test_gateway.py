@@ -192,3 +192,32 @@ async def test_openapi_lists_only_real_routes(client: httpx.AsyncClient) -> None
     assert "/api/v1/search" in paths  # Phase 6
     assert "/api/v1/documents/{document_id}" in paths
     assert "/api/v1/approvals" not in paths  # Phase 16 adds it; no stubs that lie
+
+
+# ------------------------------------------------------------------ Phase 15 (ADR-025)
+async def test_release_risk_is_guarded_validated_and_forwarded_to_the_orchestrator(
+    pubfile: Path, keys: KeyPair
+) -> None:
+    orch = FakeUpstream()
+    settings = Settings(jwt_public_key_file=pubfile, environment="test")  # type: ignore[arg-type]
+    app = build_app(settings, transports={"orchestrator": httpx.MockTransport(orch)},
+                    limiter=InMemoryTokenBucket(rate_per_s=0.001, burst=30))  # fmt: skip
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://api"
+    ) as c:
+        body = {"deploy_key": "DEPLOY-4821"}
+        r = await c.post("/api/v1/release-risk", json=body, headers=auth(keys, "MANAGER"))
+        assert r.status_code == 403 and orch.calls == []  # no code:read: never forwarded
+        two = {"deploy_key": "DEPLOY-1", "repository": "a/b", "pull_request": 1}
+        r = await c.post("/api/v1/release-risk", json=two, headers=auth(keys, "SRE"))
+        assert r.status_code == 422 and orch.calls == []  # exactly one target, at the edge
+        idem = f"rr-{uuid.uuid4()}"
+        r = await c.post("/api/v1/release-risk", json=body,
+                         headers=auth(keys, "ENGINEER") | {"Idempotency-Key": idem})  # fmt: skip
+        sent = orch.calls[-1]
+        assert (sent.method, sent.url.path) == ("POST", "/v1/release-risk")
+        assert sent.headers["idempotency-key"] == idem and json.loads(sent.content) == body
+        await c.get("/api/v1/release-risk?service_key=checkout-api", headers=auth(keys, "SRE"))
+        assert orch.calls[-1].url.params["service_key"] == "checkout-api"
+        paths = (await c.get("/openapi.json")).json()["paths"]
+    assert {"/api/v1/release-risk", "/api/v1/release-risk/{assessment_id}"} <= set(paths)

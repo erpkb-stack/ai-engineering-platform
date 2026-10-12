@@ -225,3 +225,68 @@ class CheckpointWrite(Base):
     type: Mapped[str | None] = mapped_column(Text)
     blob: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     task_path: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+
+
+# ------------------------------------------------------------------ Phase 15 (ADR-025)
+ASSESSMENT_STATUSES = ("SUCCEEDED", "PARTIAL", "FAILED")
+RELEASE_TARGETS = ("pull_request", "range", "deploy")
+RISK_BANDS = ("LOW", "MEDIUM", "HIGH")
+
+
+class ReleaseAssessment(Base):
+    """One advisory release-risk report (FR-8): who asked, about what, what code found. Never
+    read by a deploy gate. Kept so the advice can be audited and, later, measured (Phase 25:
+    did HIGH releases cause incidents?). `report` holds code-written factors only; `evidence`
+    holds the excerpts they cite (code: readable with code:read only)."""
+
+    __tablename__ = "release_assessments"
+    __table_args__ = (
+        CheckConstraint(in_list("status", ASSESSMENT_STATUSES), name="status_valid"),
+        CheckConstraint(in_list("target_kind", RELEASE_TARGETS), name="target_kind_valid"),
+        CheckConstraint("band IS NULL OR " + in_list("band", RISK_BANDS), name="band_valid"),
+        CheckConstraint("status = 'FAILED' OR band IS NOT NULL", name="band_unless_failed"),
+        CheckConstraint(
+            "(target_kind = 'deploy' AND deploy_key IS NOT NULL AND pull_request IS NULL) OR "
+            "(target_kind = 'pull_request' AND repository IS NOT NULL AND pull_request IS NOT NULL "
+            "AND deploy_key IS NULL) OR "
+            "(target_kind = 'range' AND service_key IS NOT NULL AND base_sha IS NOT NULL "
+            "AND head_sha IS NOT NULL AND deploy_key IS NULL AND pull_request IS NULL)",
+            name="target_shape",
+        ),
+        # serves: "risk history of service X, latest first" (GET /release-risk?service_key=)
+        Index(
+            "ix_release_assessments_service_key_requested_at",
+            "service_key",
+            text("requested_at DESC"),
+        ),
+        # serves: assessments that targeted deploy X (GET /release-risk?deploy_key=)
+        Index("ix_release_assessments_deploy_key", "deploy_key"),
+        # enforces: a retried POST with the same Idempotency-Key returns the first report
+        Index(
+            "uq_release_assessments_requester_idempotency_key",
+            "requested_by",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = uuid_pk()
+    requested_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    requested_at: Mapped[datetime] = created_at_col()
+    idempotency_key: Mapped[str | None] = mapped_column(String(128))
+    target_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    repository: Mapped[str | None] = mapped_column(String(120))
+    pull_request: Mapped[int | None] = mapped_column(Integer)
+    deploy_key: Mapped[str | None] = mapped_column(String(24))
+    service_key: Mapped[str | None] = mapped_column(String(100))
+    base_sha: Mapped[str | None] = mapped_column(String(40))
+    head_sha: Mapped[str | None] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(12), nullable=False)
+    band: Mapped[str | None] = mapped_column(String(8))
+    report: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default=EMPTY_JSON)
+    evidence: Mapped[list[Any]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'[]'::jsonb")
+    )
+    error: Mapped[str | None] = mapped_column(Text)
+    agent_version: Mapped[str | None] = mapped_column(String(16))

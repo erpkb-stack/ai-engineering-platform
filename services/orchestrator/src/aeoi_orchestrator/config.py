@@ -55,6 +55,8 @@ class Settings(BaseServiceSettings):
     # Phase 14 (ADR-024): diff rules over the code the deploy(s) shipped (code only)
     code: bool = True
     task_deadline_s: float = 180.0  # > agents' task deadline (150 s): one agent call
+    # Phase 15 (ADR-025): release risk runs while the api waits (its upstream timeout is 15 s)
+    release_timeout_s: float = 12.0  # > the release agent's own deadline (10 s)
     # the whole investigation, all retries and resumes included; past it = FAILED
     investigation_deadline_s: float = 900.0
     # refresh the delegated token when it has less than this left (tokens live 300 s)

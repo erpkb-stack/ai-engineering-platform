@@ -278,7 +278,8 @@ class DevDataAdapter:
                 additions=d["additions"], deletions=d["deletions"], truncated=cut,
             ))  # fmt: skip
         return s.CompareCommitsOut(
-            items=[s.CommitDiffItem(**r, files=by_sha.get(r["sha"], [])[:20]) for r in rows],
+            items=[s.CommitDiffItem(**r, files=by_sha.get(r["sha"], [])[:20],
+                                    more_files=len(by_sha.get(r["sha"], [])) > 20) for r in rows],
             base_found=base_found, relation="ahead" if base_at is not None else "no_base",
             more=more,
         )  # fmt: skip

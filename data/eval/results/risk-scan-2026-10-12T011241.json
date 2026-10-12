@@ -1,0 +1,1061 @@
+{
+ "generated_at": "2026-10-12T01:12:41+00:00",
+ "question": "selectivity (how often the rule flags a release), NOT accuracy",
+ "deploys": 1784,
+ "bands": {
+  "HIGH": 2,
+  "LOW": 1680,
+  "MEDIUM": 102
+ },
+ "findings_bands": {
+  "HIGH": 2,
+  "LOW": 1782
+ },
+ "flagged_share": 0.0583,
+ "flagged_by_code": 2,
+ "flagged_only_unchecked": 102,
+ "labelled_cases": "data/eval/release_risk_cases_v1.jsonl",
+ "labelled_failures": [],
+ "flagged": [
+  {
+   "deploy": "DEPLOY-2014",
+   "service": "media-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2058",
+   "service": "media-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1467",
+   "service": "pricing-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2509",
+   "service": "chat-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1424",
+   "service": "pricing-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1205",
+   "service": "cart-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2350",
+   "service": "tax-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2764",
+   "service": "geo-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2704",
+   "service": "partner-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1122",
+   "service": "inventory-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1403",
+   "service": "search-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1185",
+   "service": "cart-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1020",
+   "service": "orders-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1447",
+   "service": "pricing-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1001",
+   "service": "orders-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1041",
+   "service": "orders-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2035",
+   "service": "media-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1976",
+   "service": "reviews-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2644",
+   "service": "reporting-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1145",
+   "service": "inventory-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2371",
+   "service": "invoicing-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2531",
+   "service": "chat-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2136",
+   "service": "analytics-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1323",
+   "service": "catalog-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1164",
+   "service": "inventory-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1686",
+   "service": "identity-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1225",
+   "service": "cart-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1821",
+   "service": "billing-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2393",
+   "service": "invoicing-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1246",
+   "service": "checkout-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1589",
+   "service": "returns-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "FAILED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1879",
+   "service": "ledger-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1663",
+   "service": "identity-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1343",
+   "service": "catalog-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1625",
+   "service": "notifications-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1549",
+   "service": "returns-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1956",
+   "service": "reviews-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2330",
+   "service": "tax-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2235",
+   "service": "loyalty-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1528",
+   "service": "shipping-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "FAILED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1569",
+   "service": "returns-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1802",
+   "service": "billing-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2664",
+   "service": "partner-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1859",
+   "service": "ledger-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2176",
+   "service": "analytics-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1841",
+   "service": "ledger-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2586",
+   "service": "scheduler-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1363",
+   "service": "search-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1083",
+   "service": "payments-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2195",
+   "service": "loyalty-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2568",
+   "service": "scheduler-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2309",
+   "service": "tax-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1268",
+   "service": "checkout-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "FAILED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2684",
+   "service": "partner-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2605",
+   "service": "reporting-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1936",
+   "service": "fraud-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "ROLLED_BACK",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1062",
+   "service": "payments-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1102",
+   "service": "payments-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1725",
+   "service": "accounts-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2624",
+   "service": "reporting-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2116",
+   "service": "recommendations-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "ROLLED_BACK",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1916",
+   "service": "fraud-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "FAILED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1507",
+   "service": "shipping-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1383",
+   "service": "search-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2077",
+   "service": "recommendations-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "ROLLED_BACK",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1286",
+   "service": "checkout-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2489",
+   "service": "chat-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1744",
+   "service": "accounts-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2470",
+   "service": "support-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2156",
+   "service": "analytics-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2727",
+   "service": "geo-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "ROLLED_BACK",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2271",
+   "service": "promotions-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "FAILED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2433",
+   "service": "support-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1997",
+   "service": "reviews-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1782",
+   "service": "billing-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1646",
+   "service": "notifications-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2290",
+   "service": "promotions-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1608",
+   "service": "notifications-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2095",
+   "service": "recommendations-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2452",
+   "service": "support-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2412",
+   "service": "invoicing-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1487",
+   "service": "shipping-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1897",
+   "service": "fraud-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1590",
+   "service": "returns-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "FAILED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2216",
+   "service": "loyalty-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1762",
+   "service": "accounts-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1529",
+   "service": "shipping-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2550",
+   "service": "scheduler-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1937",
+   "service": "fraud-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1305",
+   "service": "catalog-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2253",
+   "service": "promotions-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1707",
+   "service": "identity-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1917",
+   "service": "fraud-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2746",
+   "service": "geo-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2078",
+   "service": "recommendations-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1269",
+   "service": "checkout-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2728",
+   "service": "geo-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1591",
+   "service": "returns-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2272",
+   "service": "promotions-worker",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-2117",
+   "service": "recommendations-events",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: no previous successful deploy"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1846",
+   "service": "ledger-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: more than 10 commits"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1195",
+   "service": "cart-api",
+   "band": "MEDIUM",
+   "findings_band": "LOW",
+   "status": "SUCCEEDED",
+   "factors": [
+    "MEDIUM not_checked: 1 part(s) of this release could not be checked - unknown is not safe: more than 10 commits"
+   ]
+  },
+  {
+   "deploy": "DEPLOY-1501",
+   "service": "shipping-api",
+   "band": "HIGH",
+   "findings_band": "HIGH",
+   "status": "SUCCEEDED",
+   "factors": [
+    "HIGH breaking_change: field ShipmentResponse.address was removed or renamed in ShipmentResponse.java. 4 other service(s) still read "
+   ]
+  },
+  {
+   "deploy": "DEPLOY-4821",
+   "service": "checkout-api",
+   "band": "HIGH",
+   "findings_band": "HIGH",
+   "status": "SUCCEEDED",
+   "factors": [
+    "HIGH code_mechanism: orderRepository.findOpenOrders() is called inside a loop in priceCart (line 18): one database query per item O"
+   ]
+  }
+ ]
+}

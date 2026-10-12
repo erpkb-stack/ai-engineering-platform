@@ -24,6 +24,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from aeoi_agents.common import PROSE_MAX, clip
 from aeoi_agents.config import ReasoningBudget
 from aeoi_agents.prompts import Prompt, load_prompt
 from aeoi_agents.reasoning import llm as llm_call
@@ -58,7 +59,7 @@ SCHEMA: dict[str, Any] = {
                     "id": {"type": "string", "pattern": r"^h[0-9]{1,2}$"},
                     "verdict": {"type": "string", "enum": ["supported", "weakened", "refuted"]},
                     "contradicting": {"type": "array", "maxItems": 4, "items": REF},
-                    "missing": {"type": "string", "maxLength": 200},
+                    "missing": {"type": "string", "maxLength": PROSE_MAX},
                 },
                 "required": ["id", "verdict", "contradicting", "missing"],
                 "additionalProperties": False,
@@ -69,7 +70,7 @@ SCHEMA: dict[str, Any] = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "statement": {"type": "string", "maxLength": 300},
+                    "statement": {"type": "string", "maxLength": PROSE_MAX},
                     "supporting": {"type": "array", "maxItems": 4, "items": REF},
                     # the candidate id this is a more specific mechanism of, or "" for a rival
                     "refines": {"type": "string", "maxLength": 4},
@@ -78,7 +79,7 @@ SCHEMA: dict[str, Any] = {
                 "additionalProperties": False,
             },
         },
-        "no_alternative_reason": {"type": "string", "maxLength": 300},
+        "no_alternative_reason": {"type": "string", "maxLength": PROSE_MAX},
     },
     "required": ["reviews", "alternatives", "no_alternative_reason"],
     "additionalProperties": False,
@@ -183,7 +184,7 @@ def merge(
             "contradicting": con,
             "contradicting_evidence": evidence_of(con, by_ref),
             "critic_verdict": rv.get("verdict", "weakened"),
-            "critic_missing": " ".join(str(rv.get("missing", "")).split())[:300],
+            "critic_missing": clip(rv.get("missing", ""), 300),
             "critic_disputed": disputed[:8],
             "status": "CHALLENGED" if new else h.status,
         })  # fmt: skip
@@ -196,7 +197,7 @@ def merge(
     for alt in data.get("alternatives", []):
         c.alternatives_proposed += 1
         sup = list(dict.fromkeys(r for r in alt.get("supporting", []) if r in by_ref))
-        text = " ".join(str(alt.get("statement", "")).split())[:300]
+        text = clip(alt.get("statement", ""), 300)
         if not sup or len(text) < 10:
             c.citations_dropped += len(alt.get("supporting", [])) - len(sup)
             continue
@@ -224,5 +225,5 @@ def merge(
         band, why = rubric(h, by_ref)
         alts.append(h.model_copy(update={"confidence": band, "rubric": why}))
     c.alternatives_accepted = len(alts)
-    c.no_alternative_reason = " ".join(str(data.get("no_alternative_reason", "")).split())[:400]
+    c.no_alternative_reason = clip(data.get("no_alternative_reason", ""), 400)
     return [by_key[h.key] for h in hs] + alts, c

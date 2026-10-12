@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from aeoi_agents.common import PROSE_MAX, clip
 from aeoi_agents.config import ReasoningBudget
 from aeoi_agents.prompts import Prompt, load_prompt
 from aeoi_agents.reasoning import llm as llm_call
@@ -43,7 +44,7 @@ SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "id": {"type": "string", "pattern": r"^h[0-9]{1,2}$"},
-                    "explanation": {"type": "string", "maxLength": 400},
+                    "explanation": {"type": "string", "maxLength": PROSE_MAX},
                     "refs": {
                         "type": "array",
                         "maxItems": 4,
@@ -155,7 +156,7 @@ class HypothesisAgent:
                 continue
             refs = [r for r in entry.get("refs", []) if r in valid_refs]
             dropped += len(entry.get("refs", [])) - len(refs)
-            text = " ".join(str(entry.get("explanation", "")).split())[:600]
+            text = clip(entry.get("explanation", ""), 600)
             out.append(h.model_copy(update={
                 "rank": len(out) + 1, "ranked_by": "llm",
                 "explanation": text if refs else "", "explanation_refs": refs if text else [],

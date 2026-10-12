@@ -268,6 +268,7 @@ class CommitDiffItem(Item):
     committed_at: datetime
     pull_request: int | None = None
     files: list[FileDiff] = Field(default_factory=list, max_length=20)
+    more_files: bool = False  # the commit changed more than the 20 files returned (review)
 
 
 CompareRelation = Literal["ahead", "same", "rollback", "no_base", "head_unknown"]
