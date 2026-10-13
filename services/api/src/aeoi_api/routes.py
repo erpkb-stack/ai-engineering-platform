@@ -56,6 +56,7 @@ def guard(perm: Perm):  # type: ignore[no-untyped-def]  # returns a FastAPI depe
         wait = await request.app.state.limiter.acquire(principal.subject)
         if wait > 0:
             raise RateLimitedError(f"Rate limit exceeded. Retry in {wait:.1f}s.")
+        await request.app.state.directory.check(principal)  # IdP tokens vs the directory
         if not principal.has(perm):
             from aeoi_common.errors import ForbiddenError
 
@@ -76,6 +77,7 @@ def authenticated():  # type: ignore[no-untyped-def]  # returns a FastAPI depend
         wait = await request.app.state.limiter.acquire(principal.subject)
         if wait > 0:
             raise RateLimitedError(f"Rate limit exceeded. Retry in {wait:.1f}s.")
+        await request.app.state.directory.check(principal)
         return principal
 
     return _dep
@@ -130,7 +132,8 @@ class Me(BaseModel):
 
 
 @router.get("/me", response_model=Me, tags=["identity"])
-async def me(principal: Annotated[Principal, Depends(current_principal)]) -> Me:
+async def me(request: Request, principal: Annotated[Principal, Depends(authenticated())]) -> Me:
+    """Who am I - the UI's first call after sign-in (rate limit + directory check apply)."""
     return Me(
         user_id=str(principal.user_id),
         email=principal.email,

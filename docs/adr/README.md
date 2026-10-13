@@ -26,6 +26,7 @@
 | [ADR-024](ADR-024-code-intelligence.md) | Code only: tree-sitter rules over the deploy's diff (pre-image rebuilt), file-ACL code index for change impact; a loop query is ONE more source for its own deploy, only with a symptom on that service; plan holds counts only | Proposed |
 | [ADR-025](ADR-025-release-risk.md) | Advisory release risk (PR / range / deploy), code only: rubric band over cited factors, findings vs coverage reported apart, way back says when a flag flip would NOT undo the code; stored per request, never a gate | Proposed |
 | [ADR-026](ADR-026-human-approval-execution.md) | Human approval, then controlled execution: proposals by code or an SRE, an IC who is not the requester decides, the action runs in the approver's own request AS the approver (executor identity, gateway consumes the approval at incident-service: action + args hash + incident + approver, once); refines ADR-007 (no interrupt) | Proposed |
+| [ADR-027](ADR-027-oidc-identity-provider.md) | Every service trusts the OIDC IdP (Keycloak) for USER tokens, routed by issuer; the realm is GENERATED from identity.users (uid + aeoi_sub admin-only attributes), so the directory stays the source of truth; production refuses static user tokens | Proposed |
 | [ADR-020](ADR-020-multi-agent-code-first-specialists.md) | Multi-agent: code-only metrics/deployment/knowledge agents, PARTIAL outcome, rag on-behalf-of, evidence visibility by kind | Proposed |
 
 Rules: Accepted ADRs are immutable (enforced by `.claude/hooks/protect-files.sh`). Use the `/adr` skill to supersede.

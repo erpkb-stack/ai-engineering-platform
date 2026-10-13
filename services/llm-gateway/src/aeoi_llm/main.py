@@ -19,7 +19,7 @@ from aeoi_llm.gateway import Gateway, ProviderRuntime
 from aeoi_llm.providers import AnthropicProvider, FakeProvider, OpenAICompatProvider, Provider
 from aeoi_llm.resilience import RetryPolicy
 from aeoi_llm.usage import DbUsageSink, MemoryUsageSink, UsageSink
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 log = structlog.get_logger(__name__)
 
@@ -128,7 +128,11 @@ def build_app(
         version=__version__,
         routers=[router],
         authenticator=Authenticator(
-            settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
+            settings.jwt_public_key_file.read_text(),
+            settings.jwt_issuer,
+            settings.jwt_audience,
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         readiness=readiness,
         lifespan=lifespan,

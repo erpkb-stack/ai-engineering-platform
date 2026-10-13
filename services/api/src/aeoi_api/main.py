@@ -12,12 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async
 
 from aeoi_api import __version__
 from aeoi_api.config import Settings
+from aeoi_api.directory import DirectoryCheck
 from aeoi_api.proxy import Upstream
 from aeoi_api.ratelimit import InMemoryTokenBucket, RateLimiter
 from aeoi_api.routes import router
 from aeoi_api.sts import StsConfig
 from aeoi_api.sts import router as sts_router
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 
 def build_app(
@@ -74,7 +75,11 @@ def build_app(
         version=__version__,
         routers=[router, sts_router],
         authenticator=Authenticator(
-            settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
+            settings.jwt_public_key_file.read_text(),
+            settings.jwt_issuer,
+            settings.jwt_audience,
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         # rag is deliberately NOT a readiness dependency: search being down must not take
         # incident management out of the load balancer.
@@ -117,6 +122,8 @@ def build_app(
         else None
     )
     app.state.sts_engine = engine
+    # Phase 17a (ADR-027, review H1): IdP tokens must agree with the directory at the edge
+    app.state.directory = DirectoryCheck(app.state.sts_sessions)
     app.state.upstreams = {name: Upstream(name, c) for name, c in clients.items()}
     app.state.limiter = limiter or InMemoryTokenBucket(
         rate_per_s=settings.rate_limit_per_minute / 60, burst=settings.rate_limit_burst

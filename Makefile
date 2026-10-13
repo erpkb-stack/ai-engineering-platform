@@ -26,7 +26,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         rag-token docpack codepack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         embed-history history-eval history-explain code-index \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke release-risk risk-scan risk-smoke approvals approve approval-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke release-risk risk-scan risk-smoke approvals approve approval-smoke keycloak-realm keycloak-up keycloak-down kc-token kc-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -427,6 +427,25 @@ approve: ## Phase 16: decide as an IC: make approve ID=<approval id> [DECISION=A
 
 approval-smoke: ## End-to-end Phase 16 check: proposal -> other IC approves -> rollback -> MITIGATED; refusals
 	@./scripts/smoke-phase16.sh
+
+# ---------- Identity provider (Phase 17, ADR-027) ----------
+keycloak-realm: ## Generate the Keycloak realm FROM identity.users (+ admin password), into secrets/keycloak/
+	@[ -f secrets/keycloak_admin_password.txt ] || { umask 022; openssl rand -hex 16 > secrets/keycloak_admin_password.txt; \
+	  chmod 644 secrets/keycloak_admin_password.txt; echo "created secrets/keycloak_admin_password.txt"; }
+	uv run python scripts/keycloak_realm.py
+
+keycloak-up: keycloak-realm ## Start Keycloak on :$(AEOI_KC_PORT) with a FRESH import of the generated realm
+	$(COMPOSE) --profile auth up -d --force-recreate --wait --wait-timeout 480 keycloak
+	@echo "issuer: http://localhost:$${AEOI_KC_PORT:-8090}/realms/aeoi  (admin console: /admin, user admin, password in secrets/keycloak_admin_password.txt)"
+
+keycloak-down: ## Stop Keycloak (frees ~0.6 GB, limit 1 GiB)
+	$(COMPOSE) --profile auth stop keycloak
+
+kc-token: ## Keycloak access token (dev-only aeoi-cli client): export KT=$$(make -s kc-token ROLE=SRE [NTH=2])
+	@uv run --quiet python scripts/kc_token.py --role $(ROLE) $(if $(NTH),--nth $(NTH),)
+
+kc-smoke: ## End-to-end Phase 17a check: Keycloak tokens accepted by every service on the request path; refusals
+	@./scripts/smoke-phase17a.sh
 
 investigate: ## Phase 10: all agents in parallel on an incident: make investigate INCIDENT=INC-10001 [AGENTS=metrics,deployment] [NOCACHE=1]
 	@test -n "$(INCIDENT)" || { echo "usage: make investigate INCIDENT=INC-10001 [AGENTS=a,b]"; exit 2; }

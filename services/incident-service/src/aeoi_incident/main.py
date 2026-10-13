@@ -14,7 +14,7 @@ from aeoi_incident.api import router
 from aeoi_incident.config import EventTransport, Settings
 from aeoi_incident.db import make_engine, make_sessionmaker
 from aeoi_incident.events import KafkaPublisher, LogPublisher, OutboxRelay, Publisher
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 
 def build_app(settings: Settings | None = None, publisher: Publisher | None = None) -> FastAPI:
@@ -62,6 +62,8 @@ def build_app(settings: Settings | None = None, publisher: Publisher | None = No
                 if settings.delegation_public_key_file.is_file()
                 else None
             ),
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         readiness={"database": db_ready},
         lifespan=lifespan,

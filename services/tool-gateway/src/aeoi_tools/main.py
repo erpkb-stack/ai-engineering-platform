@@ -26,7 +26,7 @@ from aeoi_tools.policy import PolicyConfig
 from aeoi_tools.registry import build_registry
 from aeoi_tools.relay import AuditRelay, FileToken
 from aeoi_tools.service import ToolService
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 log = structlog.get_logger(__name__)
 
@@ -136,6 +136,8 @@ def build_app(
                 if settings.delegation_public_key_file.is_file()
                 else None
             ),
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         # Ready = we can RECORD calls. rag/audit being down degrades some tools / delays
         # audit delivery; it must not take every tool out of the load balancer.

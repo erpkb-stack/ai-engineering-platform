@@ -24,7 +24,7 @@ from aeoi_orchestrator.engine import Engine
 from aeoi_orchestrator.graph import Deps, build_graph
 from aeoi_orchestrator.release import router as release_router
 from aeoi_orchestrator.store import Store
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 SCHEMA = "orchestrator"
 
@@ -107,7 +107,11 @@ def build_app(
         version=__version__,
         routers=[router, release_router, actions_router],
         authenticator=Authenticator(
-            settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
+            settings.jwt_public_key_file.read_text(),
+            settings.jwt_issuer,
+            settings.jwt_audience,
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         readiness={"database": db_ready},
         lifespan=lifespan,

@@ -49,7 +49,9 @@ def app(keys: KeyPair) -> FastAPI:
         service_name="test",
         version="0",
         routers=[r],
-        authenticator=Authenticator(keys.public_pem, "aeoi-dev-issuer", "aeoi-api"),
+        authenticator=Authenticator(
+            keys.public_pem, "aeoi-dev-issuer", "aeoi-api", static_users=True
+        ),
         readiness={"db": failing},
         environment="test",
     )
@@ -143,6 +145,7 @@ def test_verify_obo_accepts_user_and_delegated_but_primary_does_not() -> None:
         "aeoi-dev-issuer",
         "aeoi-api",
         delegation_public_key=sts_keys.public_pem,
+        static_users=True,
     )
     inv = uuid4()
     delegated = delegated_token_for(sts_keys, "SRE", investigation_id=inv)
@@ -153,6 +156,6 @@ def test_verify_obo_accepts_user_and_delegated_but_primary_does_not() -> None:
         auth.verify(delegated)  # never a primary bearer
     with pytest.raises(AuthError):
         auth.verify_obo(service_token_for(user_keys, "agents", "tools:invoke"))
-    no_sts = Authenticator(user_keys.public_pem, "aeoi-dev-issuer", "aeoi-api")
+    no_sts = Authenticator(user_keys.public_pem, "aeoi-dev-issuer", "aeoi-api", static_users=True)
     with pytest.raises(AuthError):
         no_sts.verify_obo(delegated)  # a service without the key refuses delegated tokens
