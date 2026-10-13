@@ -60,6 +60,15 @@ class TestErrors:
 
 
 class TestSettings:
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Start from NO AEOI_* settings: `make check` exports the developer's .env (e.g.
+        AEOI_OIDC_CLIENTS with the dev client), which must never decide a settings test."""
+        import os
+
+        for name in [n for n in os.environ if n.startswith("AEOI_")]:
+            monkeypatch.delenv(name)
+
     def test_reads_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("AEOI_ENV", "production")
         monkeypatch.setenv("AEOI_SERVICE_NAME", "api")

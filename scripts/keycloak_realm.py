@@ -129,9 +129,10 @@ def build(rows: list[tuple[Any, ...]]) -> tuple[dict[str, Any], list[tuple[str, 
         "clientId": "aeoi-console", "name": "AEOI console", "enabled": True,
         "publicClient": True, "standardFlowEnabled": True, "directAccessGrantsEnabled": False,
         "implicitFlowEnabled": False, "serviceAccountsEnabled": False,
-        "redirectUris": [f"{CONSOLE_ORIGIN}/*"], "webOrigins": [CONSOLE_ORIGIN],
+        # EXACT URIs (17b review): a wildcard lets any page of the origin receive a code
+        "redirectUris": [f"{CONSOLE_ORIGIN}/callback"], "webOrigins": [CONSOLE_ORIGIN],
         "attributes": {"pkce.code.challenge.method": "S256",
-                       "post.logout.redirect.uris": f"{CONSOLE_ORIGIN}/*"},
+                       "post.logout.redirect.uris": f"{CONSOLE_ORIGIN}/"},
         "protocolMappers": MAPPERS,
     }  # fmt: skip
     cli = {
@@ -144,6 +145,9 @@ def build(rows: list[tuple[Any, ...]]) -> tuple[dict[str, Any], list[tuple[str, 
         "realm": REALM, "enabled": True, "sslRequired": "external",
         "registrationAllowed": False, "resetPasswordAllowed": False, "editUsernameAllowed": False,
         "bruteForceProtected": True,
+        # a public client (the browser) holds refresh tokens: each is single-use (rotation), so a
+        # stolen one dies the first time either party uses it (17b review)
+        "revokeRefreshToken": True, "refreshTokenMaxReuse": 0,
         "accessTokenLifespan": 300, "ssoSessionIdleTimeout": 1800, "ssoSessionMaxLifespan": 36000,
         "roles": {"realm": [{"name": r} for r in ROLES]},
         # the default role grants NOTHING (review L2): no offline_access (30-day refresh), no

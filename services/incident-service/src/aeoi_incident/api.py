@@ -418,6 +418,19 @@ async def list_approvals(
     return [approvals.to_out(a, inc.key, code_reader=_code_reader(who)) for a in rows]
 
 
+@router.get("/approvals", response_model=list[ApprovalOut])
+async def list_pending_approvals(
+    session: Session,
+    who: Annotated[Principal, Depends(require(Perm.INCIDENTS_READ))],
+    status: Annotated[str, Query(pattern="^PENDING$")] = "PENDING",
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> list[ApprovalOut]:
+    """Phase 17b inbox: pending requests across incidents. The same readers and the same
+    redaction as the per-incident list (an incident reader may see every incident)."""
+    rows = await approvals.list_pending(session, limit)
+    return [approvals.to_out(a, key, code_reader=_code_reader(who)) for a, key in rows]
+
+
 @router.get("/approvals/{approval_id}", response_model=ApprovalOut)
 async def get_approval(
     approval_id: UUID,

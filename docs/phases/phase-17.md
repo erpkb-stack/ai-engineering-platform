@@ -87,10 +87,12 @@ Access tokens live 300 s.
 - The container's start command and health check were run as-is against the local Keycloak.
 - **Not run here:** the Docker image (registries blocked in the sandbox) and the full smoke.
 
-### 10. Verify (gate for 17b)
-- [ ] `make kc-smoke` all ✔ on the Mac
-- [ ] `test_keycloak.py` 6 passed on the Mac (with Keycloak up)
-- [ ] `make test-integration` green; `make approval-smoke`, `make risk-smoke` unchanged
+### 10. Verify (gate for 17b) - passed on the Mac 2026-10-13, commit f358606
+- [x] `make kc-smoke` 21/21 on the Mac
+- [x] `test_keycloak.py` 6 passed on the Mac (with Keycloak up), inside the full run
+- [x] `make test-integration` 249 passed, 1 skipped (Kafka); `make approval-smoke` 23/23, `make risk-smoke` 19/19
+- Open: the first full run on the Mac had 10 agent-test failures that never came back in two
+  later full runs (likely load during service restarts; not proven). If seen again: `-x`.
 
 ### 11. Failure scenarios
 | Symptom | Cause | Fix |
@@ -106,7 +108,115 @@ Access tokens live 300 s.
 | 503 on every Keycloak request at the api | api has no directory (DB not configured) | fail closed by design: configure the DB |
 
 ## 17b. The UI
-Next: React + TypeScript + Vite + TanStack Query; typed client from the OpenAPI; sign-in with
-`aeoi-console` (PKCE); incidents, incident page (timeline, hypotheses with evidence chips and
-contradicting evidence, evidence, postmortem, approvals with decide), investigation trace,
-approvals inbox (15 s polling), release risk, search.
+
+### 0. Gate and scope (17b)
+- **Gate: passed.** 17a verified on the Mac (above), commit f358606 on `phase-17-frontend`.
+- **Challenge - the inbox had no api.** Phase 16 listed approvals per incident only: a 15 s
+  poll would be one request per incident. Added `GET /api/v1/approvals?status=PENDING` (ADR-026
+  addendum) with its own partial index (migration 0025).
+- **Challenge - the contract hid parameters.** The incidents and release-risk lists accepted
+  filters and a cursor that the OpenAPI did not show, and four POSTs used `Idempotency-Key`
+  without declaring it. Generated types would have forbidden what the api accepts. Declared
+  at the edge (validated there, forwarded unchanged).
+- **Not in 17b:** requesting an action from the UI (requests come from investigations and
+  SREs' tools), dashboards (Phases 23/25), the copilot (its own phase).
+
+### 1-2. Objective and reason
+An incident commander can see what the AI found, with its evidence and what contradicts it,
+and approve a consequential action next to that evidence - signed in through Keycloak.
+
+### 3. Architecture (ADR-028)
+```
+browser SPA (:5173) --PKCE (aeoi-console)--> Keycloak (:8090); tokens in MEMORY
+   /api/* via Vite proxy (one origin) --> api (:8000) --> incident / orchestrator / rag
+types: api -> frontend/openapi.json (export script) -> src/api/schema.d.ts (openapi-typescript)
+```
+| Screen | Shows | Gate (UI; the server re-checks) |
+|---|---|---|
+| Incidents | filters, cursor paging | incidents:read |
+| Incident | hypotheses (type, confidence band, status, rubric, critic, supporting + contradicting chips, hidden count), approvals (recommendation, way back, evidence, decide), evidence, timeline, investigations, postmortem | Investigate: investigations:run; decide: actions:approve AND not the requester AND PENDING |
+| Trace | waterfall: agent, model, prompt version, tokens, latency, cost, messages | incidents:read |
+| Approvals inbox | PENDING across incidents, soonest expiry first, 15 s poll, nav badge | incidents:read (decide on the incident page) |
+| Release risk | deploy / PR / range -> band, coverage, factors with evidence, the way back | code:read |
+| Search | hybrid/keyword/vector, degraded state shown, document view | docs:read |
+
+| Guarantee | Enforced by | Test |
+|---|---|---|
+| Sign-in only through Keycloak, PKCE S256, exact callback | oidc-client-ts, realm generator | e2e (real Keycloak: S256 in the URL, wrong redirect_uri refused); unit (realm) |
+| No token in browser storage | in-memory user store | e2e (mutation-checked: sessionStorage fails it) |
+| A refused account does not loop sign-ins | `unauthorizedHandler` (review H1) | Vitest (valid token -> refusal; expired -> ONE redirect for 4 concurrent 401s) |
+| No open redirect after sign-in | `safeReturnTo` | Vitest (absolute, //, /\\, javascript:) |
+| Untrusted evidence is text; links only http(s) | no innerHTML, `safeHref` | Vitest (markup + javascript: URI) |
+| Requester cannot approve; only an IC; only PENDING | `whyCannotDecide` + server | Vitest + e2e with the real stack (decide.spec) |
+| Approve runs the action as the approver | Phase 16 path | e2e decide.spec + DB check (decided_by = IC #2, EXECUTED, MITIGATED) |
+| Inbox: PENDING only, soonest first, max 100, same redaction | incident-service SQL + api validation | integration (4 mutations caught) + api unit |
+| One retry = one action | `useAttemptKey` (review M5) | Vitest |
+| Types never drift from the api | export + `check:api` | unit test + npm check (hand edit caught) |
+
+### 4. Files
+```
+frontend/ (new): package.json + lock, vite/ts/playwright config, openapi.json (generated),
+  src/api (client, schema.d.ts generated, useAttemptKey), src/auth (oidc, RequireAuth, me),
+  src/pages (Incidents, Incident + incident/*, Trace, ApprovalsInbox, ReleaseRisk, Search),
+  src/components (ui, ErrorBoundary), src/**/*.test.ts(x), e2e/ (console, decide)
+services/incident-service: approvals.list_pending + GET /v1/approvals
+services/api/routes.py: GET /approvals; declared list params + Idempotency-Key
+libs/db: index ix_approvals_undecided_expires_at + migration 0025
+scripts: export_openapi.py, ui-demo-request.sh (new); keycloak_realm.py (exact URIs, rotation)
+tests: unit test_openapi_contract.py, test_keycloak_realm.py; integration inbox test; api unit
+docs: ADR-028 (new), ADR-026 addendum, this file, roadmap, CLAUDE.md files
+```
+
+### 5-6. Commands (macOS, zsh) - see the Mac steps in the hand-over; summary:
+```zsh
+make db-upgrade && make keycloak-up            # index 0025; realm with exact callback + rotation
+make ui-install && make ui-check               # Node >= 20
+make ui-dev                                    # http://localhost:5173 (own terminal)
+make ui-browser-test                           # real browser + real Keycloak (downloads Chromium once)
+make ui-demo   # then approve in the browser as IC #2 (manual)
+AEOI_UI_DECIDE=1 make ui-browser-test   # 8 tests: decide.spec makes + cleans its OWN request
+```
+
+### 7. Config
+`VITE_OIDC_ISSUER` (default http://localhost:8090/realms/aeoi), `AEOI_API_URL` (Vite proxy
+target, default http://localhost:8000). Port 5173 is fixed (`strictPort`): it IS the redirect URI.
+
+### 8. Tests (sandbox: real Keycloak 26.0.7 from the tarball, all 7 services)
+- `make check` 819 passed; integration WITH Keycloak 250 passed, 1 skipped (Kafka).
+- Vitest 43 passed; Playwright 8 passed with AEOI_UI_DECIDE=1 (decide.spec creates its own request,
+  run twice in a row: repeatable), 6 passed + 2 skipped without it.
+- Mac run 1: decide.spec failed - it was pointed at INC-10061, already decided by hand. The
+  spec depended on a hand-picked incident; it now creates and cleans its own (fix2).
+- Mutations: inbox SQL/redaction 4/4 (+1 redundant condition removed), frontend guards 12/12,
+  token storage (e2e) 1/1, types drift 1/1.
+- Screens checked visually with screenshots against real data (INC-10019, a real trace, search).
+- **Not run here:** Node/npm on the Mac, Docker image of Keycloak with the new realm (same
+  version; realm import tested), Playwright on macOS.
+
+### 9. Review (independent, before shipping)
+1 high, 5 medium, 7 low - fixed: H1 401 loop for a refused account (and a race the new test
+found: concurrent 401s), M1 stale findings after a run, M2 hash scroll, M3 stuck "Signing in",
+M4 inbox without an index, M5 idempotency key per click; low: return path, frozen countdown,
+100+ truncation, list refresh after a decision, no error boundary, realm wildcard + no
+refresh rotation, undeclared Idempotency-Key, a tautological e2e. Documented, not fixed: CSP
+(dev server; [Prod] at the ingress), error responses not declared in the OpenAPI (ADR-028).
+
+### 10. Verify (gate for Phase 18)
+- [ ] `make db-upgrade`, `make keycloak-up`, services restarted
+- [ ] `make ui-install && make ui-check` green (43 tests, types match)
+- [ ] `make ui-browser-test` 6 passed (2 skipped without a demo)
+- [ ] `make ui-demo` -> approve in the browser as IC #2 -> Executed, MITIGATED; then
+      `make ui-demo-clean`
+- [ ] `AEOI_UI_DECIDE=1 make ui-browser-test` 8 passed (approve-in-browser, automated)
+- [ ] `make check`, `make test-integration` (with Keycloak), `make kc-smoke`, `make approval-smoke` green
+
+### 11. Failure scenarios
+| Symptom | Cause | Fix |
+|---|---|---|
+| Keycloak page "Invalid parameter: redirect_uri" | old realm (wildcard) or console not on 5173 | `make keycloak-up`; port 5173 must be free |
+| "the platform does not accept your account" | directory refuses the user (inactive / changed) | fix identity.users, `make keycloak-up` |
+| Every screen: 502/503 problem | api not running or not restarted after `.env` | restart `make dev` |
+| Inbox empty although a request exists | it expired (30 min) | `make ui-demo` again |
+| `npm ci` fails | Node < 20 | `brew install node@22` |
+| ui-check: "schema.d.ts is out of date" | api changed, types not regenerated | `make openapi` |
+| e2e: browser executable missing | first run | `make ui-browser-test` installs Chromium |

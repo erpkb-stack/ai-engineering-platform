@@ -26,7 +26,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         rag-token docpack codepack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
         embed-history history-eval history-explain code-index \
         tools-tokens run-tools stop-tools run-audit stop-audit tools-smoke \
-        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke release-risk risk-scan risk-smoke approvals approve approval-smoke keycloak-realm keycloak-up keycloak-down kc-token kc-smoke postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
+        agents-tokens run-agents stop-agents hypo-smoke pm-smoke history-smoke code-smoke release-risk risk-scan risk-smoke approvals approve approval-smoke keycloak-realm keycloak-up keycloak-down kc-token kc-smoke openapi ui-install ui-dev ui-check ui-browser-test ui-demo ui-demo-clean postmortem multi-smoke agent-run investigate agent-compare agent-status agent-smoke \
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
@@ -446,6 +446,29 @@ kc-token: ## Keycloak access token (dev-only aeoi-cli client): export KT=$$(make
 
 kc-smoke: ## End-to-end Phase 17a check: Keycloak tokens accepted by every service on the request path; refusals
 	@./scripts/smoke-phase17a.sh
+
+# ---------- Console (Phase 17b) - React + TypeScript + Vite in frontend/, Node >= 20 ----------
+openapi: ## Regenerate the api contract (frontend/openapi.json) and the console's TypeScript types from it
+	uv run python scripts/export_openapi.py
+	cd frontend && npm run -s gen:api
+
+ui-install: ## Install the console's pinned dependencies (frontend/package-lock.json)
+	cd frontend && npm ci --no-audit --no-fund
+
+ui-dev: ## Console on http://localhost:5173 (proxies /api to :8000; sign-in through Keycloak - make keycloak-up)
+	cd frontend && npm run dev
+
+ui-check: ## Console: typecheck + component tests + generated types match openapi.json
+	cd frontend && npm run -s typecheck && npm run -s test && npm run -s check:api
+
+ui-browser-test: ## Console e2e in a real browser (real Keycloak + api; first run downloads Chromium). AEOI_UI_DECIDE=1 adds approve-and-run
+	cd frontend && npx playwright install chromium && npm run -s e2e
+
+ui-demo: ## A PENDING rollback request (throwaway service) to approve IN THE CONSOLE; prints what to do
+	@./scripts/ui-demo-request.sh
+
+ui-demo-clean: ## Remove the throwaway deploy rows planted by ui-demo / approval-smoke
+	@uv run --quiet python scripts/phase16_fixture.py clean
 
 investigate: ## Phase 10: all agents in parallel on an incident: make investigate INCIDENT=INC-10001 [AGENTS=metrics,deployment] [NOCACHE=1]
 	@test -n "$(INCIDENT)" || { echo "usage: make investigate INCIDENT=INC-10001 [AGENTS=a,b]"; exit 2; }

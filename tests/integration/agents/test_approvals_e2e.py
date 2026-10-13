@@ -666,3 +666,51 @@ async def test_a_running_attempt_is_not_a_failure_and_is_not_run_again(
     assert q(owner, "SELECT outcome FROM incident.approvals WHERE id=%s", a["id"])[0][0] is None
     assert q(owner, "SELECT count(*) FROM devdata.deployments WHERE deployed_by = %s",
              f"approval:{a['id']}")[0][0] == 0  # fmt: skip
+
+
+# ------------------------------------------------------------------ the inbox (Phase 17b)
+async def test_the_inbox_lists_pending_across_incidents_soonest_expiry_first(
+    make_orch: OrchFactory, owner: psycopg.Connection, incident_app: FastAPI, tok: Tokens,
+    cleanup: list[str],
+) -> None:  # fmt: skip
+    made = []
+    for _ in range(4):  # four incidents, one request each
+        pair = plant_pair(owner)
+        cleanup.append(pair["svc"])
+        inc = await new_incident(incident_app, tok, pair["svc"])
+        made.append((inc, await request_rollback(incident_app, tok.user("SRE"), inc, pair["new"])))
+    (i_late, late), (i_soon, soon), (_, expired), (_, rejected) = made
+    owner.execute("UPDATE incident.approvals SET expires_at = now() + interval '5 minutes', "
+                  "recommendation = '{\"way_back\": \"redeploy abc123\"}'::jsonb WHERE id = %s",
+                  (soon["id"],))  # fmt: skip
+    owner.execute("UPDATE incident.approvals SET requested_at = now() - interval '31 minutes', "
+                  "expires_at = now() - interval '1 minute' WHERE id = %s", (expired["id"],))  # fmt: skip
+    async with make_orch() as app:
+        assert (
+            await decide_at_orch(app, tok.user(IC), rejected["id"], "REJECTED")
+        ).status_code == 200
+
+    async with http(incident_app, "incident") as c:
+        r = await c.get("/v1/approvals?status=PENDING", headers=tok.h("SRE"))
+        mgr = await c.get("/v1/approvals", headers=tok.h("MANAGER"))
+        bad = [await c.get(f"/v1/approvals?{qs}", headers=tok.h("SRE"))
+               for qs in ("status=APPROVED", "limit=0", "limit=101")]  # fmt: skip
+        anon = await c.get("/v1/approvals")
+    assert r.status_code == 200, r.text
+    mine = [
+        a for a in r.json() if a["id"] in {soon["id"], late["id"], expired["id"], rejected["id"]}
+    ]
+    # only the two still pending (expired and rejected are not), the one about to lapse first
+    assert [(a["id"], a["status"], a["incident_key"]) for a in mine] == [
+        (soon["id"], "PENDING", i_soon["key"]),
+        (late["id"], "PENDING", i_late["key"]),
+    ]
+    assert (
+        next(a for a in mine if a["id"] == soon["id"])["recommendation"]["way_back"]
+        == "redeploy abc123"
+    )
+    # the same redaction as the per-incident list: no code:read, no commit-quoting way back
+    m = next(a for a in mgr.json() if a["id"] == soon["id"])
+    assert m["recommendation"]["way_back"] == "[redacted: needs code:read]"
+    assert [b.status_code for b in bad] == [422, 422, 422]
+    assert anon.status_code == 401

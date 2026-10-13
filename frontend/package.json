@@ -1,0 +1,41 @@
+{
+  "name": "aeoi-console",
+  "private": true,
+  "version": "0.17.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "typecheck": "tsc -b",
+    "test": "vitest run",
+    "gen:api": "openapi-typescript openapi.json -o src/api/schema.d.ts",
+    "check:api": "openapi-typescript openapi.json -o .schema.check.d.ts && node scripts/same.mjs src/api/schema.d.ts .schema.check.d.ts",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.62.7",
+    "oidc-client-ts": "3.1.0",
+    "openapi-fetch": "0.13.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router-dom": "6.28.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.0",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
+    "@testing-library/user-event": "14.5.2",
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "jsdom": "25.0.1",
+    "openapi-typescript": "7.4.4",
+    "typescript": "5.6.3",
+    "vite": "5.4.11",
+    "vitest": "2.1.8"
+  }
+}

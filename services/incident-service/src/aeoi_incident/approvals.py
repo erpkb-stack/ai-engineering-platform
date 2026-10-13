@@ -294,6 +294,20 @@ async def list_for_incident(
     return incident, rows
 
 
+async def list_pending(session: AsyncSession, limit: int = 50) -> list[tuple[Approval, str]]:
+    """Phase 17b: the approvals inbox - PENDING across incidents, oldest expiry first (the one
+    about to lapse is the one to look at). PENDING exactly as `status_of` computes it, in SQL.
+    Served by ix_approvals_undecided_expires_at (0025): expiry is recorded lazily, so undecided
+    rows include long-expired ones - the index is ordered by expires_at to skip them."""
+    rows = (await session.execute(
+        select(Approval, Incident.number).join(Incident, Incident.id == Approval.incident_id)
+        .where(Approval.decision.is_(None),  # an outcome needs a decision (DB checks)
+               Approval.expires_at > datetime.now(UTC))
+        .order_by(Approval.expires_at.asc(), Approval.id).limit(limit)
+    )).all()  # fmt: skip
+    return [(a, f"INC-{number}") for a, number in rows]  # = Incident.key
+
+
 async def get(session: AsyncSession, approval_id: UUID) -> tuple[Approval, Incident]:
     a = await session.get(Approval, approval_id)
     if a is None:
