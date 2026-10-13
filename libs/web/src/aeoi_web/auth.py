@@ -9,7 +9,9 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from aeoi_common.errors import ForbiddenError, UnauthorizedError
+from aeoi_common.settings import BaseServiceSettings
 from aeoi_security.auth import AuthError, Principal, verify_delegated_token, verify_token
+from aeoi_security.oidc import OidcConfig, OidcVerifier
 from aeoi_security.rbac import Perm
 
 _bearer = HTTPBearer(auto_error=False)
@@ -18,7 +20,12 @@ ON_BEHALF_OF_HEADER = "X-On-Behalf-Of"
 
 
 class Authenticator:
-    """Holds the verification key/issuer/audience; stored on app.state.auth."""
+    """Holds the trusted issuers; stored on app.state.auth.
+
+    Two issuers (ADR-027): the OIDC IdP (Keycloak - USER tokens, the browser) and our static
+    issuer (service tokens always; user tokens from `make token` unless `static_users=False`,
+    which production sets). A token is routed by its `iss`, then verified by THAT issuer only:
+    a token claiming the IdP is never retried against the static key, or the reverse."""
 
     def __init__(
         self,
@@ -27,18 +34,27 @@ class Authenticator:
         audience: str,
         *,
         delegation_public_key: str | None = None,
+        oidc: OidcVerifier | None = None,
+        static_users: bool,  # NO default (review M4): each service decides, from its settings
     ) -> None:
         self.public_key = public_key
         self.issuer = issuer
         self.audience = audience
         # None = this service does not accept delegated tokens at all (ADR-019)
         self.delegation_public_key = delegation_public_key
+        self.oidc = oidc
+        self.static_users = static_users
 
     def verify(self, token: str) -> Principal:
-        """PRIMARY bearer: user or service tokens from the IdP. Never a delegated token."""
-        return verify_token(
+        """PRIMARY bearer: user or service tokens. Never a delegated token."""
+        if self.oidc is not None and self.oidc.owns(token):
+            return self.oidc.verify(token)
+        principal = verify_token(
             token, public_key=self.public_key, issuer=self.issuer, audience=self.audience
         )
+        if not principal.is_service and not self.static_users:
+            raise AuthError("user tokens must come from the identity provider")
+        return principal
 
     def verify_obo(self, token: str) -> Principal:
         """The on-behalf-of slot (next to an authenticated SERVICE token): a USER principal
@@ -52,6 +68,15 @@ class Authenticator:
         if user.is_service:
             raise AuthError("on-behalf-of must be a user")
         return user
+
+
+def oidc_verifier(settings: BaseServiceSettings) -> OidcVerifier | None:
+    """The IdP verifier from the shared AEOI_OIDC_* settings, or None when no IdP is set."""
+    if not settings.oidc_issuer:
+        return None
+    clients = frozenset(c.strip() for c in settings.oidc_clients.split(",") if c.strip())
+    return OidcVerifier(OidcConfig(issuer=settings.oidc_issuer, audience=settings.oidc_audience,
+                                   jwks_url=settings.oidc_jwks_url, allowed_clients=clients))  # fmt: skip
 
 
 async def current_principal(

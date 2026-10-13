@@ -1,6 +1,7 @@
 # AEOI local stack. Use the smallest profile that does the job (Intel Mac RAM is the bottleneck).
 #   make up                 -> infra   : postgres(pgvector) + redis            (~0.7 GB)
 #   make up PROFILE=kafka   -> + kafka (KRaft, 1 broker), then topic init job    (+~0.8 GB)
+#   make keycloak-up        -> keycloak (OIDC IdP, Phase 17, ADR-027)            (+~0.6 GB)
 # Later phases add: core, agents, observability, full.
 # Ports bind to 127.0.0.1 only: nothing is reachable from your LAN.
 # Host ports are NON-default (5433/6380/9094) so they don't clash with a Postgres/Redis/Kafka
@@ -44,7 +45,8 @@ services:
       start_period: 10s
     deploy:
       resources:
-        limits: { memory: 768M, cpus: "1.5" }
+        # measured 542 MiB after start, 652 MiB an hour later (heap capped at 512m)
+        limits: { memory: 1G, cpus: "1.5" }
 
   redis:
     <<: *defaults
@@ -112,7 +114,44 @@ services:
       resources:
         limits: { memory: 384M }
 
+  keycloak:
+    # Phase 17 (ADR-027): the OIDC identity provider every service trusts for USER tokens.
+    # The realm is GENERATED from identity.users (`make keycloak-realm`) and re-imported on
+    # every `make keycloak-up` (dev H2 store, no volume: the directory stays the source).
+    <<: *defaults
+    image: quay.io/keycloak/keycloak:26.0.7
+    profiles: ["auth", "full"]
+    # the image cannot read a password from a file: read the Docker secret, then exec kc.sh
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - >-
+        export KC_BOOTSTRAP_ADMIN_PASSWORD="$$(cat /run/secrets/keycloak_admin_password)" &&
+        exec /opt/keycloak/bin/kc.sh start-dev --http-port=8080 --import-realm
+        --health-enabled=true --hostname=http://localhost:${AEOI_KC_PORT:-8090}
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx512m"
+    secrets: [keycloak_admin_password]
+    ports: ["127.0.0.1:${AEOI_KC_PORT:-8090}:8080"]
+    volumes:
+      - ./secrets/keycloak/aeoi-realm.json:/opt/keycloak/data/import/aeoi-realm.json:ro
+    healthcheck:
+      # no curl in the image: bash /dev/tcp against the management port (9000)
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q UP <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # measured on the owner's Intel Mac: ~4 min to healthy (start-dev rebuilds Quarkus on
+      # every fresh container ~100 s, schema ~20 s, realm import ~40 s); failures before 300 s
+      # do not count
+      start_period: 300s
+    deploy:
+      resources:
+        limits: { memory: 768M, cpus: "1.5" }
+
 secrets:
+  keycloak_admin_password:
+    file: ./secrets/keycloak_admin_password.txt
   postgres_password:
     file: ./secrets/postgres_password.txt
 

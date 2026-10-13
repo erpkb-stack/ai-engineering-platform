@@ -17,7 +17,7 @@ from aeoi_rag.db import make_engine, make_sessionmaker
 from aeoi_rag.embedder import Embedder, FileTokenProvider, GatewayEmbedder
 from aeoi_rag.rerank import LLMReranker
 from aeoi_rag.search import Retriever, detect_iterative_scan
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 
 def make_llm_client(
@@ -93,6 +93,8 @@ def build_app(
                 if settings.delegation_public_key_file.is_file()
                 else None
             ),
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         # The LLM gateway is NOT a readiness dependency: keyword search still works without it.
         readiness={"database": db_ready},

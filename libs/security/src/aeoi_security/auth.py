@@ -59,6 +59,7 @@ class Principal:
     permissions: frozenset[Perm] = field(default_factory=frozenset)
     scopes: frozenset[str] = field(default_factory=frozenset)  # service principals only
     delegation: Delegation | None = None  # set only by verify_delegated_token
+    idp: bool = False  # True: a USER token from the OIDC identity provider (ADR-027)
 
     @property
     def is_service(self) -> bool:

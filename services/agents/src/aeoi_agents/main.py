@@ -46,7 +46,7 @@ from aeoi_agents.release.agent import Deps as ReleaseDeps
 from aeoi_agents.release.agent import ReleaseRiskAgent
 from aeoi_llm_client import HttpLLMClient, LLMClient
 from aeoi_tool_client import HttpToolClient, ToolClient
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 
 class FileToken:
@@ -112,6 +112,8 @@ def build_app(
                 if settings.delegation_public_key_file.is_file()
                 else None
             ),
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         # stateless worker: ready = process up. A dead tool/LLM gateway shows up per task
         # (FAILED / degraded), not as "take every worker out of the load balancer".

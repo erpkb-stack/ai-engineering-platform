@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from aeoi_audit import __version__
 from aeoi_audit.api import router
 from aeoi_audit.config import Settings
-from aeoi_web import Authenticator, create_app
+from aeoi_web import Authenticator, create_app, oidc_verifier
 
 
 def build_app(settings: Settings | None = None) -> FastAPI:
@@ -41,7 +41,11 @@ def build_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
         routers=[router],
         authenticator=Authenticator(
-            settings.jwt_public_key_file.read_text(), settings.jwt_issuer, settings.jwt_audience
+            settings.jwt_public_key_file.read_text(),
+            settings.jwt_issuer,
+            settings.jwt_audience,
+            oidc=oidc_verifier(settings),
+            static_users=settings.static_user_tokens,
         ),
         readiness={"database": db_ready},
         lifespan=lifespan,
