@@ -194,7 +194,9 @@ async def test_openapi_lists_only_real_routes(client: httpx.AsyncClient) -> None
     # Phase 16 (ADR-026): the approval routes exist, and only those
     assert "/api/v1/approvals/{approval_id}/decision" in paths
     assert "/api/v1/incidents/{ref}/actions" in paths
-    assert "/api/v1/approvals" not in paths  # no "list every approval" route
+    # Phase 17b: the inbox lists PENDING only (no "list every approval" route), max 100
+    params = {q["name"]: q["schema"] for q in paths["/api/v1/approvals"]["get"]["parameters"]}
+    assert params["status"]["pattern"] == "^PENDING$" and params["limit"]["maximum"] == 100
 
 
 # ------------------------------------------------------------------ Phase 15 (ADR-025)
@@ -224,3 +226,20 @@ async def test_release_risk_is_guarded_validated_and_forwarded_to_the_orchestrat
         assert orch.calls[-1].url.params["service_key"] == "checkout-api"
         paths = (await c.get("/openapi.json")).json()["paths"]
     assert {"/api/v1/release-risk", "/api/v1/release-risk/{assessment_id}"} <= set(paths)
+
+
+async def test_the_approvals_inbox_forwards_its_filter_and_validates_it_first(
+    client: httpx.AsyncClient, upstream: FakeUpstream, keys: KeyPair
+) -> None:
+    """Phase 17b: one request for the whole inbox (not one per incident); bad values never
+    reach incident-service."""
+    r = await client.get("/api/v1/approvals?status=PENDING&limit=20", headers=auth(keys, "SRE"))
+    assert r.status_code == 200
+    assert upstream.calls[-1].url.path == "/v1/approvals"
+    assert dict(upstream.calls[-1].url.params) == {"status": "PENDING", "limit": "20"}
+    n = len(upstream.calls)
+    for qs in ("status=APPROVED", "limit=0", "limit=101"):
+        assert (
+            await client.get(f"/api/v1/approvals?{qs}", headers=auth(keys, "SRE"))
+        ).status_code == 422
+    assert len(upstream.calls) == n

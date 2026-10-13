@@ -148,3 +148,11 @@ the executor as its own deployment and network policy, the gateway writes outcom
 ## When we would revisit
 When a reversible, well-evaluated action earns auto-approval by policy (never by default), or
 when the frontend (Phase 17) needs a push channel for pending requests.
+
+## Revisited in Phase 17b (2026-10-13): the approvals inbox
+Phase 16 had no cross-incident list of approvals. The console's inbox (owner decision: poll
+every 15 s, push = [Prod]) would otherwise need one request per incident. Added
+`GET /api/v1/approvals?status=PENDING&limit=` (max 100): PENDING only, the one about to expire
+first, the same readers (`incidents:read`) and the same `code:read` redaction as the
+per-incident list - nothing a reader could not already see one incident at a time. Still no
+"list every approval" route: decided history stays per incident.

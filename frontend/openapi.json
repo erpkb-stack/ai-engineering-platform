@@ -1,0 +1,5028 @@
+{
+  "components": {
+    "schemas": {
+      "ActionItem": {
+        "additionalProperties": false,
+        "description": "A PROPOSED follow-up (a recommendation, not an action): no owner, no due date, nothing\nexecutes it. Cites the observations that motivate it.",
+        "properties": {
+          "category": {
+            "enum": [
+              "prevent",
+              "detect",
+              "mitigate",
+              "process"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Evidence Keys",
+            "type": "array"
+          },
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Refs",
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 300,
+            "minLength": 5,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "category"
+        ],
+        "title": "ActionItem",
+        "type": "object"
+      },
+      "ActionRequest": {
+        "additionalProperties": false,
+        "description": "POST /v1/incidents/{ref}/actions (an SRE, by hand) or .../actions/proposals (the\norchestrator, for the user who started the investigation).",
+        "properties": {
+          "action": {
+            "const": "rollback_deployment",
+            "title": "Action",
+            "type": "string"
+          },
+          "args": {
+            "$ref": "#/components/schemas/RollbackArgs"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Evidence Keys",
+            "type": "array"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "recommendation": {
+            "additionalProperties": true,
+            "description": "snapshot shown to the approver; code-written for AI proposals",
+            "title": "Recommendation",
+            "type": "object"
+          }
+        },
+        "required": [
+          "action",
+          "args"
+        ],
+        "title": "ActionRequest",
+        "type": "object"
+      },
+      "ApprovalOut": {
+        "properties": {
+          "action": {
+            "const": "rollback_deployment",
+            "title": "Action",
+            "type": "string"
+          },
+          "action_args": {
+            "additionalProperties": true,
+            "title": "Action Args",
+            "type": "object"
+          },
+          "args_sha256": {
+            "title": "Args Sha256",
+            "type": "string"
+          },
+          "consumed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consumed At"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decider_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decider Role"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Keys",
+            "type": "array"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "incident_id": {
+            "format": "uuid",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "incident_key": {
+            "title": "Incident Key",
+            "type": "string"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "outcome_detail": {
+            "additionalProperties": true,
+            "title": "Outcome Detail",
+            "type": "object"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "recommendation": {
+            "additionalProperties": true,
+            "title": "Recommendation",
+            "type": "object"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "investigation",
+              "manual"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "APPROVED",
+              "REJECTED",
+              "MORE_INFO",
+              "EXPIRED",
+              "EXECUTED",
+              "FAILED"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tool_call_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Call Id"
+          }
+        },
+        "required": [
+          "id",
+          "incident_id",
+          "incident_key",
+          "action",
+          "action_args",
+          "args_sha256",
+          "recommendation",
+          "evidence_keys",
+          "source",
+          "investigation_id",
+          "requested_by",
+          "requested_at",
+          "expires_at",
+          "status"
+        ],
+        "title": "ApprovalOut",
+        "type": "object"
+      },
+      "AuditEventOut": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          },
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "actor_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Role"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "details": {
+            "additionalProperties": true,
+            "title": "Details",
+            "type": "object"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "resource_type": {
+            "title": "Resource Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "actor",
+          "actor_role",
+          "action",
+          "resource_type",
+          "resource_id",
+          "incident_id",
+          "correlation_id",
+          "outcome",
+          "details"
+        ],
+        "title": "AuditEventOut",
+        "type": "object"
+      },
+      "AuditPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEventOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "scope": {
+            "enum": [
+              "all",
+              "own"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "items",
+          "scope"
+        ],
+        "title": "AuditPage",
+        "type": "object"
+      },
+      "CancelInvestigation": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CancelInvestigation",
+        "type": "object"
+      },
+      "Claim": {
+        "description": "'This incident and INC-x have the same/different <field>'. Proposed by the model (or by\ncode when the model is down); KEPT only if code computes the same relation.",
+        "properties": {
+          "field": {
+            "enum": [
+              "service",
+              "error_code",
+              "symptom",
+              "deploy_before"
+            ],
+            "title": "Field",
+            "type": "string"
+          },
+          "relation": {
+            "enum": [
+              "same",
+              "different"
+            ],
+            "title": "Relation",
+            "type": "string"
+          },
+          "value": {
+            "default": "",
+            "description": "code-written: the code/symptom",
+            "maxLength": 80,
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "relation"
+        ],
+        "title": "Claim",
+        "type": "object"
+      },
+      "DecisionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "decision": {
+            "enum": [
+              "APPROVED",
+              "REJECTED",
+              "MORE_INFO"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "reason": {
+            "description": "mandatory (ADR-007)",
+            "maxLength": 1000,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ],
+        "title": "DecisionIn",
+        "type": "object"
+      },
+      "DecisionResult": {
+        "description": "POST /api/v1/approvals/{id}/decision: the decision, and - when APPROVED - what the\ncontrolled execution did (EXECUTED / FAILED with the reason).",
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/ApprovalOut"
+          },
+          "executed": {
+            "default": false,
+            "title": "Executed",
+            "type": "boolean"
+          },
+          "execution_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Execution Error"
+          },
+          "result": {
+            "additionalProperties": true,
+            "title": "Result",
+            "type": "object"
+          }
+        },
+        "required": [
+          "approval"
+        ],
+        "title": "DecisionResult",
+        "type": "object"
+      },
+      "DelegatedToken": {
+        "properties": {
+          "access_token": {
+            "format": "password",
+            "title": "Access Token",
+            "type": "string",
+            "writeOnly": true
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "expires_in": {
+            "description": "seconds",
+            "minimum": 1.0,
+            "title": "Expires In",
+            "type": "integer"
+          },
+          "grant_expires_at": {
+            "format": "date-time",
+            "title": "Grant Expires At",
+            "type": "string"
+          },
+          "grant_id": {
+            "format": "uuid",
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "incident_id": {
+            "format": "uuid",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "investigation_id": {
+            "format": "uuid",
+            "title": "Investigation Id",
+            "type": "string"
+          },
+          "issued_token_type": {
+            "default": "urn:ietf:params:oauth:token-type:access_token",
+            "title": "Issued Token Type",
+            "type": "string"
+          },
+          "token_type": {
+            "default": "Bearer",
+            "title": "Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "access_token",
+          "expires_in",
+          "expires_at",
+          "grant_id",
+          "grant_expires_at",
+          "investigation_id",
+          "incident_id"
+        ],
+        "title": "DelegatedToken",
+        "type": "object"
+      },
+      "DelegationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "incident_id": {
+            "format": "uuid",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "investigation_id": {
+            "format": "uuid",
+            "title": "Investigation Id",
+            "type": "string"
+          },
+          "subject_token": {
+            "description": "the USER's access token (never stored)",
+            "format": "password",
+            "title": "Subject Token",
+            "type": "string",
+            "writeOnly": true
+          },
+          "subject_token_type": {
+            "default": "urn:ietf:params:oauth:token-type:access_token",
+            "title": "Subject Token Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject_token",
+          "investigation_id",
+          "incident_id"
+        ],
+        "title": "DelegationCreate",
+        "type": "object"
+      },
+      "DelegationRevoke": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "DelegationRevoke",
+        "type": "object"
+      },
+      "DelegationState": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "grant_id": {
+            "format": "uuid",
+            "title": "Grant Id",
+            "type": "string"
+          },
+          "investigation_id": {
+            "format": "uuid",
+            "title": "Investigation Id",
+            "type": "string"
+          },
+          "revoked": {
+            "title": "Revoked",
+            "type": "boolean"
+          },
+          "revoked_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked Reason"
+          }
+        },
+        "required": [
+          "grant_id",
+          "investigation_id",
+          "revoked",
+          "revoked_reason",
+          "expires_at"
+        ],
+        "title": "DelegationState",
+        "type": "object"
+      },
+      "DocumentOut": {
+        "properties": {
+          "chunk_count": {
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "department": {
+            "title": "Department",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "indexed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indexed At"
+          },
+          "owner": {
+            "title": "Owner",
+            "type": "string"
+          },
+          "sensitivity": {
+            "title": "Sensitivity",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "source",
+          "source_uri",
+          "department",
+          "owner",
+          "version",
+          "sensitivity",
+          "content",
+          "indexed_at",
+          "chunk_count"
+        ],
+        "title": "DocumentOut",
+        "type": "object"
+      },
+      "ExecutionTraceOut": {
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "agent_version": {
+            "title": "Agent Version",
+            "type": "string"
+          },
+          "cost_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Cost Usd",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "execution_id": {
+            "format": "uuid",
+            "title": "Execution Id",
+            "type": "string"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/TraceMessageOut"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "output": {
+            "additionalProperties": true,
+            "title": "Output",
+            "type": "object"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "prompt_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Id"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "redacted": {
+            "default": false,
+            "title": "Redacted",
+            "type": "boolean"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "execution_id",
+          "task_id",
+          "agent",
+          "agent_version",
+          "status",
+          "model",
+          "prompt_id",
+          "prompt_version",
+          "input_tokens",
+          "output_tokens",
+          "latency_ms",
+          "cost_usd",
+          "error",
+          "started_at",
+          "finished_at",
+          "output"
+        ],
+        "title": "ExecutionTraceOut",
+        "type": "object"
+      },
+      "FeedbackCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comment"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "rating": {
+            "description": "1 = helpful, -1 = not helpful",
+            "enum": [
+              -1,
+              1
+            ],
+            "title": "Rating",
+            "type": "integer"
+          },
+          "target_id": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "$ref": "#/components/schemas/FeedbackTarget"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "rating"
+        ],
+        "title": "FeedbackCreate",
+        "type": "object"
+      },
+      "FeedbackOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at"
+        ],
+        "title": "FeedbackOut",
+        "type": "object"
+      },
+      "FeedbackTarget": {
+        "enum": [
+          "FINDING",
+          "REPORT",
+          "ANSWER",
+          "RETRIEVAL"
+        ],
+        "title": "FeedbackTarget",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HypothesisEdge": {
+        "properties": {
+          "evidence_key": {
+            "title": "Evidence Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "stance": {
+            "enum": [
+              "SUPPORTS",
+              "CONTRADICTS"
+            ],
+            "title": "Stance",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_key",
+          "kind",
+          "stance"
+        ],
+        "title": "HypothesisEdge",
+        "type": "object"
+      },
+      "HypothesisRecord": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/HypothesisEdge"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "hidden_edges": {
+            "description": "evidence edges of kinds this caller may not read",
+            "title": "Hidden Edges",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "produced_by": {
+            "title": "Produced By",
+            "type": "string"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "statement": {
+            "title": "Statement",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "investigation_id",
+          "key",
+          "statement",
+          "confidence",
+          "status",
+          "rank",
+          "produced_by",
+          "detail",
+          "edges",
+          "hidden_edges",
+          "created_at"
+        ],
+        "title": "HypothesisRecord",
+        "type": "object"
+      },
+      "IncidentCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "affected_services": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9-]{1,99}$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Affected Services",
+            "type": "array"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 20000,
+            "title": "Description",
+            "type": "string"
+          },
+          "detected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "defaults to now (UTC)",
+            "title": "Detected At"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "title": {
+            "examples": [
+              "HTTP 500 errors increased 42% after deployment"
+            ],
+            "maxLength": 300,
+            "minLength": 5,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "severity"
+        ],
+        "title": "IncidentCreate",
+        "type": "object"
+      },
+      "IncidentOut": {
+        "properties": {
+          "affected_services": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Affected Services",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "INC-10234"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/Severity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/IncidentStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "title",
+          "description",
+          "severity",
+          "status",
+          "affected_services",
+          "detected_at",
+          "resolved_at",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "version"
+        ],
+        "title": "IncidentOut",
+        "type": "object"
+      },
+      "IncidentPatch": {
+        "additionalProperties": false,
+        "description": "Partial update. Send `If-Match: <version>` (optimistic locking).",
+        "properties": {
+          "reason": {
+            "description": "recorded in the timeline",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IncidentStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "IncidentPatch",
+        "type": "object"
+      },
+      "IncidentStatus": {
+        "enum": [
+          "OPEN",
+          "INVESTIGATING",
+          "AWAITING_REVIEW",
+          "MITIGATED",
+          "RESOLVED",
+          "CLOSED"
+        ],
+        "title": "IncidentStatus",
+        "type": "string"
+      },
+      "InvestigationAccepted": {
+        "description": "202 body: the investigation runs asynchronously. Phase 9: the orchestrator answers\n`/investigate` and adds the investigation it started (poll `GET /investigations/{id}`).",
+        "properties": {
+          "incident_id": {
+            "format": "uuid",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          },
+          "status": {
+            "default": "REQUESTED",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "request_id",
+          "incident_id"
+        ],
+        "title": "InvestigationAccepted",
+        "type": "object"
+      },
+      "InvestigationOut": {
+        "properties": {
+          "deadline_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deadline At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "evidence_inserted": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Inserted"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "graph_next": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Graph Next",
+            "type": "array"
+          },
+          "incident_id": {
+            "format": "uuid",
+            "title": "Incident Id",
+            "type": "string"
+          },
+          "investigation_id": {
+            "format": "uuid",
+            "title": "Investigation Id",
+            "type": "string"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          },
+          "requested_by": {
+            "title": "Requested By",
+            "type": "string"
+          },
+          "spent_usd": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Spent Usd",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "investigation_id",
+          "incident_id",
+          "status",
+          "requested_by",
+          "started_at",
+          "finished_at",
+          "deadline_at",
+          "spent_usd",
+          "error",
+          "plan"
+        ],
+        "title": "InvestigationOut",
+        "type": "object"
+      },
+      "InvestigationTrace": {
+        "properties": {
+          "executions": {
+            "items": {
+              "$ref": "#/components/schemas/ExecutionTraceOut"
+            },
+            "title": "Executions",
+            "type": "array"
+          },
+          "investigation_id": {
+            "format": "uuid",
+            "title": "Investigation Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "investigation_id",
+          "executions"
+        ],
+        "title": "InvestigationTrace",
+        "type": "object"
+      },
+      "Me": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "name",
+          "roles",
+          "groups",
+          "permissions"
+        ],
+        "title": "Me",
+        "type": "object"
+      },
+      "NoChange": {
+        "additionalProperties": false,
+        "description": "Negative evidence (\"requests_per_sec stayed within its baseline\"): code-written, but it\nIS evidence (numbers from metrics), so it is redacted like a sentence (review: it leaked\nMETRIC data to MANAGER while the METRIC rows were hidden).",
+        "properties": {
+          "evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Evidence Keys",
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 300,
+            "minLength": 3,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "NoChange",
+        "type": "object"
+      },
+      "Page_IncidentOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = last page",
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "Page[IncidentOut]",
+        "type": "object"
+      },
+      "PmSection": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "enum": [
+              "summary",
+              "what_happened",
+              "why",
+              "detection",
+              "went_well",
+              "went_poorly"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "sentences": {
+            "items": {
+              "$ref": "#/components/schemas/PmSentence"
+            },
+            "maxItems": 8,
+            "title": "Sentences",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "PmSection",
+        "type": "object"
+      },
+      "PmSentence": {
+        "additionalProperties": false,
+        "description": "One model-written sentence. `refs` = observation refs it cites; `evidence_keys` =\nwhat code mapped them to (used to redact it for a reader without that evidence).\nStored sentences always cite (incident-service refuses empty lists); a REDACTED sentence\nin a GET response has both lists emptied, so the ids do not leak either (review).",
+        "properties": {
+          "evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Evidence Keys",
+            "type": "array"
+          },
+          "refs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Refs",
+            "type": "array"
+          },
+          "text": {
+            "maxLength": 400,
+            "minLength": 3,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PmSentence",
+        "type": "object"
+      },
+      "PmTimelineRow": {
+        "properties": {
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "evidence_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Key"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "source",
+          "summary",
+          "actor"
+        ],
+        "title": "PmTimelineRow",
+        "type": "object"
+      },
+      "PostmortemDoc": {
+        "description": "GET /v1/incidents/{id}/postmortem. Assembled by code at read time.",
+        "properties": {
+          "action_items": {
+            "items": {
+              "$ref": "#/components/schemas/ActionItem"
+            },
+            "title": "Action Items",
+            "type": "array"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "first_symptom_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Symptom At"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "hidden_timeline_rows": {
+            "default": 0,
+            "title": "Hidden Timeline Rows",
+            "type": "integer"
+          },
+          "incident_key": {
+            "title": "Incident Key",
+            "type": "string"
+          },
+          "investigation_id": {
+            "format": "uuid",
+            "title": "Investigation Id",
+            "type": "string"
+          },
+          "minutes_to_detect": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes To Detect"
+          },
+          "minutes_to_resolve": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes To Resolve"
+          },
+          "minutes_trigger_to_symptom": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes Trigger To Symptom"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "no_change": {
+            "items": {
+              "$ref": "#/components/schemas/NoChange"
+            },
+            "title": "No Change",
+            "type": "array"
+          },
+          "numbers_rejected": {
+            "default": 0,
+            "title": "Numbers Rejected",
+            "type": "integer"
+          },
+          "redacted_sentences": {
+            "default": 0,
+            "title": "Redacted Sentences",
+            "type": "integer"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "root_cause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RootCause"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "root_cause_state": {
+            "default": "validated",
+            "enum": [
+              "validated",
+              "none_survived",
+              "reasoning_failed",
+              "reasoning_off",
+              "not_stored"
+            ],
+            "title": "Root Cause State",
+            "type": "string"
+          },
+          "ruled_out": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ruled Out",
+            "type": "array"
+          },
+          "sections": {
+            "items": {
+              "$ref": "#/components/schemas/PmSection"
+            },
+            "title": "Sections",
+            "type": "array"
+          },
+          "sentences_dropped": {
+            "default": 0,
+            "title": "Sentences Dropped",
+            "type": "integer"
+          },
+          "services": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Services",
+            "type": "array"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "string"
+          },
+          "similar": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarIncident"
+            },
+            "title": "Similar",
+            "type": "array"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/PmTimelineRow"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "trigger_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger At"
+          },
+          "written_by": {
+            "title": "Written By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "incident_key",
+          "title",
+          "severity",
+          "status",
+          "services",
+          "detected_at",
+          "resolved_at",
+          "investigation_id",
+          "generated_at",
+          "written_by",
+          "model"
+        ],
+        "title": "PostmortemDoc",
+        "type": "object"
+      },
+      "ReleaseRiskOut": {
+        "description": "GET /api/v1/release-risk/{id}. Readable with code:read (it holds code excerpts).",
+        "properties": {
+          "agent_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Version"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/aeoi_models__api__release__EvidenceOut"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReleaseRiskReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requested_at": {
+            "format": "date-time",
+            "title": "Requested At",
+            "type": "string"
+          },
+          "requested_by": {
+            "format": "uuid",
+            "title": "Requested By",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "SUCCEEDED",
+              "PARTIAL",
+              "FAILED"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "band",
+          "requested_by",
+          "requested_at",
+          "report"
+        ],
+        "title": "ReleaseRiskOut",
+        "type": "object"
+      },
+      "ReleaseRiskReport": {
+        "description": "`band` = the advice: risk found, raised to at least MEDIUM when part of the release could\nnot be checked (unknown is not safe). `findings_band` = risk found in what WAS checked, and\n`coverage` says whether everything was - so \"we found a problem\" and \"we could not see\" are\nnever confused (the scan showed the second one dominating on the synthetic history).",
+        "properties": {
+          "advisory": {
+            "const": true,
+            "default": true,
+            "title": "Advisory",
+            "type": "boolean"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "base_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Sha"
+          },
+          "checked": {
+            "description": "signals assessed",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Checked",
+            "type": "array"
+          },
+          "coverage": {
+            "default": "full",
+            "enum": [
+              "full",
+              "partial"
+            ],
+            "title": "Coverage",
+            "type": "string"
+          },
+          "deploy_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploy Key"
+          },
+          "factors": {
+            "items": {
+              "$ref": "#/components/schemas/RiskFactor"
+            },
+            "maxItems": 40,
+            "title": "Factors",
+            "type": "array"
+          },
+          "findings_band": {
+            "anyOf": [
+              {
+                "enum": [
+                  "LOW",
+                  "MEDIUM",
+                  "HIGH"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Findings Band"
+          },
+          "head_sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Sha"
+          },
+          "not_checked": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Not Checked",
+            "type": "array"
+          },
+          "pull_request": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pull Request"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "rollback": {
+            "items": {
+              "$ref": "#/components/schemas/RollbackStep"
+            },
+            "maxItems": 20,
+            "title": "Rollback",
+            "type": "array"
+          },
+          "service_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Key"
+          },
+          "target_kind": {
+            "enum": [
+              "pull_request",
+              "range",
+              "deploy"
+            ],
+            "title": "Target Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_kind"
+        ],
+        "title": "ReleaseRiskReport",
+        "type": "object"
+      },
+      "ReleaseRiskRequest": {
+        "additionalProperties": false,
+        "description": "Exactly one target:\n- pull_request: repository + pull_request (its merge commit)\n- range: a release CANDIDATE before it ships - service_key + base_sha (what runs now) +\n  head_sha (what would ship); commits after base up to head\n- deploy: deploy_key - what that deploy shipped since the previous successful deploy of the\n  service, plus its config changes (\"would this have been flagged?\")",
+        "properties": {
+          "base_sha": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Sha"
+          },
+          "deploy_key": {
+            "anyOf": [
+              {
+                "pattern": "^DEPLOY-[0-9]{1,24}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deploy Key"
+          },
+          "head_sha": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{40}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Sha"
+          },
+          "pull_request": {
+            "anyOf": [
+              {
+                "maximum": 10000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pull Request"
+          },
+          "repository": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "pattern": "^[a-z0-9-]+/[a-z0-9-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repository"
+          },
+          "service_key": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9-]{2,100}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Key"
+          }
+        },
+        "title": "ReleaseRiskRequest",
+        "type": "object"
+      },
+      "RerankInfo": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fallback_used": {
+            "default": false,
+            "title": "Fallback Used",
+            "type": "boolean"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "requested": {
+            "title": "Requested",
+            "type": "boolean"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Route"
+          }
+        },
+        "required": [
+          "requested",
+          "applied"
+        ],
+        "title": "RerankInfo",
+        "type": "object"
+      },
+      "RiskFactor": {
+        "properties": {
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "kind": {
+            "enum": [
+              "code_mechanism",
+              "breaking_change",
+              "limit_change",
+              "blast_radius",
+              "config_change",
+              "not_checked",
+              "nothing_shipped"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "context",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "title": "Severity",
+            "type": "string"
+          },
+          "statement": {
+            "maxLength": 500,
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "severity",
+          "statement"
+        ],
+        "title": "RiskFactor",
+        "type": "object"
+      },
+      "RollbackArgs": {
+        "additionalProperties": false,
+        "description": "= tool-gateway RollbackIn (the gateway validates the same shape before hashing).",
+        "properties": {
+          "deploy_key": {
+            "pattern": "^DEPLOY-[0-9]{1,24}$",
+            "title": "Deploy Key",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deploy_key",
+          "reason"
+        ],
+        "title": "RollbackArgs",
+        "type": "object"
+      },
+      "RollbackStep": {
+        "description": "How to take the risky part back OUT, decided by code from the diff and the deploy:\nflag_off (the risky code is behind a flag), redeploy (it is not: only a rollback removes\nit), flag_not_read (a flag this deploy changed is not read by the changed code: switching\nit back does NOT undo the code change), none (nothing risky to take back).",
+        "properties": {
+          "kind": {
+            "enum": [
+              "flag_off",
+              "redeploy",
+              "flag_not_read",
+              "none"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "statement": {
+            "maxLength": 400,
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "statement"
+        ],
+        "title": "RollbackStep",
+        "type": "object"
+      },
+      "RootCause": {
+        "description": "Code-assembled from the stored top hypothesis of the postmortem's investigation.",
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "string"
+          },
+          "confirmed_by_human": {
+            "default": false,
+            "title": "Confirmed By Human",
+            "type": "boolean"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "history_prior": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History Prior"
+          },
+          "refinement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refinement"
+          },
+          "statement": {
+            "title": "Statement",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement",
+          "confidence",
+          "status"
+        ],
+        "title": "RootCause",
+        "type": "object"
+      },
+      "SearchFilters": {
+        "additionalProperties": false,
+        "properties": {
+          "departments": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departments"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 8,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sources"
+          }
+        },
+        "title": "SearchFilters",
+        "type": "object"
+      },
+      "SearchHit": {
+        "properties": {
+          "chunk_id": {
+            "format": "uuid",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "chunk_index": {
+            "title": "Chunk Index",
+            "type": "integer"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "document_id": {
+            "format": "uuid",
+            "title": "Document Id",
+            "type": "string"
+          },
+          "keyword_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keyword Rank"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "integer"
+          },
+          "rerank_relevance": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rerank Relevance"
+          },
+          "rrf_score": {
+            "title": "Rrf Score",
+            "type": "number"
+          },
+          "similarity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Similarity"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "vector_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vector Rank"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "document_id",
+          "title",
+          "source",
+          "source_uri",
+          "chunk_index",
+          "content",
+          "rank",
+          "rrf_score"
+        ],
+        "title": "SearchHit",
+        "type": "object"
+      },
+      "SearchMode": {
+        "enum": [
+          "hybrid",
+          "vector",
+          "keyword"
+        ],
+        "title": "SearchMode",
+        "type": "string"
+      },
+      "SearchRequest": {
+        "additionalProperties": false,
+        "description": "The caller's groups come from the verified token - never from this body.",
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/SearchFilters"
+          },
+          "k": {
+            "default": 8,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "K",
+            "type": "integer"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/SearchMode",
+            "default": "hybrid"
+          },
+          "query": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "rerank": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = service default (off until the eval shows a gain)",
+            "title": "Rerank"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "SearchRequest",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "properties": {
+          "degraded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "set when part of the pipeline was skipped",
+            "title": "Degraded"
+          },
+          "embedding_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Model"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/SearchMode"
+          },
+          "rerank": {
+            "$ref": "#/components/schemas/RerankInfo"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHit"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "retrieval_id": {
+            "format": "uuid",
+            "title": "Retrieval Id",
+            "type": "string"
+          },
+          "timings_ms": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Timings Ms",
+            "type": "object"
+          }
+        },
+        "required": [
+          "retrieval_id",
+          "mode",
+          "embedding_model",
+          "results",
+          "rerank",
+          "timings_ms"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "Severity": {
+        "enum": [
+          "SEV1",
+          "SEV2",
+          "SEV3",
+          "SEV4"
+        ],
+        "title": "Severity",
+        "type": "string"
+      },
+      "SimilarIncident": {
+        "properties": {
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "maxItems": 8,
+            "title": "Claims",
+            "type": "array"
+          },
+          "compared_by": {
+            "default": "code",
+            "enum": [
+              "llm",
+              "code"
+            ],
+            "title": "Compared By",
+            "type": "string"
+          },
+          "evidence_id": {
+            "maxLength": 80,
+            "pattern": "^[A-Z]+-[A-Za-z0-9._-]+$",
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "incident_key": {
+            "pattern": "^INC-[0-9]{1,12}$",
+            "title": "Incident Key",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "rank": {
+            "minimum": 1.0,
+            "title": "Rank",
+            "type": "integer"
+          },
+          "rank_keyword": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Keyword"
+          },
+          "rank_vector": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank Vector"
+          },
+          "retrieval": {
+            "enum": [
+              "hybrid",
+              "keyword",
+              "vector"
+            ],
+            "title": "Retrieval",
+            "type": "string"
+          },
+          "root_cause_category": {
+            "maxLength": 64,
+            "title": "Root Cause Category",
+            "type": "string"
+          },
+          "scope": {
+            "default": "all",
+            "enum": [
+              "service",
+              "all"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "service_keys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Service Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "incident_key",
+          "rank",
+          "retrieval",
+          "root_cause_category",
+          "occurred_at",
+          "evidence_id"
+        ],
+        "title": "SimilarIncident",
+        "type": "object"
+      },
+      "TaskOut": {
+        "properties": {
+          "agent": {
+            "title": "Agent",
+            "type": "string"
+          },
+          "attempt": {
+            "title": "Attempt",
+            "type": "integer"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "degraded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degraded"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "agent",
+          "status",
+          "attempt",
+          "started_at",
+          "finished_at",
+          "error"
+        ],
+        "title": "TaskOut",
+        "type": "object"
+      },
+      "TimelineEntry": {
+        "properties": {
+          "actor": {
+            "title": "Actor",
+            "type": "string"
+          },
+          "event_type": {
+            "title": "Event Type",
+            "type": "string"
+          },
+          "evidence_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Key"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "source",
+          "event_type",
+          "summary",
+          "actor",
+          "evidence_key"
+        ],
+        "title": "TimelineEntry",
+        "type": "object"
+      },
+      "ToolInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "idempotent": {
+            "title": "Idempotent",
+            "type": "boolean"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "title": "Input Schema",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output_schema": {
+            "additionalProperties": true,
+            "title": "Output Schema",
+            "type": "object"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "side_effect": {
+            "enum": [
+              "READ",
+              "WRITE",
+              "CONSEQUENTIAL"
+            ],
+            "title": "Side Effect",
+            "type": "string"
+          },
+          "timeout_s": {
+            "title": "Timeout S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "side_effect",
+          "permissions",
+          "timeout_s",
+          "idempotent",
+          "input_schema",
+          "output_schema"
+        ],
+        "title": "ToolInfo",
+        "type": "object"
+      },
+      "ToolInvokeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "agent_name": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Name"
+          },
+          "approval_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approval Id"
+          },
+          "args": {
+            "additionalProperties": true,
+            "description": "validated by the tool schema",
+            "title": "Args",
+            "type": "object"
+          },
+          "incident_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Id"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          }
+        },
+        "title": "ToolInvokeRequest",
+        "type": "object"
+      },
+      "ToolResult": {
+        "properties": {
+          "attempts": {
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "evidence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "security": {
+            "$ref": "#/components/schemas/ToolSecurity"
+          },
+          "status": {
+            "const": "OK",
+            "default": "OK",
+            "title": "Status",
+            "type": "string"
+          },
+          "tool": {
+            "title": "Tool",
+            "type": "string"
+          },
+          "tool_call_id": {
+            "format": "uuid",
+            "title": "Tool Call Id",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          },
+          "untrusted": {
+            "const": true,
+            "default": true,
+            "description": "data is untrusted input: wrap it before it reaches a prompt",
+            "title": "Untrusted",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "tool_call_id",
+          "tool",
+          "data",
+          "evidence_ids",
+          "truncated",
+          "security",
+          "latency_ms",
+          "attempts"
+        ],
+        "title": "ToolResult",
+        "type": "object"
+      },
+      "ToolSecurity": {
+        "properties": {
+          "injection_flags": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Injection Flags",
+            "type": "array"
+          },
+          "items_dropped": {
+            "default": 0,
+            "title": "Items Dropped",
+            "type": "integer"
+          },
+          "pii_redacted": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Pii Redacted",
+            "type": "object"
+          },
+          "secrets_redacted": {
+            "default": 0,
+            "title": "Secrets Redacted",
+            "type": "integer"
+          },
+          "strings_truncated": {
+            "default": 0,
+            "title": "Strings Truncated",
+            "type": "integer"
+          }
+        },
+        "title": "ToolSecurity",
+        "type": "object"
+      },
+      "TraceMessageOut": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "seq": {
+            "title": "Seq",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "seq",
+          "role",
+          "content"
+        ],
+        "title": "TraceMessageOut",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "aeoi_models__api__incidents__EvidenceOut": {
+        "properties": {
+          "evidence_key": {
+            "title": "Evidence Key",
+            "type": "string"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "retrieved_by": {
+            "title": "Retrieved By",
+            "type": "string"
+          },
+          "source_system": {
+            "title": "Source System",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uri"
+          }
+        },
+        "required": [
+          "id",
+          "evidence_key",
+          "kind",
+          "source_system",
+          "title",
+          "excerpt",
+          "observed_at",
+          "retrieved_by",
+          "uri"
+        ],
+        "title": "EvidenceOut",
+        "type": "object"
+      },
+      "aeoi_models__api__release__EvidenceOut": {
+        "properties": {
+          "evidence_key": {
+            "title": "Evidence Key",
+            "type": "string"
+          },
+          "excerpt": {
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uri"
+          }
+        },
+        "required": [
+          "evidence_key",
+          "kind",
+          "title",
+          "excerpt"
+        ],
+        "title": "EvidenceOut",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "title": "AEOI api",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/approvals": {
+      "get": {
+        "description": "The approvals inbox (Phase 17b): PENDING requests across incidents, the one about to\nexpire first. The console polls it every 15 s.",
+        "operationId": "list_pending_approvals_api_v1_approvals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "PENDING",
+              "pattern": "^PENDING$",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalOut"
+                  },
+                  "title": "Response List Pending Approvals Api V1 Approvals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Pending Approvals",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/{approval_id}": {
+      "get": {
+        "operationId": "get_approval_api_v1_approvals__approval_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Approval",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/{approval_id}/decision": {
+      "post": {
+        "description": "APPROVED / REJECTED / MORE_INFO with a reason. APPROVED runs the action now, as the\napprover; the response says whether it ran (bounded: 12 s).",
+        "operationId": "decide_api_v1_approvals__approval_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Decide",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/approvals/{approval_id}/execute": {
+      "post": {
+        "description": "Retry an approved action whose result is unknown. Safe: one approval runs at most once.",
+        "operationId": "execute_api_v1_approvals__approval_id__execute_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approval_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Approval Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Execute",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/audit/events": {
+      "get": {
+        "description": "Scope (all / incident / own) is decided by the audit service from permissions.",
+        "operationId": "audit_events_api_v1_audit_events_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Audit Events",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}": {
+      "get": {
+        "operationId": "get_document_api_v1_documents__document_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "document_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Document Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Document",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/v1/feedback": {
+      "post": {
+        "operationId": "feedback_api_v1_feedback_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Feedback",
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/api/v1/incidents": {
+      "get": {
+        "description": "Declared here (Phase 17b): the contract the console is generated from must show the\nfilters and the cursor; they are validated at the edge, then forwarded unchanged.",
+        "operationId": "list_incidents_api_v1_incidents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/IncidentStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Severity"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Severity"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 300,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_IncidentOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Incidents",
+        "tags": [
+          "incidents"
+        ]
+      },
+      "post": {
+        "operationId": "create_incident_api_v1_incidents_post",
+        "parameters": [
+          {
+            "description": "Same key = same action: a retry returns the first result.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Same key = same action: a retry returns the first result.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Create Incident",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}": {
+      "get": {
+        "operationId": "get_incident_api_v1_incidents__ref__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Incident",
+        "tags": [
+          "incidents"
+        ]
+      },
+      "patch": {
+        "operationId": "patch_incident_api_v1_incidents__ref__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Patch Incident",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/actions": {
+      "post": {
+        "description": "An SRE asks for ONE consequential action with ONE exact argument set (Idempotency-Key\nrequired). Another incident commander must approve it; nothing runs here.",
+        "operationId": "request_action_api_v1_incidents__ref__actions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Same key = same action: a retry returns the first result.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Same key = same action: a retry returns the first result.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Request Action",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/approvals": {
+      "get": {
+        "description": "The decision record: who asked, who decided, why, what ran.",
+        "operationId": "list_approvals_api_v1_incidents__ref__approvals_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalOut"
+                  },
+                  "title": "Response List Approvals Api V1 Incidents  Ref  Approvals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Approvals",
+        "tags": [
+          "approvals"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/evidence": {
+      "get": {
+        "operationId": "evidence_api_v1_incidents__ref__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/aeoi_models__api__incidents__EvidenceOut"
+                  },
+                  "title": "Response Evidence Api V1 Incidents  Ref  Evidence Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Evidence",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/hypotheses": {
+      "get": {
+        "description": "Phase 11: ranked hypotheses of the latest investigation (or ?investigation_id=).",
+        "operationId": "hypotheses_api_v1_incidents__ref__hypotheses_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HypothesisRecord"
+                  },
+                  "title": "Response Hypotheses Api V1 Incidents  Ref  Hypotheses Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Hypotheses",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/investigate": {
+      "post": {
+        "description": "Starts an investigation (orchestrator, Phase 9): 202 + Location of its status.\nThe orchestrator marks the incident INVESTIGATING as the caller (incident-service).",
+        "operationId": "investigate_api_v1_incidents__ref__investigate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Same key = same action: a retry returns the first result.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Same key = same action: a retry returns the first result.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Investigate",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/investigations": {
+      "get": {
+        "description": "The agents that ran for an incident, with status, model, latency, cost.",
+        "operationId": "incident_investigations_api_v1_incidents__ref__investigations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InvestigationOut"
+                  },
+                  "title": "Response Incident Investigations Api V1 Incidents  Ref  Investigations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Incident Investigations",
+        "tags": [
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/postmortem": {
+      "get": {
+        "description": "Phase 12 (ADR-022): the latest postmortem (or ?investigation_id=), assembled at read\ntime; `?format=markdown` returns text/markdown. Model sentences are redacted for a reader\nwho may not read all the evidence they cite.",
+        "operationId": "postmortem_api_v1_incidents__ref__postmortem_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostmortemDoc"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Postmortem",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/incidents/{ref}/timeline": {
+      "get": {
+        "operationId": "timeline_api_v1_incidents__ref__timeline_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TimelineEntry"
+                  },
+                  "title": "Response Timeline Api V1 Incidents  Ref  Timeline Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Timeline",
+        "tags": [
+          "incidents"
+        ]
+      }
+    },
+    "/api/v1/investigations/{investigation_id}": {
+      "get": {
+        "operationId": "get_investigation_api_v1_investigations__investigation_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "investigation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Investigation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Investigation",
+        "tags": [
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/investigations/{investigation_id}/cancel": {
+      "post": {
+        "operationId": "cancel_investigation_api_v1_investigations__investigation_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "investigation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Investigation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelInvestigation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Cancel Investigation",
+        "tags": [
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/investigations/{investigation_id}/trace": {
+      "get": {
+        "description": "Agent executions with model, prompt version, tokens, cost and the scrubbed messages.",
+        "operationId": "investigation_trace_api_v1_investigations__investigation_id__trace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "investigation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Investigation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationTrace"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Investigation Trace",
+        "tags": [
+          "investigations"
+        ]
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "description": "Who am I - the UI's first call after sign-in (rate limit + directory check apply).",
+        "operationId": "me_api_v1_me_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Me",
+        "tags": [
+          "identity"
+        ]
+      }
+    },
+    "/api/v1/release-risk": {
+      "get": {
+        "description": "Latest assessments of a service (`?service_key=`) or a deploy (`?deploy_key=`).",
+        "operationId": "list_release_risk_api_v1_release_risk_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "service_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[a-z0-9-]{2,100}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "deploy_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^DEPLOY-[0-9]{1,24}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Deploy Key"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReleaseRiskOut"
+                  },
+                  "title": "Response List Release Risk Api V1 Release Risk Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Release Risk",
+        "tags": [
+          "release-risk"
+        ]
+      },
+      "post": {
+        "description": "ADVISORY release risk for a pull request or a deploy (code only, never blocks a deploy).\nSynchronous and bounded (the orchestrator gives the agent 12 s). Optional Idempotency-Key:\na retry returns the first report (200).",
+        "operationId": "release_risk_api_v1_release_risk_post",
+        "parameters": [
+          {
+            "description": "Same key = same action: a retry returns the first result.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Same key = same action: a retry returns the first result.",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseRiskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseRiskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Release Risk",
+        "tags": [
+          "release-risk"
+        ]
+      }
+    },
+    "/api/v1/release-risk/{assessment_id}": {
+      "get": {
+        "operationId": "get_release_risk_api_v1_release_risk__assessment_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assessment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assessment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseRiskOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Release Risk",
+        "tags": [
+          "release-risk"
+        ]
+      }
+    },
+    "/api/v1/search": {
+      "post": {
+        "description": "Permission-aware hybrid search. The caller's groups come from the token, in rag.",
+        "operationId": "search_api_v1_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Search",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/api/v1/tools": {
+      "get": {
+        "description": "Tools the caller's permissions allow (manual mode: the user is the caller).",
+        "operationId": "list_tools_api_v1_tools_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ToolInfo"
+                  },
+                  "title": "Response List Tools Api V1 Tools Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "List Tools",
+        "tags": [
+          "tools"
+        ]
+      }
+    },
+    "/api/v1/tools/{name}/invoke": {
+      "post": {
+        "description": "Manual tool call. The tool-gateway authorizes (per tool), sanitises and AUDITS it.\nX-On-Behalf-Of is never forwarded from the edge: only internal services may use it.",
+        "operationId": "invoke_tool_api_v1_tools__name__invoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolInvokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Invoke Tool",
+        "tags": [
+          "tools"
+        ]
+      }
+    }
+  }
+}

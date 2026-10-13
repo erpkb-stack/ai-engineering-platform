@@ -14,7 +14,7 @@ import json
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from pydantic import BaseModel
 
 from aeoi_api.proxy import Upstream
@@ -30,7 +30,9 @@ from aeoi_models.api.incidents import (
     IncidentCreate,
     IncidentOut,
     IncidentPatch,
+    IncidentStatus,
     InvestigationAccepted,
+    Severity,
     TimelineEntry,
 )
 from aeoi_models.api.investigations import (
@@ -47,6 +49,17 @@ from aeoi_security.rbac import Perm
 from aeoi_web.auth import current_principal
 
 router = APIRouter(prefix="/api/v1")
+
+# Declared so the contract shows it (Phase 17b): forwarded as-is; each service decides when it
+# is REQUIRED (428) and dedupes on it. One key per user action makes a retry safe.
+IdemKey = Annotated[
+    str | None,
+    Header(
+        alias="Idempotency-Key",
+        pattern=r"^[A-Za-z0-9._:-]{8,128}$",
+        description="Same key = same action: a retry returns the first result.",
+    ),
+]
 
 
 def guard(perm: Perm):  # type: ignore[no-untyped-def]  # returns a FastAPI dependency
@@ -150,14 +163,24 @@ async def create_incident(
     request: Request,
     up: Incidents,
     _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_CREATE))],
+    idempotency_key: IdemKey = None,
 ) -> Response:
     return await up.forward(request, "/v1/incidents", body=_json(body))
 
 
 @router.get("/incidents", response_model=Page[IncidentOut], tags=["incidents"])
 async def list_incidents(
-    request: Request, up: Incidents, _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))]
+    request: Request,
+    up: Incidents,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+    status: IncidentStatus | None = None,
+    severity: Severity | None = None,
+    service: Annotated[str | None, Query(max_length=100)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    cursor: Annotated[str | None, Query(max_length=300)] = None,
 ) -> Response:
+    """Declared here (Phase 17b): the contract the console is generated from must show the
+    filters and the cursor; they are validated at the edge, then forwarded unchanged."""
     return await up.forward(request, "/v1/incidents")
 
 
@@ -193,6 +216,7 @@ async def investigate(
     request: Request,
     up: Orchestrator,
     _: Annotated[Principal, Depends(guard(Perm.INVESTIGATIONS_RUN))],
+    idempotency_key: IdemKey = None,
 ) -> Response:
     """Starts an investigation (orchestrator, Phase 9): 202 + Location of its status.
     The orchestrator marks the incident INVESTIGATING as the caller (incident-service)."""
@@ -376,6 +400,7 @@ async def release_risk(
     request: Request,
     up: Orchestrator,
     _: Annotated[Principal, Depends(guard(Perm.CODE_READ))],
+    idempotency_key: IdemKey = None,
 ) -> Response:
     """ADVISORY release risk for a pull request or a deploy (code only, never blocks a deploy).
     Synchronous and bounded (the orchestrator gives the agent 12 s). Optional Idempotency-Key:
@@ -398,6 +423,9 @@ async def list_release_risk(
     request: Request,
     up: Orchestrator,
     _: Annotated[Principal, Depends(guard(Perm.CODE_READ))],
+    service_key: Annotated[str | None, Query(pattern=r"^[a-z0-9-]{2,100}$")] = None,
+    deploy_key: Annotated[str | None, Query(pattern=r"^DEPLOY-[0-9]{1,24}$")] = None,
+    limit: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> Response:
     """Latest assessments of a service (`?service_key=`) or a deploy (`?deploy_key=`)."""
     return await up.forward(request, "/v1/release-risk")
@@ -412,6 +440,7 @@ async def request_action(
     request: Request,
     up: Incidents,
     _: Annotated[Principal, Depends(guard(Perm.ACTIONS_REQUEST))],
+    idempotency_key: IdemKey = None,
 ) -> Response:
     """An SRE asks for ONE consequential action with ONE exact argument set (Idempotency-Key
     required). Another incident commander must approve it; nothing runs here."""
@@ -427,6 +456,19 @@ async def list_approvals(
 ) -> Response:
     """The decision record: who asked, who decided, why, what ran."""
     return await up.forward(request, f"/v1/incidents/{ref}/approvals")
+
+
+@router.get("/approvals", response_model=list[ApprovalOut], tags=["approvals"])
+async def list_pending_approvals(
+    request: Request,
+    up: Incidents,
+    _: Annotated[Principal, Depends(guard(Perm.INCIDENTS_READ))],
+    status: Annotated[str, Query(pattern="^PENDING$")] = "PENDING",
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+) -> Response:
+    """The approvals inbox (Phase 17b): PENDING requests across incidents, the one about to
+    expire first. The console polls it every 15 s."""
+    return await up.forward(request, "/v1/approvals")
 
 
 @router.get("/approvals/{approval_id}", response_model=ApprovalOut, tags=["approvals"])

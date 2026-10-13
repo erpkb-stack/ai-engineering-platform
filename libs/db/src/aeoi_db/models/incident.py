@@ -316,6 +316,15 @@ class Approval(Base):
         ),
         # serves: approval history per incident (UI + audit)
         Index("ix_approvals_incident_id_requested_at", "incident_id", "requested_at"),
+        # serves: the approvals inbox (Phase 17b) - undecided requests by expiry, the soonest
+        # first; polled every 15 s by every open console. Expired rows stay undecided until
+        # someone touches them (expiry is recorded lazily), so the index carries expires_at.
+        Index(
+            "ix_approvals_undecided_expires_at",
+            "expires_at",
+            "id",
+            postgresql_where=text("decision IS NULL"),
+        ),
         # at most ONE pending request for the same action on the same incident
         Index(
             "uq_approvals_pending_action",
