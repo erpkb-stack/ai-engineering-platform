@@ -357,8 +357,8 @@ Approvals expire (e.g. 30 min) and are single-use. A stale approval cannot be re
 | Topic | Events | Producers → Consumers | Partitions [P]/[Prod] |
 |---|---|---|---|
 | `incident.lifecycle` | IncidentCreated, IncidentResolved, HumanReviewRequired, HumanApproved, HumanRejected | incident-service → orchestrator, audit, eval | 3 / 24 |
-| `investigation.tasks` | AgentTask | orchestrator → agents | 6 / 48–96 (≥ max worker replicas) |
-| `investigation.results` | AgentStarted, AgentCompleted, AgentFailed, EvidenceRetrieved, HypothesisCreated, HypothesisChallenged, ValidationCompleted | agents/orchestrator → orchestrator, audit, incident | 6 / 48 |
+| `investigation.tasks` | AgentTask - **not used** (ADR-030: agent tasks stay on HTTP) | orchestrator → agents | 6 / 48–96 (≥ max worker replicas) |
+| `investigation.results` | AgentStarted, AgentCompleted, AgentFailed, EvidenceRetrieved, HypothesisCreated, HypothesisChallenged, ValidationCompleted - **not used** (ADR-030) | agents/orchestrator → orchestrator, audit, incident | 6 / 48 |
 | `catalog.changes` (key = service_id) | CatalogChanged | service-catalog → knowledge, tool-gateway cache | 3 / 12 |
 | `*.dlq` | poison messages + error metadata | consumers → ops replay tool | 1 / 6 |
 
@@ -479,7 +479,7 @@ Namespace `ai-engineering-platform`. Kustomize `base/` + `overlays/{dev,staging,
 - **ConfigMaps** for non-secret config; **Secrets** via External Secrets Operator [Prod] (plain Secrets in kind only).
 - **Probes:** liveness = process alive (no dependency checks, or a DB outage restarts every pod); readiness = can serve (DB/Kafka reachable).
 - **Resources:** requests = typical usage, limits = memory only for Python (CPU limits cause throttling under bursts; there is an argument in the ADR).
-- **Scaling:** HPA on CPU for api/rag; **agent workers scale on Kafka consumer lag** (KEDA [Prod]; HPA CPU fallback in kind). Max replicas ≤ partitions of `investigation.tasks`.
+- **Scaling:** HPA on CPU for api/rag and agents (agent tasks are HTTP calls, ADR-030; scaling on a task queue's lag only if ADR-030's revisit triggers fire).
 - **PDB** for multi-replica services; **NetworkPolicies**: agents can reach only tool-gateway, llm-gateway and Kafka.
 - **PVC** for Postgres/Kafka in kind only.
 - **Zero-downtime:** rolling update `maxUnavailable: 0`, readiness gates, `preStop` sleep + graceful Kafka consumer close, expand/contract DB migrations run as a pre-deploy Job.
