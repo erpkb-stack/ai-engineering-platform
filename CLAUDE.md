@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 18 — Kafka / distributed** (18a: consumer core + audit consumer; 18b: agent tasks over Kafka) (Phases 1–17 built and verified; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-029).
+**Phase 19 — Redis** (not started) (Phases 1–18 built and verified; Phase 18 = 18a only, agent tasks stay on HTTP per ADR-030; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-030).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 

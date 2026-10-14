@@ -122,3 +122,16 @@ make kafka-lag · make kafka-dlq · make kafka-replay OFFSET=n DRY=1
 | lag grows, DLQ empty | a dependency (DB) is down: the consumer waits | fix the dependency; nothing to replay |
 | `REFUSED ... fix the cause` on replay | replayed 3 times already | fix the consumer or the producer first |
 | UnknownTopicOrPartition | topics not created (auto-create is off) | `make kafka-init` |
+
+## 18b. Agent tasks over Kafka - NOT built (owner decision 2026-10-14, ADR-030)
+The cost check read the real path: `run_agent` awaits one HTTP call, records the result, and the
+checkpointed graph reuses it on resume; transient failures are retried; agents are stateless;
+the delegated token lives 5 minutes and only the orchestrator can refresh it.
+- **Gain at this scale: none** - no task outlives the 180 s deadline, 2 concurrent
+  investigations never wait for a worker, restarts are already survived.
+- **Cost:** the graph must end and resume per task (engine rewrite); a user's bearer token would
+  sit in a Kafka log for 7 days (or agents become token-refreshing actors, widening ADR-019);
+  at-least-once means paying twice for duplicate LLM work, so stateless agents would need a
+  store; it rewrites the Phase 9-16 path.
+- **Revisit when** (ADR-030): load tests show agents saturated, a task needs minutes, agents
+  must scale on backlog, or a second consumer needs results live.

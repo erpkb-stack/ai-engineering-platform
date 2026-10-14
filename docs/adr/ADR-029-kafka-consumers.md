@@ -8,7 +8,7 @@ Refines: ADR-003 (Kafka events, outbox), architecture.md §17 (topics, reliabili
 Since Phase 4 the transactional outbox publishes incident events (`incident.lifecycle`), to the
 log by default or to Kafka with `make up PROFILE=kafka` - and nothing consumed them. Owner
 decision (2026-10-13): Phase 18 builds the consumer core, the audit service as its first
-consumer (18a), and agent tasks over Kafka (18b, separate checkpoint). Broker: Kafka (KRaft) as
+consumer (18a), and agent tasks over Kafka (18b, separate checkpoint; later NOT built, see ADR-030). Broker: Kafka (KRaft) as
 in compose.
 
 What a consumer has to get right, and what goes wrong otherwise:
@@ -81,7 +81,7 @@ poll (partition order) -> handler(msg) -> commit offset   (only after the handle
 The architecture planned "retry 3x -> **retry topic** -> DLQ". Not built: in-consumer retry
 with backoff covers transient failures, and a retry topic reorders a partition (a retried event
 lands after newer ones) and adds a topic per consumer group. Revisit if a consumer's retries
-must not block its partition (18b may need that for long agent tasks).
+must not block its partition (would matter for long agent tasks, which stay on HTTP: ADR-030).
 
 ## Alternatives
 | Option | Why not (here) |
@@ -93,7 +93,7 @@ must not block its partition (18b may need that for long agent tasks).
 
 ## Tradeoffs
 - **Order is per partition, not absolute:** a dead-lettered event is skipped, later events for
-  the same incident go on. Right for audit (append-only, each row has its own time); 18b must
+  the same incident go on. Right for audit (append-only, each row has its own time); a task queue would have to
   decide again for agent tasks.
 - **An outage blocks the partition** (by design: nothing is skipped). Past
   `max_poll_interval_ms` (10 min) Kafka moves the partition to another member; nothing is lost
