@@ -22,10 +22,10 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 | 16 | Human approval | interrupt/resume; approvals single-use + expiry + args hash; controlled tool execution; audit |  |
 | 17 | React frontend | 12 screens; investigation workspace; evidence graph; trace waterfall; approval panel; Playwright e2e |  |
 | 18 | Kafka / distributed | consumers with `processed_events` dedupe, retry topics, DLQ + replay tool, duplicate-delivery test, consumer-lag metrics (the producer side - outbox + relay + KafkaPublisher - shipped in Phase 4) |  |
-| 19 | Redis | caches, rate limits, locks, idempotency store; Redis-down behaviour tests |  |
+| 19 | Redis | **deferred to Phase 22 (ADR-031)**: nothing needs it before a service has 2 replicas; idempotency and locks stay in Postgres |  |
 | 20 | Java Service Catalog | Spring Boot service + Flyway + outbox; Python client generated from OpenAPI; contract test | service-catalog |
 | 21 | Docker | multi-stage non-root images; compose profiles; secrets; resource limits; healthchecks | evaluation, knowledge-service images |
-| 22 | Kubernetes | kind cluster; kustomize overlays; probes; HPA; NetworkPolicies; zero-downtime rollout demo |  |
+| 22 | Kubernetes | kind cluster; kustomize overlays; probes; HPA; NetworkPolicies; zero-downtime rollout demo; **Redis (ADR-031): shared token bucket (Lua) for api + tool-gateway, shared LLM cache, Redis-down tests (fail open for reads, closed for actions), 2-replica shared-limit test** |  |
 | 23 | Observability | OTel everywhere; collector; Prometheus/Tempo/Grafana dashboards |  |
 | 24 | CI/CD | GitHub Actions CI + CD (GHCR, kind smoke deploy, envs dev/staging/prod) |  |
 | 25 | MLOps / evaluation | eval datasets v1; runner; metrics; prompt A/B comparison with CIs; calibration of confidence | evaluation |
@@ -56,7 +56,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 - [x] Phase 16: Human approval — verified on the Mac 2026-10-12 (`make approval-smoke` 23/23; an investigation proposed the DEPLOY-4821 rollback for its starter, read by a human and REJECTED by another IC; `make code-smoke` 21/21, `make risk-smoke` 19/19; integration 243 passed + 1 skipped; fix1: migration downgrade keeps the shared svc_cd role); was: built (proposal by code rule or SRE request; an IC who is not the requester decides; the action runs in the approver's own request AS the approver via the action_executor identity; the gateway consumes the approval at incident-service (action + args hash + incident + approver, once) and records the intent first; simulated CD record through an INSERT-only login; ADR-026)
 - [x] Phase 17: React frontend — 17a (Keycloak OIDC, ADR-027) and 17b (operations console, ADR-028) verified on the Mac 2026-10-13 (17b: confirmed by the owner), merged as PR #19
 - [x] Phase 18: Kafka / distributed — 18a verified on the Mac 2026-10-14, merged as PR #20 (consumer core: DLQ, replay, lag, readiness probe; audit consumes incident.lifecycle; ADR-029); 18b NOT built by owner decision after a cost check: agent tasks stay on HTTP (ADR-030)
-- [ ] Phase 19: Redis
+- [x] Phase 19: Redis — closed without code 2026-10-14: deferred to Phase 22 by owner decision (ADR-031)
 - [ ] Phase 20: Java Service Catalog
 - [ ] Phase 21: Docker
 - [ ] Phase 22: Kubernetes

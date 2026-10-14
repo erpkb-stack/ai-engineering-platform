@@ -425,7 +425,7 @@ One Postgres instance [P], **schema per owning service**. Tables (spec list) map
 
 **Graph question (Feature 9):** `catalog.service_dependencies(src, dst, kind)` + recursive CTE answers "what depends on X within 3 hops" in milliseconds for 100–10k services. A graph DB (Neo4j/Neptune) earns its place when you need variable-depth path queries over 10⁶+ edges, graph algorithms (centrality, community), or many edge types that change often. Neither applies here [P/Prod]. → ADR-012.
 
-**Redis:** response cache (LLM: key = hash(model, prompt_version, inputs)); retrieval cache; idempotency keys; token-bucket rate limits; short-lived locks (`SET NX PX`, e.g. "one investigation per incident"). Redis is **not** a source of truth. If Redis is down: rate limiting fails open for reads and closed for consequential actions, and caches are bypassed.
+**Redis:** response cache (LLM: key = hash(model, prompt_version, inputs)); retrieval cache; idempotency keys; token-bucket rate limits; short-lived locks (`SET NX PX`, e.g. "one investigation per incident"). Redis is **not** a source of truth. **Built in Phase 22, when services have replicas (ADR-031); until then limits and the LLM cache are in-process, idempotency and locks are Postgres.** If Redis is down: rate limiting fails open for reads and closed for consequential actions, and caches are bypassed.
 
 ## 19. Observability architecture
 
