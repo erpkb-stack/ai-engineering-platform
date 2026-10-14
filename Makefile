@@ -19,6 +19,7 @@ ROLE ?= SRE
 comma := ,
 UVICORN := uv run uvicorn --factory --log-level warning
 
+.PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -136,6 +137,51 @@ kafka-replay: ## Replay dead letters AFTER a fix: make kafka-replay [TOPIC=..dlq
 
 consumer-smoke: ## End-to-end Phase 18a check: incident events -> Kafka -> audit, once; poison -> DLQ; replay; lag 0
 	@./scripts/smoke-phase18a.sh
+
+# ---------- service catalog (Phase 20, ADR-005 + ADR-032; Java 21 + Maven, Docker for tests) ----------
+CATALOG_PORT ?= 8010
+CATALOG_DIR := services/service-catalog
+CATALOG_JAR := $(CATALOG_DIR)/target/service-catalog.jar
+CATALOG_PIDS = { lsof -nP -t -iTCP:$(CATALOG_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
+# JDK 21 for Maven: Spring Boot 3.4 supports Java 17-24, and the Mac's Maven picked JDK 25.
+# macOS: java_home -v 21; elsewhere (or no JDK 21 installed): whatever JAVA_HOME already is
+CATALOG_JAVA_HOME = $$( /usr/libexec/java_home -v 21 2>/dev/null || echo "$$JAVA_HOME" )
+# owner credentials (migrations + import only); the serving process gets catalog_svc's
+PG_OWNER_PW = $$(cat $${AEOI_PG_PASSWORD_FILE:-secrets/postgres_password.txt})
+
+catalog-contract: ## Regenerate the Python models from services/service-catalog/openapi.yaml (after ANY contract change)
+	uv run --quiet python scripts/catalog_contract.py
+
+catalog-build: ## Build + test the Java service (mvn verify; tests use the compose Postgres: make up) -> target/service-catalog.jar
+	@JAVA_HOME="$(CATALOG_JAVA_HOME)"; export JAVA_HOME; echo "JDK for the build: $$JAVA_HOME"; \
+	AEOI_REPO_ROOT="$(CURDIR)" mvn -q -B -f $(CATALOG_DIR)/pom.xml verify
+
+catalog-import: ## Migrate (Flyway) + load data/generated/catalog.json, as the schema owner, then exit (dev only)
+	@[ -f $(CATALOG_JAR) ] || { echo "no $(CATALOG_JAR): run make catalog-build"; exit 1; }
+	@[ -f data/generated/catalog.json ] || { echo "no data/generated/catalog.json: run make db-seed"; exit 1; }
+	@CATALOG_MIGRATE=true CATALOG_DB_USER=$${AEOI_PG_USER:-aeoi} CATALOG_DB_PASSWORD="$(PG_OWNER_PW)" \
+	  AEOI_REPO_ROOT="$(CURDIR)" java -jar $(CATALOG_JAR) --spring.main.web-application-type=none \
+	  "--catalog.import-file=$(CURDIR)/data/generated/catalog.json"
+	@echo "-> make db-users (creates the catalog_svc login the first time), then make run-catalog"
+
+run-catalog: ## Run the service catalog on :8010 as catalog_svc (SELECT only); needs catalog-import + db-users
+	@pids=$$($(CATALOG_PIDS)); if [ -n "$$pids" ]; then \
+	  echo "port $(CATALOG_PORT) is already in use by:"; ps -o pid=,command= -p $$pids; \
+	  echo "-> run: make stop-catalog"; exit 1; fi
+	@[ -f secrets/catalog_svc_password.txt ] || { echo "no catalog_svc login: make catalog-import, then make db-users"; exit 1; }
+	@CATALOG_DB_PASSWORD="$$(cat secrets/catalog_svc_password.txt)" AEOI_REPO_ROOT="$(CURDIR)" \
+	  java -Xmx256m -jar $(CATALOG_JAR)
+
+stop-catalog: ## Stop a running service catalog (only if it really is ours)
+	@pids=$$($(CATALOG_PIDS)); \
+	if [ -z "$$pids" ]; then echo "port $(CATALOG_PORT) is free"; exit 0; fi; \
+	ps -o pid=,command= -p $$pids; \
+	if ps -o command= -p $$pids | grep -q service-catalog.jar; then \
+	  kill $$(echo $$pids | tr ',' ' '); sleep 2; echo "stopped service-catalog ($$pids)"; \
+	else echo "port $(CATALOG_PORT) is used by something else (above). Not killing it."; exit 1; fi
+
+catalog-smoke: ## End-to-end Phase 20 check: the Java catalog answers the tool exactly like the JSON file
+	@./scripts/smoke-phase20.sh
 
 clean: ## DESTROY containers + data volumes: make clean CONFIRM=1
 	@[ "$${CONFIRM:-}" = "1" ] || [ "$(CONFIRM)" = "1" ] || { echo "This deletes all local DB/Kafka data. Re-run: make clean CONFIRM=1"; exit 1; }
@@ -304,14 +350,16 @@ AUDIT_PORT ?= 8008
 TOOLS_PIDS = { lsof -nP -t -iTCP:$(TOOLS_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 AUDIT_PIDS = { lsof -nP -t -iTCP:$(AUDIT_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 
-tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, -> rag: rag:obo, -> incident: approvals:consume), dev only, 30 days
+tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, -> rag: rag:obo, -> incident: approvals:consume, -> catalog: catalog:read), dev only, 30 days
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope audit:write \
 	  --ttl-minutes 43200 > secrets/tools_audit_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope rag:obo \
 	  --ttl-minutes 43200 > secrets/tools_rag_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope approvals:consume \
 	  --ttl-minutes 43200 > secrets/tools_incident_token.txt
-	@echo "wrote secrets/tools_audit_token.txt (audit:write), secrets/tools_rag_token.txt (rag:obo), secrets/tools_incident_token.txt (approvals:consume), 30 days"
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope catalog:read \
+	  --ttl-minutes 43200 > secrets/tools_catalog_token.txt
+	@echo "wrote secrets/tools_audit_token.txt (audit:write), secrets/tools_rag_token.txt (rag:obo), secrets/tools_incident_token.txt (approvals:consume), secrets/tools_catalog_token.txt (catalog:read), 30 days"
 
 stop-tools: ## Stop a running tool-gateway (only if it really is ours)
 	@pids=$$($(TOOLS_PIDS)); \

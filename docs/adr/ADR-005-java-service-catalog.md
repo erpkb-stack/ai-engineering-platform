@@ -27,3 +27,6 @@ Polyglot CI; contract tests between Java producer and Python consumers.
 
 ## When we would revisit
 If the integration story is shown elsewhere, fold the catalog into Python.
+
+## Built (Phase 20)
+Lean, contract-first, no outbox (nothing consumes CatalogChanged): see ADR-032.

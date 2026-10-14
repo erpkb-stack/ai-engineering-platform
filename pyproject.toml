@@ -20,6 +20,7 @@ dev = [
     "types-PyYAML>=6.0",
     "types-jsonschema>=4.23",
     "pre-commit>=4.0",
+    "datamodel-code-generator>=0.26",
 ]
 
 # ---------- Ruff (lint + format) ----------

@@ -7,11 +7,10 @@ Descriptions are written for a model: what it returns, its limits, and when NOT 
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 from aeoi_security.rbac import Perm
 from aeoi_tools import schemas as s
-from aeoi_tools.adapters.catalog import CatalogAdapter
 from aeoi_tools.adapters.deployer import Deployer
 from aeoi_tools.adapters.devdata import DevDataAdapter
 from aeoi_tools.adapters.rag import RagAdapter
@@ -20,8 +19,14 @@ from aeoi_tools.contracts import SideEffect, ToolContext, ToolExecutionError, To
 Registry = dict[str, ToolSpec]
 
 
+class CatalogSource(Protocol):
+    """The JSON file (`adapters/catalog.py`) or the Java service (`adapters/catalog_http.py`)."""
+
+    async def query(self, q: s.CatalogIn) -> s.CatalogOut: ...
+
+
 def build_registry(
-    catalog: CatalogAdapter,
+    catalog: CatalogSource,
     devdata: DevDataAdapter,
     rag: RagAdapter,
     deployer: Deployer | None = None,

@@ -1,0 +1,99 @@
+openapi: 3.0.3
+info:
+  title: AEOI service catalog
+  version: 1.0.0
+  description: |
+    THE contract of the service catalog (ADR-032, contract-first). Written by hand; the Java
+    service implements it, the Python client models are GENERATED from it
+    (`make catalog-contract`). A drift test on each side fails when they disagree.
+    Read-only: nobody writes through this API (the importer is a dev-only command).
+servers:
+  - url: http://localhost:8010
+security:
+  - serviceToken: []
+paths:
+  /v1/services:
+    get:
+      operationId: listServices
+      summary: Find services (at least one filter - no full dumps)
+      description: |
+        At least one of service_key, team, name_contains. service_key is an exact match and
+        wins over the others; team and name_contains (case-insensitive, also matches the key)
+        combine with AND. Sorted by tier, then key.
+        At most 200 items; truncated=true when more matched.
+      parameters:
+        - name: service_key
+          in: query
+          required: false
+          schema: {type: string, pattern: '^[a-z0-9][a-z0-9-]{1,99}$'}
+        - name: team
+          in: query
+          required: false
+          schema: {type: string, minLength: 1, maxLength: 80}
+        - name: name_contains
+          in: query
+          required: false
+          schema: {type: string, minLength: 2, maxLength: 60}
+      responses:
+        '200':
+          description: matching services
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ServiceList'}
+        '400':
+          description: no filter, or an invalid value
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/Problem'}
+        '401':
+          description: no token, a bad token, or a delegated token used as a bearer
+        '403':
+          description: a valid token without the catalog:read scope
+components:
+  securitySchemes:
+    serviceToken:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: RS256 service token (sub = service:<name>) with scope catalog:read
+  schemas:
+    ServiceList:
+      type: object
+      additionalProperties: false
+      required: [items, truncated]
+      properties:
+        items:
+          type: array
+          maxItems: 200
+          items: {$ref: '#/components/schemas/ServiceItem'}
+        truncated:
+          type: boolean
+    ServiceItem:
+      type: object
+      additionalProperties: false
+      required: [key, name, type, tier, team, depends_on, dependents]
+      properties:
+        key: {type: string}
+        name: {type: string}
+        type: {type: string}
+        tier: {type: integer, minimum: 1, maximum: 9}
+        team: {type: string}
+        language: {type: string, nullable: true}
+        repository: {type: string, nullable: true}
+        depends_on:
+          type: array
+          maxItems: 100
+          items: {type: string}
+        dependents:
+          description: direct dependents (services whose depends_on contains this key), sorted
+          type: array
+          maxItems: 200
+          items: {type: string}
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
