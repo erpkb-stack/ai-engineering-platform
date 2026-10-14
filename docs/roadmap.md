@@ -23,7 +23,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 | 17 | React frontend | 12 screens; investigation workspace; evidence graph; trace waterfall; approval panel; Playwright e2e |  |
 | 18 | Kafka / distributed | consumers with `processed_events` dedupe, retry topics, DLQ + replay tool, duplicate-delivery test, consumer-lag metrics (the producer side - outbox + relay + KafkaPublisher - shipped in Phase 4) |  |
 | 19 | Redis | **deferred to Phase 22 (ADR-031)**: nothing needs it before a service has 2 replicas; idempotency and locks stay in Postgres |  |
-| 20 | Java Service Catalog | Spring Boot service + Flyway + outbox; Python client generated from OpenAPI; contract test | service-catalog |
+| 20 | Java Service Catalog | Spring Boot read-only service + Flyway; contract-first openapi.yaml, Python models generated from it; drift tests on both sides; JSON-vs-Java parity check; no outbox until a consumer exists (ADR-032) | service-catalog |
 | 21 | Docker | multi-stage non-root images; compose profiles; secrets; resource limits; healthchecks | evaluation, knowledge-service images |
 | 22 | Kubernetes | kind cluster; kustomize overlays; probes; HPA; NetworkPolicies; zero-downtime rollout demo; **Redis (ADR-031): shared token bucket (Lua) for api + tool-gateway, shared LLM cache, Redis-down tests (fail open for reads, closed for actions), 2-replica shared-limit test** |  |
 | 23 | Observability | OTel everywhere; collector; Prometheus/Tempo/Grafana dashboards |  |
@@ -57,7 +57,7 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 - [x] Phase 17: React frontend — 17a (Keycloak OIDC, ADR-027) and 17b (operations console, ADR-028) verified on the Mac 2026-10-13 (17b: confirmed by the owner), merged as PR #19
 - [x] Phase 18: Kafka / distributed — 18a verified on the Mac 2026-10-14, merged as PR #20 (consumer core: DLQ, replay, lag, readiness probe; audit consumes incident.lifecycle; ADR-029); 18b NOT built by owner decision after a cost check: agent tasks stay on HTTP (ADR-030)
 - [x] Phase 19: Redis — closed without code 2026-10-14: deferred to Phase 22 by owner decision (ADR-031)
-- [ ] Phase 20: Java Service Catalog
+- [x] Phase 20: Java Service Catalog — verified on the Mac 2026-10-14 (ADR-032): `make catalog-smoke` 6/6 (parity 0 mismatches over 150 services), `make risk-smoke` 19/19 with the gateway on Java, 21 Java tests, integration 262 passed; fix1 parity checker, fix2 tests isolated from .env
 - [ ] Phase 21: Docker
 - [ ] Phase 22: Kubernetes
 - [ ] Phase 23: Observability

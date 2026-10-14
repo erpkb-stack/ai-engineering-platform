@@ -41,11 +41,15 @@ class Settings(BaseServiceSettings):
         default_factory=lambda: _here("services", "tool-gateway", "config", "agents.yaml")
     )
     catalog_file: Path = Field(default_factory=lambda: _here("data", "generated", "catalog.json"))
+    # Phase 20 (ADR-032): "" = the JSON file above; set = the Java service-catalog (same tool
+    # contract): AEOI_TOOLS_CATALOG_URL=http://localhost:8010. Its host must be in the allow-list.
+    catalog_url: str = ""
+    catalog_token_file: Path = Field(default_factory=lambda: _secret("tools_catalog_token.txt"))
     rag_url: str = "http://localhost:8004"
     # ADR-020: the gateway's identity towards rag (scope rag:obo), always WITH the user's token
     rag_token_file: Path = Field(default_factory=lambda: _secret("tools_rag_token.txt"))
     # host:port the HTTP-backed tools may reach. Nothing else, ever (no proxies either).
-    egress_allowlist: list[str] = ["localhost:8004"]
+    egress_allowlist: list[str] = ["localhost:8004", "localhost:8010"]
     http_timeout_s: float = 10.0
 
     # Phase 16 (ADR-026): approvals are verified + consumed at incident-service (scope

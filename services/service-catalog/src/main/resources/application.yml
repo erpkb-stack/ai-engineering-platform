@@ -1,0 +1,44 @@
+# service-catalog (Phase 20, ADR-032). Values come from the environment (the Makefile reads the
+# password FILES in secrets/ and passes them in; nothing secret is written here).
+server:
+  port: ${CATALOG_PORT:8010}
+  shutdown: graceful
+
+spring:
+  application:
+    name: service-catalog
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: jdbc:postgresql://${AEOI_PG_HOST:localhost}:${AEOI_PG_PORT:5433}/${AEOI_PG_DATABASE:aeoi}
+    # the running service is catalog_svc: SELECT on catalog.* only (granted by V1)
+    username: ${CATALOG_DB_USER:catalog_svc}
+    password: ${CATALOG_DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: 5
+      connection-timeout: 3000
+  flyway:
+    # migrations run ONLY from `make catalog-import` (owner credentials); the serving process
+    # never holds DDL credentials ([Prod]: a migration job)
+    enabled: ${CATALOG_MIGRATE:false}
+    schemas: catalog
+    create-schemas: true
+    user: ${CATALOG_MIGRATION_USER:${CATALOG_DB_USER:catalog_svc}}
+    password: ${CATALOG_MIGRATION_PASSWORD:${CATALOG_DB_PASSWORD:}}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+catalog:
+  jwt:
+    public-key-file: file:${AEOI_REPO_ROOT:../..}/secrets/jwt_public.pem
+    issuer: ${AEOI_JWT_ISSUER:aeoi-dev-issuer}
+    audience: ${AEOI_JWT_AUDIENCE:aeoi-api}

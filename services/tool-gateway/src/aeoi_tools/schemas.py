@@ -77,7 +77,7 @@ class TimeWindow(In):
 # ------------------------------------------------------------------ catalog
 class CatalogIn(In):
     service_key: str | None = Field(default=None, pattern=SERVICE_KEY, max_length=100)
-    team: str | None = Field(default=None, max_length=80)
+    team: str | None = Field(default=None, min_length=1, max_length=80)  # "" is not "no filter"
     name_contains: str | None = Field(default=None, min_length=2, max_length=60)
 
     @model_validator(mode="after")

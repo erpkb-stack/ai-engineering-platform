@@ -16,6 +16,7 @@ from aeoi_common.ratelimit import InMemoryTokenBucket, RateLimiter
 from aeoi_tools import __version__
 from aeoi_tools.adapters.approvals import ApprovalsClient
 from aeoi_tools.adapters.catalog import CatalogAdapter
+from aeoi_tools.adapters.catalog_http import CatalogHttpAdapter
 from aeoi_tools.adapters.deployer import Deployer
 from aeoi_tools.adapters.devdata import DevDataAdapter
 from aeoi_tools.adapters.http import make_client, origin_of
@@ -57,8 +58,15 @@ def build_app(
                                      pool_timeout=2) if cd_url else None)  # fmt: skip
     if cd_engine is None:
         log.warning("deployer_not_configured", hint="make db-users (cd_svc login)")
+    if settings.catalog_url and origin_of(settings.catalog_url) not in allowed:
+        log.warning("catalog_url_not_in_egress_allowlist", catalog=origin_of(settings.catalog_url))
+    catalog = (
+        CatalogHttpAdapter(tool_http, settings.catalog_url, FileToken(settings.catalog_token_file))
+        if settings.catalog_url
+        else CatalogAdapter(settings.catalog_file)
+    )
     registry = build_registry(
-        CatalogAdapter(settings.catalog_file),
+        catalog,
         DevDataAdapter(sessions),
         RagAdapter(tool_http, settings.rag_url, FileToken(settings.rag_token_file)),
         Deployer(

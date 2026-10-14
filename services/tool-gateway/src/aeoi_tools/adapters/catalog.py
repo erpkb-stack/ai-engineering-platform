@@ -1,5 +1,8 @@
-"""Service catalog adapter. [P] reads data/generated/catalog.json (written by `make db-seed`).
-[Phase 20] the Java service-catalog API replaces this file; the tool contract stays the same."""
+"""Service catalog from data/generated/catalog.json (written by `make db-seed`).
+
+The default source (no JVM needed for every demo). Phase 20 (ADR-032): set
+AEOI_TOOLS_CATALOG_URL to use the Java service-catalog instead (`catalog_http.py`) - same tool
+contract, and an integration test proves both give the same answers."""
 
 from __future__ import annotations
 
@@ -35,9 +38,6 @@ class CatalogAdapter:
                     dependents.setdefault(dep, []).append(svc["key"])
             self._services, self._dependents, self._mtime = services, dependents, mtime
         return self._services
-
-    def known(self, service_key: str) -> bool:
-        return service_key in self._load()
 
     async def query(self, q: s.CatalogIn) -> s.CatalogOut:
         services = self._load()

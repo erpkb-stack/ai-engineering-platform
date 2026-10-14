@@ -211,12 +211,12 @@ async def test_egress_allowlist_blocks_before_connecting() -> None:
     await client.aclose()
 
 
-def test_catalog_missing_file_is_unavailable_not_crash() -> None:
+async def test_catalog_missing_file_is_unavailable_not_crash() -> None:
     from aeoi_tools.adapters.catalog import CatalogAdapter
     from aeoi_tools.contracts import ToolUnavailableError
 
     with pytest.raises(ToolUnavailableError, match="db-seed"):
-        CatalogAdapter(Path("/nope/catalog.json")).known("x")
+        await CatalogAdapter(Path("/nope/catalog.json")).query(s.CatalogIn(service_key="x-db"))
 
 
 def test_secret_across_the_truncation_point_is_still_redacted() -> None:
