@@ -75,6 +75,15 @@ class OutgoingEvent:
     headers: dict[str, str]
 
 
+def kafka_record(event: OutgoingEvent) -> tuple[bytes, bytes, list[tuple[str, bytes]]]:
+    """THE wire format of an outbox event: key, JSON value, headers (+ event_type).
+    One function, used by KafkaPublisher and by tests, so a consumer test cannot pass on a
+    format the real publisher does not send (Phase 18, ADR-029)."""
+    headers = [(k, v.encode()) for k, v in event.headers.items()]
+    headers.append(("event_type", event.event_type.encode()))
+    return event.key, json.dumps(event.value).encode(), headers
+
+
 class Publisher(Protocol):
     async def start(self) -> None: ...
     async def stop(self) -> None: ...
@@ -135,7 +144,6 @@ class KafkaPublisher:
             acks="all",
             enable_idempotence=True,
             request_timeout_ms=5000,
-            value_serializer=lambda v: json.dumps(v).encode(),
         )
         await self._producer.start()
 
@@ -144,9 +152,8 @@ class KafkaPublisher:
             await self._producer.stop()
 
     async def publish(self, event: OutgoingEvent) -> None:
-        headers = [(k, v.encode()) for k, v in event.headers.items()]
-        headers.append(("event_type", event.event_type.encode()))
-        await self._producer.send_and_wait(event.topic, event.value, key=event.key, headers=headers)
+        key, value, headers = kafka_record(event)
+        await self._producer.send_and_wait(event.topic, value, key=key, headers=headers)
 
 
 class OutboxRelay:

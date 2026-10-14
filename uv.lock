@@ -17,6 +17,7 @@ members = [
     "aeoi-incident-service",
     "aeoi-llm-client",
     "aeoi-llm-gateway",
+    "aeoi-messaging",
     "aeoi-models",
     "aeoi-observability",
     "aeoi-orchestrator",
@@ -103,6 +104,7 @@ source = { editable = "services/audit" }
 dependencies = [
     { name = "aeoi-common" },
     { name = "aeoi-db" },
+    { name = "aeoi-messaging" },
     { name = "aeoi-models" },
     { name = "aeoi-observability" },
     { name = "aeoi-security" },
@@ -114,6 +116,7 @@ dependencies = [
 requires-dist = [
     { name = "aeoi-common", editable = "libs/common" },
     { name = "aeoi-db", editable = "libs/db" },
+    { name = "aeoi-messaging", editable = "libs/messaging" },
     { name = "aeoi-models", editable = "libs/models" },
     { name = "aeoi-observability", editable = "libs/observability" },
     { name = "aeoi-security", editable = "libs/security" },
@@ -249,6 +252,21 @@ requires-dist = [
     { name = "jsonschema", specifier = ">=4.23" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.36" },
+]
+
+[[package]]
+name = "aeoi-messaging"
+version = "0.1.0"
+source = { editable = "libs/messaging" }
+dependencies = [
+    { name = "aiokafka" },
+    { name = "structlog" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiokafka", specifier = ">=0.11" },
+    { name = "structlog", specifier = ">=24.4" },
 ]
 
 [[package]]

@@ -40,7 +40,6 @@ class Settings(BaseServiceSettings):
     jwt_audience: str = "aeoi-api"
 
     event_transport: EventTransport = EventTransport.LOG
-    kafka_bootstrap_servers: str = "localhost:9094"
     relay_enabled: bool = True
     relay_interval_s: float = 1.0
     relay_batch_size: int = 100

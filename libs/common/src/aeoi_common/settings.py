@@ -42,7 +42,11 @@ class BaseServiceSettings(BaseSettings):
 
     database_url: SecretStr = SecretStr("postgresql+asyncpg://aeoi@localhost:5433/aeoi")
     redis_url: str = "redis://localhost:6380/0"
-    kafka_bootstrap_servers: str = "localhost:9094"
+    # ONE broker address for every service and the CLI (.env: AEOI_KAFKA_BOOTSTRAP_SERVERS);
+    # a per-service prefix here meant a service silently ignored it (Phase 18a)
+    kafka_bootstrap_servers: str = Field(
+        default="localhost:9094", alias="AEOI_KAFKA_BOOTSTRAP_SERVERS"
+    )
 
     @model_validator(mode="after")
     def _production_users_come_from_the_idp(self) -> BaseServiceSettings:

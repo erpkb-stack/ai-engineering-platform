@@ -69,6 +69,16 @@ class TestSettings:
         for name in [n for n in os.environ if n.startswith("AEOI_")]:
             monkeypatch.delenv(name)
 
+    def test_one_kafka_address_for_every_service(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """.env sets AEOI_KAFKA_BOOTSTRAP_SERVERS once; services with their own prefix read it too."""
+        from aeoi_audit.config import Settings as Audit
+        from aeoi_incident.config import Settings as Incident
+
+        monkeypatch.setenv("AEOI_KAFKA_BOOTSTRAP_SERVERS", "broker.example:19094")
+        assert Audit().kafka_bootstrap_servers == "broker.example:19094"
+        assert Incident().kafka_bootstrap_servers == "broker.example:19094"
+        assert BaseServiceSettings().kafka_bootstrap_servers == "broker.example:19094"
+
     def test_reads_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("AEOI_ENV", "production")
         monkeypatch.setenv("AEOI_SERVICE_NAME", "api")
