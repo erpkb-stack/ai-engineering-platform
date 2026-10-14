@@ -370,7 +370,7 @@ Approvals expire (e.g. 30 min) and are single-use. A stale approval cannot be re
 |---|---|
 | Atomic publish | transactional outbox table + relay (poll [P]; Debezium CDC [Ent]) |
 | Idempotency | consumer `processed_events(event_id PK)` insert in the same tx as the side effect; HTTP `Idempotency-Key` |
-| Retries | in-consumer retry 3× exp backoff + jitter → retry topic → DLQ |
+| Retries | in-consumer retry 3× exp backoff + jitter → DLQ; poison → DLQ at once; a dependency outage waits (never DLQ). No retry topic yet (ADR-029: it reorders a partition) |
 | Timeouts | every HTTP/LLM/tool call; agent task deadline in the event |
 | Circuit breakers | per downstream (LLM provider, tool backend); open → fallback (other provider / partial result) |
 | Backpressure | consumers pull (Kafka's natural backpressure); bounded in-flight per worker; LLM gateway concurrency semaphore + 429 to callers; HPA/KEDA on lag |

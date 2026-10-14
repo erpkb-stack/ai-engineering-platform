@@ -20,7 +20,7 @@ comma := ,
 UVICORN := uv run uvicorn --factory --log-level warning
 
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
-        verify-infra psql redis-cli kafka-topics kafka-init clean test-integration \
+        verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
         service-token ollama-pull run-llm stop-llm llm-smoke \
         rag-token docpack codepack rag-ingest rag-embed rag-stats rag-eval rag-sweep rag-bench stop-rag run-rag rag-smoke \
@@ -122,6 +122,20 @@ redis-cli: ## redis-cli shell
 
 kafka-topics: ## List Kafka topics
 	$(COMPOSE) exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --describe
+
+# ---------- Consumers (Phase 18a, ADR-029) - needs make up PROFILE=kafka ----------
+MSG := uv run --quiet python -m aeoi_messaging
+kafka-lag: ## Consumer lag: make kafka-lag [GROUP=audit] [TOPIC=incident.lifecycle]
+	@$(MSG) lag --group $(or $(GROUP),audit) --topic $(or $(TOPIC),incident.lifecycle)
+
+kafka-dlq: ## List dead letters: make kafka-dlq [TOPIC=incident.lifecycle.dlq]
+	@$(MSG) dlq --topic $(or $(TOPIC),incident.lifecycle.dlq)
+
+kafka-replay: ## Replay dead letters AFTER a fix: make kafka-replay [TOPIC=..dlq] [EVENT=<event id>|OFFSET=n] [DRY=1]
+	@$(MSG) replay --topic $(or $(TOPIC),incident.lifecycle.dlq) $(if $(EVENT),--event-id $(EVENT),) $(if $(OFFSET),--offset $(OFFSET),) $(if $(DRY),--dry-run,)
+
+consumer-smoke: ## End-to-end Phase 18a check: incident events -> Kafka -> audit, once; poison -> DLQ; replay; lag 0
+	@./scripts/smoke-phase18a.sh
 
 clean: ## DESTROY containers + data volumes: make clean CONFIRM=1
 	@[ "$${CONFIRM:-}" = "1" ] || [ "$(CONFIRM)" = "1" ] || { echo "This deletes all local DB/Kafka data. Re-run: make clean CONFIRM=1"; exit 1; }

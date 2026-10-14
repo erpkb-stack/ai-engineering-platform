@@ -32,6 +32,12 @@ class Settings(BaseServiceSettings):
     # reads are time-bounded so a query touches at most ~2 monthly partitions
     max_query_window_days: int = 31
 
+    # Phase 18a (ADR-029): consume the domain events from Kafka. OFF unless Kafka runs
+    # (make up PROFILE=kafka): AEOI_AUDIT_CONSUMER_ENABLED=true
+    consumer_enabled: bool = False
+    consumer_group: str = "audit"
+    consumer_topics: str = "incident.lifecycle"  # comma list
+
     def sqlalchemy_url(self) -> str:
         if self.db_url_override is not None:
             return self.db_url_override.get_secret_value()

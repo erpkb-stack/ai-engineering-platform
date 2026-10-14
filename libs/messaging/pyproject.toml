@@ -1,0 +1,16 @@
+[project]
+name = "aeoi-messaging"
+version = "0.1.0"
+description = "Kafka consumers for AEOI: process-once handling, poison -> DLQ, replay, lag (ADR-029)"
+requires-python = ">=3.12"
+dependencies = [
+    "aiokafka>=0.11",
+    "structlog>=24.4",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aeoi_messaging"]
