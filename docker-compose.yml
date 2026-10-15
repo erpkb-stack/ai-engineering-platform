@@ -2,7 +2,10 @@
 #   make up                 -> infra   : postgres(pgvector) + redis            (~0.7 GB)
 #   make up PROFILE=kafka   -> + kafka (KRaft, 1 broker), then topic init job    (+~0.8 GB)
 #   make keycloak-up        -> keycloak (OIDC IdP, Phase 17, ADR-027)            (+~0.6 GB)
-# Later phases add: core, agents, observability, full.
+#   make apps-up            -> postgres + every Python service + (apps-catalog) the Java
+#                              catalog, from ONE image aeoi-py (Phase 21, ADR-033). Kafka only
+#                              when .env turns the Kafka transport on; Keycloak via keycloak-up.
+# Later phases add: observability.
 # Ports bind to 127.0.0.1 only: nothing is reachable from your LAN.
 # Host ports are NON-default (5433/6380/9094) so they don't clash with a Postgres/Redis/Kafka
 # you already run for other projects. Override in .env.
@@ -14,11 +17,46 @@ x-defaults: &defaults
     driver: json-file
     options: { max-size: "10m", max-file: "3" }
 
+# Phase 21 (ADR-033): what every Python app container shares
+x-app-env: &app-env
+  AEOI_ENV: development
+  AEOI_PG_HOST: postgres
+  AEOI_PG_PORT: "5432"
+  AEOI_KAFKA_BOOTSTRAP_SERVERS: kafka:19092  # the INTERNAL listener (other containers)
+  # token `iss` stays http://localhost:8090/realms/aeoi (Keycloak --hostname); only the KEYS
+  # are fetched over the compose network
+  AEOI_OIDC_ISSUER: ${AEOI_OIDC_ISSUER:-}
+  AEOI_OIDC_JWKS_URL: ${AEOI_OIDC_ISSUER:+http://keycloak:8080/realms/aeoi/protocol/openid-connect/certs}
+  AEOI_OIDC_CLIENTS: ${AEOI_OIDC_CLIENTS:-aeoi-console}
+  # Docker Desktop copies YOUR proxy settings into containers: calls between services carry user
+  # tokens and must never go through a proxy (review #12)
+  NO_PROXY: &no-proxy localhost,127.0.0.1,host.docker.internal,postgres,kafka,keycloak,api,incident-service,orchestrator,agents,rag,llm-gateway,tool-gateway,audit,service-catalog
+  no_proxy: *no-proxy
+
+x-app: &app
+  <<: *defaults
+  image: aeoi-py:${AEOI_IMAGE_TAG:-dev}
+  profiles: ["apps"]
+  init: true
+  read_only: true  # code + venv are not writable; /tmp is a small tmpfs
+  tmpfs: ["/tmp:size=64m"]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  pull_policy: never  # built locally (make images); a missing image must not hit Docker Hub
+  depends_on:
+    postgres: { condition: service_healthy }
+  deploy:
+    resources:
+      # MEASURED (Mac, 2026-10-14, make apps-peaks during multi-smoke + 4 smokes): Python peaks
+      # 81-125 MiB -> 256M = 2x the highest. Re-measure with a high one so the limit does not
+      # cut the peak: AEOI_APP_MEM_LIMIT=2g make apps-up, then make apps-peaks (ADR-033)
+      limits: { memory: "${AEOI_APP_MEM_LIMIT:-256M}", cpus: "1.0" }
+
 services:
   postgres:
     <<: *defaults
     image: pgvector/pgvector:pg16
-    profiles: ["infra", "kafka", "core", "agents", "full"]
+    profiles: ["infra", "kafka", "core", "agents", "full", "apps", "apps-catalog"]
     environment:
       POSTGRES_USER: aeoi
       POSTGRES_DB: aeoi
@@ -89,11 +127,17 @@ services:
     volumes:
       - kafkadata:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 > /dev/null 2>&1"]
-      interval: 10s
+      # this probe starts a SECOND JVM: every 10 s it caused CPU spikes to the 1.5-core cap
+      # (measured on the Mac, 2026-10-14: median ~2 %, peaks 160-178 %, our services on or
+      # off). Now: every 2 s while starting (healthy as soon as it is), then every 60 s.
+      # and the probe JVM INHERITED the broker's 512m heap (KAFKA_HEAP_OPTS): give it its own,
+      # small one, and a fast-start JIT (review #5)
+      test: ["CMD-SHELL", "KAFKA_HEAP_OPTS=-Xmx64m KAFKA_JVM_PERFORMANCE_OPTS='-XX:TieredStopAtLevel=1 -XX:+UseSerialGC' /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 > /dev/null 2>&1"]
+      interval: 60s
       timeout: 10s
-      retries: 15
-      start_period: 20s
+      retries: 3
+      start_period: 180s
+      start_interval: 2s
     deploy:
       resources:
         limits: { memory: 1G, cpus: "1.5" }
@@ -149,11 +193,243 @@ services:
       resources:
         limits: { memory: 768M, cpus: "1.5" }
 
+  # ---------------------------------------------------------------- apps (Phase 21, ADR-033)
+  # ONE image (aeoi-py) for every Python service; each picks its command. Addresses are compose
+  # DNS names, never localhost (tests/unit/test_compose_contract.py checks every *_url setting).
+  # Each container gets ONLY the secret files its settings read (least privilege), read-only.
+  # Ports bind to 127.0.0.1, the same ports as `make run-*`: the smokes run unchanged.
+  # Memory (MEASURED, ADR-033): 8 x 256M + catalog 512M = 2.5 GiB of the ~4.8 GiB left after the
+  # infra limits. Peaks: Python 81-125 MiB, catalog 173 MiB (JVM: heap 256m + non-heap).
+  # Healthchecks: the image's own HEALTHCHECK (readiness on AEOI_SERVICE_PORT).
+  api:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_api.main:build_app", "--host", "0.0.0.0",
+              "--port", "8000", "--log-level", "warning"]
+    ports: ["127.0.0.1:8000:8000"]
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8000"
+      AEOI_API_INCIDENT_SERVICE_URL: http://incident-service:8001
+      AEOI_API_RAG_SERVICE_URL: http://rag:8004
+      AEOI_API_TOOL_GATEWAY_URL: http://tool-gateway:8006
+      AEOI_API_ORCHESTRATOR_URL: http://orchestrator:8002
+      AEOI_API_AUDIT_SERVICE_URL: http://audit:8008
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: api_svc_password, target: /app/secrets/api_svc_password.txt }
+      - { source: delegation_private, target: /app/secrets/delegation_private.pem }
+
+  incident-service:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_incident.main:build_app", "--host", "0.0.0.0",
+              "--port", "8001", "--log-level", "warning"]
+    ports: ["127.0.0.1:8001:8001"]
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8001"
+      # Phase 18a switch, read from .env exactly like a host run (log | kafka)
+      AEOI_INCIDENT_EVENT_TRANSPORT: ${AEOI_INCIDENT_EVENT_TRANSPORT:-log}
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: incident_svc_password, target: /app/secrets/incident_svc_password.txt }
+      - { source: delegation_public, target: /app/secrets/delegation_public.pem }
+
+  orchestrator:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_orchestrator.main:build_app", "--host", "0.0.0.0",
+              "--port", "8002", "--log-level", "warning"]
+    ports: ["127.0.0.1:8002:8002"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      # it resumes RUNNING investigations at start: everything a resumed node calls must be READY
+      agents: { condition: service_healthy }
+      api: { condition: service_healthy }  # token exchange (ADR-019)
+      incident-service: { condition: service_healthy }
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8002"
+      AEOI_ORCH_INCIDENT_SERVICE_URL: http://incident-service:8001
+      AEOI_ORCH_AGENTS_URL: http://agents:8003
+      AEOI_ORCH_API_URL: http://api:8000
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: orch_svc_password, target: /app/secrets/orch_svc_password.txt }
+      - { source: orchestrator_service_token, target: /app/secrets/orchestrator_service_token.txt }
+
+  agents:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_agents.main:build_app", "--host", "0.0.0.0",
+              "--port", "8003", "--log-level", "warning"]
+    ports: ["127.0.0.1:8003:8003"]
+    depends_on: {}  # no database of its own
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8003"
+      AEOI_AGENTS_TOOL_GATEWAY_URL: http://tool-gateway:8006
+      AEOI_AGENTS_LLM_GATEWAY_URL: http://llm-gateway:8005
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: delegation_public, target: /app/secrets/delegation_public.pem }
+      - { source: agents_service_token, target: /app/secrets/agents_service_token.txt }
+      - { source: action_executor_token, target: /app/secrets/action_executor_token.txt }
+
+  rag:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_rag.main:build_app", "--host", "0.0.0.0",
+              "--port", "8004", "--log-level", "warning"]
+    ports: ["127.0.0.1:8004:8004"]
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8004"
+      AEOI_RAG_LLM_GATEWAY_URL: http://llm-gateway:8005
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: rag_svc_password, target: /app/secrets/rag_svc_password.txt }
+      - { source: delegation_public, target: /app/secrets/delegation_public.pem }
+      - { source: rag_service_token, target: /app/secrets/rag_service_token.txt }
+
+  llm-gateway:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_llm.main:build_app", "--host", "0.0.0.0",
+              "--port", "8005", "--log-level", "warning"]
+    ports: ["127.0.0.1:8005:8005"]
+    # Ollama runs NATIVE on the Mac (architecture.md §21); on Linux this name needs the gateway
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8005"
+      AEOI_LLM_ROUTING_FILE: services/llm-gateway/config/${LLM_ROUTING:-routing.yaml}
+      # still a LOCAL provider (hosted: false): only a loopback/host-gateway name is accepted
+      AEOI_LLM_PROVIDER_OLLAMA_BASE_URL: http://host.docker.internal:11434/v1
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: llm_svc_password, target: /app/secrets/llm_svc_password.txt }
+      # a FILE, never an env var: container env is visible in `docker inspect`
+      - { source: anthropic_api_key, target: /app/secrets/anthropic_api_key.txt }
+
+  tool-gateway:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_tools.main:build_app", "--host", "0.0.0.0",
+              "--port", "8006", "--log-level", "warning"]
+    ports: ["127.0.0.1:8006:8006"]
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8006"
+      AEOI_TOOLS_RAG_URL: http://rag:8004
+      AEOI_TOOLS_INCIDENT_SERVICE_URL: http://incident-service:8001
+      AEOI_TOOLS_AUDIT_URL: http://audit:8008
+      # Phase 20 switch from .env: set -> the Java catalog by its compose name; unset -> JSON
+      AEOI_TOOLS_CATALOG_URL: ${AEOI_TOOLS_CATALOG_URL:+http://service-catalog:8010}
+      # EXACTLY the hosts of the HTTP-backed tools above, nothing else (the contract test checks
+      # both directions: a missing host breaks a tool, an extra one widens egress)
+      AEOI_TOOLS_EGRESS_ALLOWLIST: '["rag:8004", "service-catalog:8010"]'
+    volumes:
+      # catalog.json (the default catalog source). Long form: a missing folder is an ERROR, not
+      # a silently created empty one (the catalog loads lazily: healthy, then the tool fails)
+      - type: bind
+        source: ./data/generated
+        target: /app/data/generated
+        read_only: true
+        bind: { create_host_path: false }
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: tools_svc_password, target: /app/secrets/tools_svc_password.txt }
+      - { source: delegation_public, target: /app/secrets/delegation_public.pem }
+      - { source: tools_catalog_token, target: /app/secrets/tools_catalog_token.txt }
+      - { source: tools_rag_token, target: /app/secrets/tools_rag_token.txt }
+      - { source: tools_incident_token, target: /app/secrets/tools_incident_token.txt }
+      - { source: cd_svc_password, target: /app/secrets/cd_svc_password.txt }
+      - { source: tools_audit_token, target: /app/secrets/tools_audit_token.txt }
+
+  audit:
+    <<: *app
+    command: ["uvicorn", "--factory", "aeoi_audit.main:build_app", "--host", "0.0.0.0",
+              "--port", "8008", "--log-level", "warning"]
+    ports: ["127.0.0.1:8008:8008"]
+    environment:
+      <<: *app-env
+      AEOI_SERVICE_PORT: "8008"
+      AEOI_AUDIT_CONSUMER_ENABLED: ${AEOI_AUDIT_CONSUMER_ENABLED:-false}
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: audit_svc_password, target: /app/secrets/audit_svc_password.txt }
+
+  service-catalog:
+    # Phase 20 (ADR-032) in a container: only with the Java switch on (make apps-up adds the
+    # profile when AEOI_TOOLS_CATALOG_URL is set). Flyway stays OFF: `make catalog-import`.
+    <<: *defaults
+    image: aeoi-catalog:${AEOI_IMAGE_TAG:-dev}
+    pull_policy: never
+    profiles: ["apps-catalog"]
+    init: true
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["127.0.0.1:8010:8010"]
+    environment:
+      AEOI_PG_HOST: postgres
+      AEOI_PG_PORT: "5432"
+      # the image's entrypoint reads the FILE into the process env only (never the container's)
+      CATALOG_DB_PASSWORD_FILE: /app/secrets/catalog_svc_password.txt
+    secrets:
+      - { source: jwt_public, target: /app/secrets/jwt_public.pem }
+      - { source: catalog_svc_password, target: /app/secrets/catalog_svc_password.txt }
+    deploy:
+      resources:
+        # 2 CPUs: on 1 the JVM needed 39-47 s to start (Mac, Phase 21); 12 cores are there
+        limits: { memory: "${AEOI_APP_MEM_LIMIT:-512M}", cpus: "2.0" }
+
 secrets:
   keycloak_admin_password:
     file: ./secrets/keycloak_admin_password.txt
   postgres_password:
     file: ./secrets/postgres_password.txt
+  # Phase 21 apps: one entry per FILE, so each container can be given only what it reads
+  jwt_public:
+    file: ./secrets/jwt_public.pem
+  delegation_public:
+    file: ./secrets/delegation_public.pem
+  delegation_private:
+    file: ./secrets/delegation_private.pem
+  api_svc_password:
+    file: ./secrets/api_svc_password.txt
+  incident_svc_password:
+    file: ./secrets/incident_svc_password.txt
+  orch_svc_password:
+    file: ./secrets/orch_svc_password.txt
+  rag_svc_password:
+    file: ./secrets/rag_svc_password.txt
+  llm_svc_password:
+    file: ./secrets/llm_svc_password.txt
+  tools_svc_password:
+    file: ./secrets/tools_svc_password.txt
+  audit_svc_password:
+    file: ./secrets/audit_svc_password.txt
+  cd_svc_password:
+    file: ./secrets/cd_svc_password.txt
+  catalog_svc_password:
+    file: ./secrets/catalog_svc_password.txt
+  orchestrator_service_token:
+    file: ./secrets/orchestrator_service_token.txt
+  agents_service_token:
+    file: ./secrets/agents_service_token.txt
+  action_executor_token:
+    file: ./secrets/action_executor_token.txt
+  rag_service_token:
+    file: ./secrets/rag_service_token.txt
+  tools_catalog_token:
+    file: ./secrets/tools_catalog_token.txt
+  tools_rag_token:
+    file: ./secrets/tools_rag_token.txt
+  tools_incident_token:
+    file: ./secrets/tools_incident_token.txt
+  tools_audit_token:
+    file: ./secrets/tools_audit_token.txt
+  anthropic_api_key:
+    file: ./secrets/anthropic_api_key.txt
 
 volumes:
   pgdata:

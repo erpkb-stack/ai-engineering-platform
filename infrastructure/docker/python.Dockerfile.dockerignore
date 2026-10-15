@@ -1,0 +1,23 @@
+# Build context of python.Dockerfile (BuildKit reads <Dockerfile>.dockerignore first).
+# Allow-list style: everything is excluded, then only what the image needs is added back.
+# NEVER add back secrets/, .env*, or data/ - they are mounted read-only at run time.
+**
+!pyproject.toml
+!uv.lock
+!libs/**
+!scripts/synth/**
+!services/**
+!infrastructure/docker/healthcheck.py
+# excluded again inside the allowed trees
+services/service-catalog
+**/tests
+**/__pycache__
+**/*.pyc
+**/.mypy_cache
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/node_modules
+**/secrets
+**/.env*
+**/data

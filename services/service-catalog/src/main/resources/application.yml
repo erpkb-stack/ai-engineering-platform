@@ -36,6 +36,12 @@ management:
     health:
       probes:
         enabled: true
+      # READY = can answer a query. Without `db` the readiness probe was UP while the DB pool
+      # was still closed: the first real request opened it (3.9 s on the Mac, Phase 21) and the
+      # gateway's 2 s tool timeout failed it. Now the probe opens the pool before "healthy".
+      group:
+        readiness:
+          include: readinessState,db
 
 catalog:
   jwt:

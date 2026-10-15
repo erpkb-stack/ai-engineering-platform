@@ -1,0 +1,17 @@
+# Safety net for any `docker build` from the repo root (Phase 21, ADR-033). The real images use
+# their own allow-list ignore files: infrastructure/docker/<name>.Dockerfile.dockerignore.
+# NEVER remove the first three lines: secrets are mounted at run time, never built in.
+secrets/
+**/.env*
+data/
+.git/
+**/.venv/
+**/node_modules/
+**/__pycache__/
+**/target/
+**/.mypy_cache/
+**/.pytest_cache/
+**/.ruff_cache/
+frontend/
+docs/
+_to_delete/

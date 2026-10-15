@@ -53,3 +53,48 @@ def test_unknown_key_is_rejected() -> None:
     raw["routes"]["reasoning"]["fallback"] = ["fake-small"]  # typo: singular
     with pytest.raises(ValidationError):
         RoutingConfig.model_validate(raw)
+
+
+# ---------------------------------------------------------------- Phase 21 (ADR-033)
+OLLAMA_ENV = "AEOI_LLM_PROVIDER_OLLAMA_BASE_URL"
+
+
+@pytest.mark.parametrize("name", ["routing.yaml", "routing.local.yaml"])
+def test_the_container_reaches_the_native_ollama_by_env(name: str) -> None:
+    """docker-compose.yml sets exactly this variable; the provider stays LOCAL (no redaction is
+    skipped for a remote host)."""
+    url = "http://host.docker.internal:11434/v1"
+    cfg = load_routing(CONFIG / name, env={OLLAMA_ENV: url})
+    assert cfg.providers["ollama"].base_url == url
+    assert cfg.providers["ollama"].hosted is False
+    # without the variable the file's value is used (host runs are unchanged)
+    assert (
+        load_routing(CONFIG / name, env={})
+        .providers["ollama"]
+        .base_url.startswith("http://localhost:11434")
+    )
+
+
+@pytest.mark.parametrize("url", [
+    "http://ollama.example.com:11434/v1",  # another machine: prompts were never redacted
+    "http://10.0.0.5:11434/v1",            # a LAN host is still another machine
+    "http://localhost.evil.test/v1",       # a name that only STARTS like a local one
+    "file:///etc/passwd",                   # not http(s)
+    "host.docker.internal:11434",           # no scheme: urlsplit sees no host
+])  # fmt: skip
+def test_a_local_provider_cannot_be_pointed_at_another_machine(url: str) -> None:
+    with pytest.raises(ValueError, match="may only point to"):
+        load_routing(CONFIG / "routing.yaml", env={OLLAMA_ENV: url})
+
+
+def test_a_hosted_provider_url_cannot_change_by_env() -> None:
+    """Otherwise one env var sends every prompt AND the API key to any host."""
+    with pytest.raises(ValueError, match="hosted provider"):
+        load_routing(CONFIG / "routing.yaml",
+                     env={"AEOI_LLM_PROVIDER_ANTHROPIC_BASE_URL": "http://localhost:9/v1"})  # fmt: skip
+
+
+def test_an_override_for_a_provider_the_policy_does_not_have_is_ignored() -> None:
+    """compose always sets the Ollama variable; routing.test.yaml (fakes) has no Ollama."""
+    cfg = load_routing(CONFIG / "routing.test.yaml", env={OLLAMA_ENV: "http://localhost:1/v1"})
+    assert "ollama" not in cfg.providers

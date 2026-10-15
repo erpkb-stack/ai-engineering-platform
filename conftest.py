@@ -15,6 +15,8 @@ DEV_ONLY_SWITCHES = (
     # Phase 20 (ADR-032): the gateway's catalog source. Tests use the JSON default; the Java
     # path is tested with fakes (unit) and by `make catalog-smoke` (real service).
     "AEOI_TOOLS_CATALOG_URL",
+    # Phase 21 (ADR-033): the container's address of the native Ollama; tests pass env= instead
+    "AEOI_LLM_PROVIDER_OLLAMA_BASE_URL",
 )
 
 

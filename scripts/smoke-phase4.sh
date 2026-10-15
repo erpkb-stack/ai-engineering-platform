@@ -50,7 +50,7 @@ code=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$API/api/v1/incidents/$I
 
 code=$(curl -s -o "$TMP/inv.json" -w '%{http_code}' -X POST "$API/api/v1/incidents/$ID/investigate" \
   -H "Authorization: Bearer $SRE" -H "Idempotency-Key: inv-$KEY")
-[ "$code" = "202" ] && ok "investigation requested -> 202 (async)" || bad "investigate: $code"
+[ "$code" = "202" ] && ok "investigation requested -> 202 (async)" || bad "investigate: $code$([ "$code" = "503" ] && echo ' (orchestrator down? make run-orch - since Phase 9 the api hands investigations to it)')"
 
 curl -s "$API/api/v1/incidents/$ID/timeline" -H "Authorization: Bearer $SRE" > "$TMP/tl.json"
 events=$(json "','.join(e['event_type'] for e in d)" < "$TMP/tl.json")
