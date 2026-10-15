@@ -91,8 +91,23 @@ with psycopg.connect(libpq_dsn()) as c:
     agents = sorted(r[0] for r in c.execute("SELECT DISTINCT agent_name FROM tools.tool_calls WHERE investigation_id=%s", (inv,)))
     print(f"grants={len(g)} revoked={g[0][1] if g else None!r} agents_with_tool_calls={','.join(agents)}")
 PY
-grep -qE "grants=1 revoked='investigation (COMPLETE|PARTIAL)' agents_with_tool_calls=deployment,knowledge,log_analysis,metrics" "$TMP/deleg.txt" \
-  && ok "one grant for 4 agents, revoked: $(cat "$TMP/deleg.txt")" || bad "delegation/tool calls: $(cat "$TMP/deleg.txt")"
+# ONE grant, revoked at the end; the 4 Phase 10 agents MUST have called tools, and only evidence
+# agents may (Phase 13 historical_incident + Phase 14 code_intelligence joined later - the old
+# exact list failed every correct run since then; found in Phase 21). Reasoning/postmortem: none.
+agents=$(sed -n 's/.*agents_with_tool_calls=//p' "$TMP/deleg.txt")
+missing=""; extra=""
+for a in deployment knowledge log_analysis metrics; do
+  case ",$agents," in *",$a,"*) ;; *) missing="$missing $a";; esac
+done
+for a in $(echo "$agents" | tr ',' ' '); do
+  case " deployment knowledge log_analysis metrics historical_incident code_intelligence " in
+    *" $a "*) ;; *) extra="$extra $a";; esac
+done
+if grep -qE "grants=1 revoked='investigation (COMPLETE|PARTIAL)' " "$TMP/deleg.txt" && [ -z "$missing$extra" ]; then
+  ok "one grant, revoked; tool calls only by evidence agents: $agents"
+else
+  bad "delegation/tool calls: $(cat "$TMP/deleg.txt")${missing:+ missing:$missing}${extra:+ NOT an evidence agent:$extra}"
+fi
 
 echo; echo "passed=$pass failed=$fail notes=$note   incident=$KEY investigation=$INV"
 [ "$fail" = "0" ]

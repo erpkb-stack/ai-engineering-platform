@@ -463,8 +463,8 @@ RAM note [P]: Prometheus + Grafana + Tempo ≈ 1 GB. They have their own compose
 | Postgres 16 + pgvector | `pgvector/pgvector:pg16` container | 512 MB–1 GB |
 | Redis 7 | container | 64 MB |
 | Kafka (KRaft, 1 broker) | `apache/kafka` container | 1 GB (heap capped) |
-| 10 Python services | containers or `uv run` on the host for the service being debugged | 150–250 MB each |
-| service-catalog (JVM) | container, `-XX:MaxRAMPercentage=60`, 512 MB limit | 512 MB |
+| 8 Python services (Phase 21, ADR-033) | ONE image `aeoi-py` (runtime venv 192 MB, measured), one container per service; or `uv run` on the host for the one being debugged | measured 81–125 MiB each (limit 256M, ADR-033); the Phase 1 estimate was 150–250 MB |
+| service-catalog (JVM) | container `aeoi-catalog`, `-Xmx256m` (ADR-032/033) | 173 MiB peak in its container (limit 512M), 197 MB on the host (Phase 20) |
 | Frontend | `npm run dev` on the host | — |
 | Ollama | **native on macOS** (not in Docker: Docker on Mac cannot use the host CPU features as efficiently) | 3–4 GB with a 3B model |
 | Observability | optional profile | ~1 GB |

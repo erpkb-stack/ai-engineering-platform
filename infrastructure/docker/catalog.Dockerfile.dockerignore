@@ -1,0 +1,9 @@
+# Build context of catalog.Dockerfile: only the catalog's own sources (allow-list style).
+# NEVER add back secrets/, .env*, or data/.
+**
+!services/service-catalog/pom.xml
+!services/service-catalog/openapi.yaml
+!services/service-catalog/src/**
+services/service-catalog/src/test
+**/secrets
+**/.env*

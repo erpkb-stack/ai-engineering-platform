@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
-from typing import Literal, Self
+from typing import Any, Literal, Self
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -152,6 +154,44 @@ class RoutingConfig(_Strict):
         return [r.primary, *r.fallbacks]
 
 
-def load_routing(path: Path) -> RoutingConfig:
+# Phase 21 (ADR-033): inside a container `localhost` is the container itself, so the address of
+# the NATIVE Ollama on the Mac must come from the environment. Only for LOCAL providers
+# (hosted: false), and only to a loopback / Docker host-gateway name: otherwise an env var could
+# send prompts that were never redacted (hosted: false skips redaction) - or an API key - to
+# another machine. A hosted provider's URL changes in the reviewed YAML, never by env.
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "host.docker.internal"})
+
+
+def base_url_env(provider: str) -> str:
+    """AEOI_LLM_PROVIDER_<NAME>_BASE_URL, e.g. ollama -> AEOI_LLM_PROVIDER_OLLAMA_BASE_URL."""
+    return (
+        "AEOI_LLM_PROVIDER_"
+        + "".join(c if c.isalnum() else "_" for c in provider.upper())
+        + "_BASE_URL"
+    )
+
+
+def _apply_base_url_overrides(raw: dict[str, Any], env: Mapping[str, str]) -> dict[str, Any]:
+    providers = raw.get("providers")
+    if not isinstance(providers, dict):
+        return raw  # the model validation reports it
+    for name, spec in providers.items():
+        url = env.get(base_url_env(name), "").strip()
+        if not url or not isinstance(spec, dict):
+            continue
+        if spec.get("hosted", True):
+            raise ValueError(f"{base_url_env(name)}: '{name}' is a hosted provider - change its "
+                             "base_url in the routing file, not by env")  # fmt: skip
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or (parts.hostname or "") not in LOCAL_HOSTS:
+            raise ValueError(f"{base_url_env(name)}: a local provider may only point to "
+                             f"{sorted(LOCAL_HOSTS)} over http(s), got {url!r}")  # fmt: skip
+        spec["base_url"] = url
+    return raw
+
+
+def load_routing(path: Path, env: Mapping[str, str] | None = None) -> RoutingConfig:
     raw = yaml.safe_load(path.read_text())
+    if isinstance(raw, dict):
+        raw = _apply_base_url_overrides(raw, os.environ if env is None else env)
     return RoutingConfig.model_validate(raw)

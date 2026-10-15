@@ -12,7 +12,7 @@ PROFILE ?= infra
 SEED ?= 42
 COMPOSE := docker compose
 ALEMBIC := uv run alembic -c libs/db/alembic.ini
-ALL_PROFILES := --profile infra --profile kafka --profile tools
+ALL_PROFILES := --profile infra --profile kafka --profile tools --profile apps --profile apps-catalog
 SVC ?=
 
 ROLE ?= SRE
@@ -20,6 +20,7 @@ comma := ,
 UVICORN := uv run uvicorn --factory --log-level warning
 
 .PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
+.PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -183,6 +184,53 @@ stop-catalog: ## Stop a running service catalog (only if it really is ours)
 catalog-smoke: ## End-to-end Phase 20 check: the Java catalog answers the tool exactly like the JSON file
 	@./scripts/smoke-phase20.sh
 
+# ---------- containers for the apps (Phase 21, ADR-033) ----------
+# ONE image for every Python service + one for the Java catalog. Profiles follow YOUR .env
+# switches AS THE CONTAINERS SEE THEM (read from `docker compose config`, review #8): the Java
+# catalog only with AEOI_TOOLS_CATALOG_URL, Kafka only with the Kafka transport or the audit
+# consumer on. Keycloak stays `make keycloak-up`.
+IMAGE_TAG ?= dev
+APP_SERVICES := api incident-service orchestrator agents rag llm-gateway tool-gateway audit
+APPS_PY := uv run --quiet python scripts/phase21_apps.py
+APPS_CFG := .apps-config.json
+
+images: ## Build aeoi-py (all Python services) and aeoi-catalog (Java) [IMAGE_TAG=dev]
+	docker build -f infrastructure/docker/python.Dockerfile -t aeoi-py:$(IMAGE_TAG) .
+	docker build -f infrastructure/docker/catalog.Dockerfile -t aeoi-catalog:$(IMAGE_TAG) .
+	@docker image ls --format 'table {{.Repository}}:{{.Tag}}\t{{.Size}}' | grep -E '^(REPOSITORY|aeoi-)'
+
+apps-up: ## Start the apps as containers on the usual ports [AEOI_APP_MEM_LIMIT=2g to measure]
+	@docker info > /dev/null 2>&1 || { echo "Docker is not running: start Docker Desktop"; exit 1; }
+	@# set -e HERE, not via .SHELLFLAGS: macOS make 3.81 ignores .SHELLFLAGS, and this recipe once
+	@# printed "nothing started" and then started everything (Phase 21, found on the Mac)
+	@set -eu -o pipefail; export AEOI_IMAGE_TAG=$(IMAGE_TAG); trap 'rm -f $(APPS_CFG)' EXIT; \
+	  $(COMPOSE) --profile apps config --format json > $(APPS_CFG); \
+	  extra="$$($(APPS_PY) profiles $(APPS_CFG))"; \
+	  $(COMPOSE) --profile apps $$extra config --format json > $(APPS_CFG); \
+	  running="$$($(COMPOSE) --profile apps $$extra ps --services --status running 2>/dev/null | tr '\n' ',')"; \
+	  $(APPS_PY) check $(APPS_CFG) --running "$$running"; \
+	  echo "profiles: apps $$extra"; \
+	  if echo "$$extra" | grep -q kafka; then \
+	    $(COMPOSE) --profile kafka up -d --wait --wait-timeout 180 kafka; \
+	    $(MAKE) --no-print-directory kafka-init; \
+	  fi; \
+	  $(COMPOSE) --profile apps $$extra up -d --wait --wait-timeout 300; \
+	  $(COMPOSE) --profile apps $$extra ps --format 'table {{.Service}}\t{{.Status}}\t{{.Ports}}'
+
+apps-secrets-perms: ## Let the containers (uid 10001) read THEIR secret files: files 644, secrets/ stays 700
+	@set -eu -o pipefail; trap 'rm -f $(APPS_CFG)' EXIT; \
+	  $(COMPOSE) --profile apps --profile apps-catalog config --format json > $(APPS_CFG); \
+	  $(APPS_PY) fix-perms $(APPS_CFG)
+
+apps-down: ## Stop + remove the app containers (infra keeps running)
+	$(COMPOSE) $(ALL_PROFILES) rm -sf $(APP_SERVICES) service-catalog
+
+apps-stats: ## Memory + CPU of every container, now
+	@docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}'
+
+apps-peaks: ## PEAK memory per container while you run the smokes: make apps-peaks [SECONDS=600]
+	@$(APPS_PY) peaks --seconds $(or $(SECONDS),600)
+
 clean: ## DESTROY containers + data volumes: make clean CONFIRM=1
 	@[ "$${CONFIRM:-}" = "1" ] || [ "$(CONFIRM)" = "1" ] || { echo "This deletes all local DB/Kafka data. Re-run: make clean CONFIRM=1"; exit 1; }
 	$(COMPOSE) $(ALL_PROFILES) down -v --remove-orphans
@@ -242,7 +290,7 @@ dev: ## Run incident-service + api together (Ctrl-C stops both)
 	  $(MAKE) --no-print-directory run-api & \
 	  wait
 
-smoke: ## End-to-end check against running services (make dev in another terminal)
+smoke: ## End-to-end check against running services (make dev + make run-orch, or make apps-up)
 	@./scripts/smoke-phase4.sh
 
 # ---------- LLM gateway (Phase 5) ----------
