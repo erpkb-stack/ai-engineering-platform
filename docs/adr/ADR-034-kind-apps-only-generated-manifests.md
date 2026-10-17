@@ -75,6 +75,17 @@ kindnet enforces NetworkPolicies (pod->pod and pod->compose both blocked by deny
 - A rebuilt `:dev` image: the pod template carries the image ID, so `k8s-apply` rolls the pods.
 - No ingress controller in 22a.
 
+## Replicas: 1 is a requirement, not a default (22b deferred, owner decision 2026-10-17)
+Checked in the code before deferring - a second replica is NOT safe today for:
+- **orchestrator**: every start resumes the RUNNING investigations (`resume_on_startup`); there is
+  no lease per investigation (engine.py names `FOR UPDATE SKIP LOCKED` as the [Prod] fix), so two
+  replicas would both resume the same run.
+- **api, tool-gateway**: the rate limit is an in-memory token bucket per process: two replicas
+  give each user twice the limit (ADR-031's Redis bucket is the fix).
+- **incident-service**: the outbox relay uses `FOR UPDATE SKIP LOCKED`, so no row is published
+  twice, but several relays may break the per-incident order (events.py names one leader or CDC).
+The generator writes `replicas: 1` and a unit test checks it; raising it needs 22b first.
+
 ## Prototype vs Production vs Enterprise-scale
 [P] kind + compose infra + NodePorts on loopback, Secrets from files. [Prod] EKS, managed data
 services, ALB to api only, External Secrets, migration Job, kustomize overlays per environment.

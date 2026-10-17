@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 22b — Kubernetes replicas + Redis** (not started) (Phases 1–22a closed; Phase 22a = the apps on kind from manifests generated from compose, default-deny policies, zero-downtime rollout, ADR-034; Phase 21 = one non-root image for the Python services + catalog image, measured limits, ADR-033; Phase 20 = lean contract-first Java catalog, ADR-032; Phase 18 = 18a only, agent tasks stay on HTTP per ADR-030; Phase 19 Redis deferred to Phase 22 per ADR-031; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-034).
+**Phase 23 — Observability** (not started) (Phases 1–22a closed; 22b replicas + Redis DEFERRED by owner decision 2026-10-17 - keep every Deployment at 1 replica, see ADR-034; Phase 22a = the apps on kind from manifests generated from compose, default-deny policies, zero-downtime rollout, ADR-034; Phase 21 = one non-root image for the Python services + catalog image, measured limits, ADR-033; Phase 20 = lean contract-first Java catalog, ADR-032; Phase 18 = 18a only, agent tasks stay on HTTP per ADR-030; Phase 19 Redis deferred to Phase 22 per ADR-031; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-034).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 

@@ -1,6 +1,6 @@
 # ADR-031: Redis is added when a service has more than one replica (Phase 22), not before
 
-Status: Proposed
+Status: Proposed (still deferred: Phase 22b not built, owner decision 2026-10-17; ADR-034 lists what a second replica would break)
 Date: 2026-10-14
 Refines: architecture.md §18 (Redis), roadmap Phase 19 and Phase 22
 
