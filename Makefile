@@ -21,6 +21,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
 
 .PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
 .PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
+.PHONY: kind-up kind-down k8s-manifests k8s-apply k8s-status k8s-netpol-test k8s-rollout-demo
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -32,7 +33,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
         db-upgrade db-downgrade db-verify db-current db-history db-check db-revision db-seed db-reset
 
 help: ## List targets
-	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
+	@grep -hE '^[a-zA-Z0-9_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-14s\033[0m %s\n",$$1,$$2}'
 
 # ---------- environment ----------
 doctor: ## Check macOS prerequisites (read-only)
@@ -230,6 +231,36 @@ apps-stats: ## Memory + CPU of every container, now
 
 apps-peaks: ## PEAK memory per container while you run the smokes: make apps-peaks [SECONDS=600]
 	@$(APPS_PY) peaks --seconds $(or $(SECONDS),600)
+
+# ---------- Kubernetes on kind (Phase 22a, ADR-034) ----------
+# Only the APPS run in kind; postgres/kafka/keycloak stay in compose (make up first). Manifests
+# are GENERATED from docker-compose.yml at deploy time (scripts/k8s_manifests.py) into .k8s/.
+# Every kubectl call names --context kind-aeoi: your current kubectl context is never used.
+# The cluster holds 127.0.0.1:8000-8010 while it exists: make kind-down frees them.
+K8S := uv run --quiet python scripts/k8s_deploy.py
+
+kind-up: ## Create the kind cluster `aeoi` and join it to the compose network (needs make up)
+	@$(K8S) up
+
+kind-down: ## Delete the kind cluster (the compose infra keeps running)
+	@$(K8S) down
+
+k8s-manifests: ## Write the manifests to .k8s/manifests to READ them (nothing is applied)
+	@$(K8S) render
+
+k8s-apply: ## Load images, create Secrets from secrets/, apply, wait until every app is available
+	@$(K8S) apply
+
+k8s-status: ## Deployments, pods (+ restarts), services, policies, node memory
+	@$(K8S) status
+
+k8s-netpol-test: ## Every pod tries every target: must equal the allowed graph (forbidden = closed)
+	@$(K8S) netpol-test
+
+k8s-rollout-demo: ## Restart api + incident-service under traffic: must be 0 failed requests
+	@set -eu -o pipefail; \
+	  TOKEN="$$(uv run --quiet python -m aeoi_api.devtoken --role SRE)"; export TOKEN; \
+	  $(K8S) rollout-demo
 
 clean: ## DESTROY containers + data volumes: make clean CONFIRM=1
 	@[ "$${CONFIRM:-}" = "1" ] || [ "$(CONFIRM)" = "1" ] || { echo "This deletes all local DB/Kafka data. Re-run: make clean CONFIRM=1"; exit 1; }

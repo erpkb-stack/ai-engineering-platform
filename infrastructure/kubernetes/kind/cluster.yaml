@@ -1,0 +1,25 @@
+# kind cluster for the apps (Phase 22a, ADR-034). Created by `make kind-up` (scripts/k8s_deploy.py).
+# ONE node (measured on the Mac: 691 MiB empty). The node image is kind's own default for kind
+# v0.33.0 (Kubernetes 1.37.0), which kind pins by digest.
+# The infra (postgres, kafka, keycloak) stays in compose: kind-up joins this node to aeoi_default.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: aeoi
+networking:
+  # kindnet (the default CNI) ENFORCES NetworkPolicies (measured on the Mac): no Calico needed
+  podSubnet: 10.244.0.0/16
+  serviceSubnet: 10.96.0.0/16
+nodes:
+  - role: control-plane
+    # DEV ONLY: the 9 app ports on 127.0.0.1 -> NodePort 308xx (40-dev-host-ports.yaml), so the
+    # existing smokes run unchanged. Production exposes api only, behind an ingress.
+    extraPortMappings:
+      - { containerPort: 30800, hostPort: 8000, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30801, hostPort: 8001, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30802, hostPort: 8002, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30803, hostPort: 8003, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30804, hostPort: 8004, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30805, hostPort: 8005, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30806, hostPort: 8006, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30808, hostPort: 8008, listenAddress: "127.0.0.1", protocol: TCP }
+      - { containerPort: 30810, hostPort: 8010, listenAddress: "127.0.0.1", protocol: TCP }

@@ -473,14 +473,24 @@ Recommended Docker Desktop allocation: **10 GB RAM, 6 CPUs** for `full`; 6 GB fo
 
 ## 22. Kubernetes architecture
 
-Namespace `ai-engineering-platform`. Kustomize `base/` + `overlays/{dev,staging,prod}`.
+**Built in 22a (ADR-034):** only the apps run in kind (1 node); Postgres/Kafka/Keycloak/Redis stay
+in compose as the stand-in for managed services, reached by their compose names (the node joins
+`aeoi_default`). Manifests are GENERATED from `docker compose config` at deploy time
+(`scripts/k8s_manifests.py`), so command, env and per-file secrets equal Phase 21. Namespace
+`ai-engineering-platform` with Pod Security `restricted` enforced. Default-deny NetworkPolicies;
+each pod may call exactly what its configuration calls (agents -> tool-gateway, llm-gateway only;
+Postgres only for services with a DB login; Kafka only for incident-service and audit; internet
+:443 only for llm-gateway). No StatefulSets, no ingress controller, no HPA in 22a; replicas, PDB
+and Redis are 22b. The text below is the target design; [P] differences are in ADR-034.
+
+Target: namespace `ai-engineering-platform`; kustomize overlays once there is more than one environment.
 - **Deployments** for every service; **StatefulSets only for local in-cluster infra** (Postgres/Kafka/Redis in kind). In [Prod] these are managed services (RDS, MSK, ElastiCache), not run in the cluster.
 - **Services** (ClusterIP); **Ingress** (ingress-nginx [P], AWS ALB [Prod]) → api + frontend only. Nothing else is exposed.
 - **ConfigMaps** for non-secret config; **Secrets** via External Secrets Operator [Prod] (plain Secrets in kind only).
 - **Probes:** liveness = process alive (no dependency checks, or a DB outage restarts every pod); readiness = can serve (DB/Kafka reachable).
 - **Resources:** requests = typical usage, limits = memory only for Python (CPU limits cause throttling under bursts; there is an argument in the ADR).
 - **Scaling:** HPA on CPU for api/rag and agents (agent tasks are HTTP calls, ADR-030; scaling on a task queue's lag only if ADR-030's revisit triggers fire).
-- **PDB** for multi-replica services; **NetworkPolicies**: agents can reach only tool-gateway, llm-gateway and Kafka.
+- **PDB** for multi-replica services; **NetworkPolicies**: agents can reach only tool-gateway and llm-gateway (22a, generated from the URL graph).
 - **PVC** for Postgres/Kafka in kind only.
 - **Zero-downtime:** rolling update `maxUnavailable: 0`, readiness gates, `preStop` sleep + graceful Kafka consumer close, expand/contract DB migrations run as a pre-deploy Job.
 

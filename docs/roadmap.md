@@ -25,7 +25,8 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 | 19 | Redis | **deferred to Phase 22 (ADR-031)**: nothing needs it before a service has 2 replicas; idempotency and locks stay in Postgres |  |
 | 20 | Java Service Catalog | Spring Boot read-only service + Flyway; contract-first openapi.yaml, Python models generated from it; drift tests on both sides; JSON-vs-Java parity check; no outbox until a consumer exists (ADR-032) | service-catalog |
 | 21 | Docker | multi-stage non-root images; compose profiles; secrets; resource limits; healthchecks; **ONE image for the Python workspace + the catalog image (ADR-033); the existing smokes pass against the containers unchanged; limits from measured peaks** | — (evaluation, knowledge-service deferred to the phase that gives them work, owner decision 2026-10-14) |
-| 22 | Kubernetes | kind cluster; kustomize overlays; probes; HPA; NetworkPolicies; zero-downtime rollout demo; **Redis (ADR-031): shared token bucket (Lua) for api + tool-gateway, shared LLM cache, Redis-down tests (fail open for reads, closed for actions), 2-replica shared-limit test** |  |
+| 22a | Kubernetes (1 replica) | **ADR-034:** only the apps in kind, infra stays in compose; manifests GENERATED from `docker compose config` at deploy time; probes; Pod Security restricted; default-deny NetworkPolicies from the URL graph; zero-downtime rollout demo; the smokes unchanged |  |
+| 22b | Kubernetes (replicas) | 2+ replicas + PDB; **Redis (ADR-031): shared token bucket (Lua) for api + tool-gateway, shared LLM cache, Redis-down tests (fail open for reads, closed for actions), 2-replica shared-limit test**; HPA only where CPU is measured to move |  |
 | 23 | Observability | OTel everywhere; collector; Prometheus/Tempo/Grafana dashboards |  |
 | 24 | CI/CD | GitHub Actions CI + CD (GHCR, kind smoke deploy, envs dev/staging/prod) |  |
 | 25 | MLOps / evaluation | eval datasets v1; runner; metrics; prompt A/B comparison with CIs; calibration of confidence | evaluation |
@@ -59,7 +60,8 @@ Rule: a phase is ticked only after it runs on the owner's Mac and its Verify ite
 - [x] Phase 19: Redis — closed without code 2026-10-14: deferred to Phase 22 by owner decision (ADR-031)
 - [x] Phase 20: Java Service Catalog — verified on the Mac 2026-10-14 (ADR-032): `make catalog-smoke` 6/6 (parity 0 mismatches over 150 services), `make risk-smoke` 19/19 with the gateway on Java, 21 Java tests, integration 262 passed; fix1 parity checker, fix2 tests isolated from .env
 - [x] Phase 21: Docker — verified on the Mac 2026-10-14 (ADR-033): ONE non-root image for the 8 Python services (460 MB) + the catalog image (468 MB); 12/12 containers healthy; the smokes UNCHANGED against them (multi 26/26, smoke 12/12, tools 16/16, approval 23/23, risk 19/19 on a cold catalog, kc 21/21, catalog 6/6, consumer 12/12); limits from measured peaks (Python 81-125 MiB -> 256M, catalog 173 MiB -> 512M; restarts 0, OOM 0); each container mounts only its own secret files; fix1 make 3.81 ignores .SHELLFLAGS, fix2 catalog readiness includes the DB (first query 3.9 s > 2 s tool timeout), fix3 limits
-- [ ] Phase 22: Kubernetes
+- [x] Phase 22a: Kubernetes on kind, 1 replica — verified on the Mac 2026-10-17 (ADR-034): 9/9 apps in kind from ONE generator over `docker compose config`; the smokes UNCHANGED (smoke 12/12, multi 26/26, tools 16/16, approval 23/23, risk 19/19, catalog 6/6, kc 21/21); default-deny policies, `make k8s-netpol-test` 105 passed / 0 failed (agents -> Postgres blocked, only llm-gateway reaches the internet and Ollama); rolling restart of api + incident-service 0 of 1,323 requests failed; node 1.84 GiB, ~1 core idle; fix1 redis in the kafka profile, fix2 "unreachable" counted as closed
+- [ ] Phase 22b: Kubernetes replicas + Redis (ADR-031) — after 22a is verified
 - [ ] Phase 23: Observability
 - [ ] Phase 24: CI/CD
 - [ ] Phase 25: MLOps / evaluation
