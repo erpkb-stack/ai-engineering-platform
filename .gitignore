@@ -38,3 +38,4 @@ data/sample-repositories/*
 !data/sample-repositories/.gitkeep
 *.log
 .apps-config.json
+.k8s/

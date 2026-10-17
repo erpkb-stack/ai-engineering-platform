@@ -24,6 +24,8 @@ COPY libs/ libs/
 COPY scripts/synth/ scripts/synth/
 COPY services/ services/
 COPY infrastructure/docker/healthcheck.py infrastructure/docker/healthcheck.py
+# Phase 22a (ADR-034): the initContainer that waits for READY dependencies (compose depends_on)
+COPY infrastructure/docker/wait_for.py infrastructure/docker/wait_for.py
 # --frozen: fail if uv.lock does not match the pyprojects (never re-resolve inside a build)
 # --no-dev: no pytest/ruff/mypy in the image; --all-packages: every workspace service
 # editable (the default) on purpose: config code finds its files relative to the SOURCE tree

@@ -8,6 +8,7 @@
 !scripts/synth/**
 !services/**
 !infrastructure/docker/healthcheck.py
+!infrastructure/docker/wait_for.py
 # excluded again inside the allowed trees
 services/service-catalog
 **/tests
