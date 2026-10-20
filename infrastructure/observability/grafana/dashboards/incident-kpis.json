@@ -1,0 +1,232 @@
+{
+  "uid": "aeoi-kpis",
+  "title": "AEOI - Incident KPIs",
+  "description": "How fast does a declared incident get a first hypothesis and a mitigation, and what is waiting on a human?",
+  "tags": [
+    "aeoi",
+    "phase-23b"
+  ],
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Open incidents now, by status",
+      "type": "barchart",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Not time-filtered: everything still open, whenever it was declared.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT status, count(*) AS incidents FROM incident.incidents WHERE status NOT IN ('RESOLVED', 'CLOSED') GROUP BY status ORDER BY 2 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Time to first hypothesis (investigation start -> first hypothesis)",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Only investigations that produced a hypothesis are counted (count shown).",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY s) AS p50, percentile_cont(0.95) WITHIN GROUP (ORDER BY s) AS p95, count(*) AS investigations FROM (SELECT extract(epoch FROM min(h.created_at) - i.started_at) AS s FROM orchestrator.investigations i JOIN incident.hypotheses h ON h.investigation_id = i.id WHERE $__timeFilter(i.started_at) GROUP BY i.id, i.started_at) t"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "Time to mitigate by an approved action (declared -> executed), by severity",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "From DECLARED (created_at), not detected_at: the smokes send a fixed historical detected_at. A mitigation set by hand (status PATCH) is not counted here.",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT inc.severity, count(*) AS incidents, percentile_cont(0.5) WITHIN GROUP (ORDER BY m.s) AS p50_s, percentile_cont(0.95) WITHIN GROUP (ORDER BY m.s) AS p95_s FROM incident.incidents inc JOIN (SELECT incident_id, extract(epoch FROM min(executed_at)) AS e FROM incident.approvals WHERE outcome = 'EXECUTED' GROUP BY incident_id) x ON x.incident_id = inc.id CROSS JOIN LATERAL (SELECT x.e - extract(epoch FROM inc.created_at) AS s) m WHERE $__timeFilter(inc.created_at) GROUP BY inc.severity ORDER BY inc.severity"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Time to resolve (declared -> resolved), by severity",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Empty until incidents are resolved (the smokes rarely resolve one) - no data is the honest answer.",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT severity, count(*) AS incidents, percentile_cont(0.5) WITHIN GROUP (ORDER BY s) AS p50_s, percentile_cont(0.95) WITHIN GROUP (ORDER BY s) AS p95_s FROM (SELECT severity, extract(epoch FROM resolved_at - created_at) AS s FROM incident.incidents WHERE resolved_at IS NOT NULL AND $__timeFilter(created_at)) t GROUP BY severity ORDER BY severity"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "Approvals waiting on a human now",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Not time-filtered. An expired request becomes EXPIRED and leaves this list.",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT id, incident_id, action, source, requested_at, expires_at, round(extract(epoch FROM now() - requested_at) / 60) AS waiting_min FROM incident.approvals WHERE decision IS NULL AND expires_at > now() ORDER BY requested_at"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "title": "Approval decisions: how many, how fast (requested -> decided)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT CASE WHEN decision IS NOT NULL THEN decision WHEN expires_at > now() THEN 'PENDING' ELSE 'EXPIRED (not marked yet)' END AS decision, coalesce(decider_role, '-') AS decider_role, count(*) AS approvals, percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM decided_at - requested_at)) AS p50_s, count(*) FILTER (WHERE outcome = 'EXECUTED') AS executed, count(*) FILTER (WHERE outcome = 'FAILED') AS failed FROM incident.approvals WHERE $__timeFilter(requested_at) GROUP BY 1, 2 ORDER BY 3 DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

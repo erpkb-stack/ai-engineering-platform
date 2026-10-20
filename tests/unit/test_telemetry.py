@@ -263,9 +263,11 @@ def test_every_dashboard_answers_a_question_and_uses_known_sources() -> None:
     uids = {d["uid"] for d in ds["datasources"]}
     files = sorted((OBS / "grafana/dashboards").glob("*.json"))
     assert [f.name for f in files] == [
+        "incident-kpis.json",
         "investigation-funnel.json",
         "llm-cost.json",
         "platform-health.json",
+        "tool-gateway.json",
     ]
     for f in files:
         d = json.loads(f.read_text())
@@ -283,20 +285,34 @@ def test_every_dashboard_answers_a_question_and_uses_known_sources() -> None:
 
 
 def test_dashboards_read_only_the_columns_grafana_may_read() -> None:
-    """obs_reader gets SELECT on named COLUMNS (migration 0026); a dashboard naming any other
-    column of those tables would fail on the Mac - and would mean widening the grant."""
+    """obs_reader gets SELECT on named COLUMNS (migrations 0026 + 0027); a dashboard naming any
+    other column of those tables would fail on the Mac - and would mean widening the grant.
+    (The sandbox also ran every panel AS that role on a migrated Postgres: Phase 23b.)"""
     import importlib.util
 
-    spec = importlib.util.spec_from_file_location(
-        "m0026", ROOT / "libs/db/alembic/versions/0026_investigation_trace_and_obs_reader.py"
-    )
-    assert spec and spec.loader
-    mig = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mig)
+    from aeoi_db.models.incident import Approval, Hypothesis, Incident
     from aeoi_db.models.llm import ModelUsage
     from aeoi_db.models.orchestrator import Investigation
+    from aeoi_db.models.tools import ToolCall
 
-    tables = {"orchestrator.investigations": Investigation, "llm.model_usage": ModelUsage}
+    readable: dict[str, tuple[str, ...]] = {}
+    for rev, name in (("0026", "0026_investigation_trace_and_obs_reader.py"),
+                      ("0027", "0027_obs_reader_kpis_and_tools.py")):  # fmt: skip
+        spec = importlib.util.spec_from_file_location(
+            f"m{rev}", ROOT / "libs/db/alembic/versions" / name
+        )
+        assert spec and spec.loader
+        mig = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mig)
+        for table, cols in mig.READABLE.items():
+            assert table not in readable, f"{table} granted twice"
+            readable[table] = cols
+    tables = {"orchestrator.investigations": Investigation, "llm.model_usage": ModelUsage,
+              "incident.incidents": Incident, "incident.hypotheses": Hypothesis,
+              "incident.approvals": Approval, "tools.tool_calls": ToolCall}  # fmt: skip
+    assert set(tables) == set(readable)
+    for table, model in tables.items():  # a grant names only real columns
+        assert set(readable[table]) <= {c.name for c in model.__table__.columns}, table
     for f in (OBS / "grafana/dashboards").glob("*.json"):
         for p in json.loads(f.read_text())["panels"]:
             for t in p["targets"]:
@@ -305,12 +321,26 @@ def test_dashboards_read_only_the_columns_grafana_may_read() -> None:
                     continue
                 used = [name for name in tables if name in q]
                 assert used, (f.name, p["title"])
+                words = set(_re.findall(r"[a-z_]+", q))
                 for name in used:
                     forbidden = {c.name for c in tables[name].__table__.columns} - set(
-                        mig.READABLE[name]
+                        readable[name]
                     )
-                    words = set(_re.findall(r"[a-z_]+", q))
-                    assert not (forbidden & words), (f.name, p["title"], forbidden & words)
+                    # a column name that is ALSO granted on another table in the query is fine
+                    granted_elsewhere = {c for u in used if u != name for c in readable[u]}
+                    hit = (forbidden - granted_elsewhere) & words
+                    assert not hit, (f.name, p["title"], name, hit)
+
+
+def test_the_dashboard_files_are_what_the_generator_writes() -> None:
+    """scripts/obs_dashboards.py is the source; the JSON is provisioned. They must not drift."""
+    r = subprocess.run(  # noqa: S603 - fixed argument list, our own script
+        [sys.executable, str(ROOT / "scripts/obs_dashboards.py"), "--check"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert r.returncode == 0, r.stdout
 
 
 def test_grafana_logs_in_with_the_narrow_login_and_never_phones_home() -> None:
@@ -492,3 +522,26 @@ def test_obs_smoke_names_the_services_that_log_another_correlation_id() -> None:
     ]  # fmt: skip
     assert smoke.foreign_correlation(streams, "ours") == {"llm-gateway": 3}
     assert smoke.foreign_correlation(streams[:1], "ours") == {}
+
+
+def test_denial_code_is_a_plain_code_and_the_model_matches_migration_0027() -> None:
+    """Grafana reads `denial_code` (the part before ':'), never the reason text (Phase 23b)."""
+    import importlib.util
+
+    from aeoi_db.models.tools import ToolCall
+    from aeoi_tools.policy import DenyReason
+
+    spec = importlib.util.spec_from_file_location(
+        "m0027", ROOT / "libs/db/alembic/versions/0027_obs_reader_kpis_and_tools.py"
+    )
+    assert spec and spec.loader
+    mig = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mig)
+    computed = ToolCall.__table__.c.denial_code.computed
+    assert computed is not None and str(computed.sqltext) == mig.DENIAL_CODE_SQL
+    # every code the gateway writes must survive split_part(..., ':', 1) whole
+    src = (ROOT / "services/tool-gateway/src/aeoi_tools/service.py").read_text()
+    literal = set(_re.findall(r'(?:reason=|out\.reason = |, )"([a-z_]+)"', src))
+    for code in {r.value for r in DenyReason} | literal:
+        assert _re.fullmatch(r"[a-z][a-z_]*", code), code
+    assert "denial_reason" not in mig.READABLE["tools.tool_calls"]

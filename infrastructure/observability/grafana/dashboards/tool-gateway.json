@@ -1,0 +1,162 @@
+{
+  "uid": "aeoi-tool-gateway",
+  "title": "AEOI - Tool gateway",
+  "description": "Which tool is denied, failing or slow, and for which agent?",
+  "tags": [
+    "aeoi",
+    "phase-23b"
+  ],
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tool calls per hour, by status",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "OK, DENIED (policy said no), ERROR, TIMEOUT, PENDING (the recorded intent of a consequential call).",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT $__timeGroupAlias(created_at, 1h), status AS metric, count(*) AS value FROM tools.tool_calls WHERE $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Denials by code, agent and tool",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "denial_code is derived by the DB from the stored reason; the reason text is not readable here.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT denial_code, coalesce(agent_name, '(user, no agent)') AS agent, tool_name, count(*) AS denials, max(created_at) AS last_seen FROM tools.tool_calls WHERE status = 'DENIED' AND $__timeFilter(created_at) GROUP BY 1, 2, 3 ORDER BY denials DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "Per tool: calls, outcomes, retries, latency",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT tool_name, count(*) AS calls, count(*) FILTER (WHERE status = 'OK') AS ok, count(*) FILTER (WHERE status = 'DENIED') AS denied, count(*) FILTER (WHERE status = 'ERROR') AS error, count(*) FILTER (WHERE status = 'TIMEOUT') AS timeout, count(*) FILTER (WHERE attempt > 1) AS retried, percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) FILTER (WHERE status = 'OK') AS p95_ok_ms FROM tools.tool_calls WHERE $__timeFilter(created_at) GROUP BY tool_name ORDER BY calls DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Consequential calls (need a recorded approval)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "The DB refuses an executed consequential call without an approval (constraint, ADR-007).",
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT tool_name, status, count(*) AS calls, max(created_at) AS last_seen FROM tools.tool_calls WHERE side_effect = 'CONSEQUENTIAL' AND $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1, 2"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}
