@@ -34,8 +34,10 @@ collector + Tempo + Prometheus + Loki + Grafana = ~263 MiB, ~4 % CPU (architectu
   collector, which also deletes header/query attributes and blocks token-shaped values; the
   catalog's Java agent does not export logs. A unit test plants secrets and asserts none reaches
   any exporter; the Mac smoke scans the whole exported trace and logs for every token.
-- **Dashboards are provisioned files**, each answering one named question; a test checks every
-  datasource and metric they reference.
+- **Dashboards are provisioned files written by code** (`scripts/obs_dashboards.py`), each
+  answering one named question; a test checks every datasource, metric and column they use.
+  Grafana reads Postgres through column grants only; a free-text column a dashboard needs is
+  exposed as a DERIVED column (23b: `tool_calls.denial_code`, never `denial_reason`).
 
 ## Alternatives
 | Option | Why not (here) |

@@ -14,6 +14,11 @@ datasources:
     access: proxy
     url: http://tempo:3200
     jsonData:
+      # Grafana 12 streams Tempo search over gRPC by default; Tempo serves HTTP on 3200 and its
+      # gRPC port is not published - every ~2 min Grafana logged "frame too large" (23b, Mac log)
+      streamingEnabled:
+        search: false
+        metrics: false
       # from a span to its log lines: the SDK writes trace_id on every line
       tracesToLogsV2:
         datasourceUid: loki

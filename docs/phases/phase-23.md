@@ -289,3 +289,71 @@ Result: **PASSED with the gaps named below** (owner's Mac, kind cluster, 9 apps,
 | psycopg / httpx instrumentation gaps | library versions | the sandbox e2e covered httpx + FastAPI; psycopg spans are seen first on the Mac |
 | Auto-instrumentation records too much | defaults change between versions | the secret test runs on every `make check` |
 | Kind + 5 more containers on a laptop | ~1 core idle already | measure; Grafana is the only one with a UI cost |
+
+---
+
+# Phase 23b - two more dashboards (owner decision 2026-10-20)
+
+## Scope (need check -> owner)
+Built: **Incident KPIs** and **Tool gateway**. Cut by the owner: RAG quality (needs an
+`eval_runs` writer first; ~5 manual runs would be a toy chart) and Kafka lag (one broker in dev;
+`make kafka-lag` answers it). Not chosen: agent panels. Order: dashboards first, the 23a open
+items (loaded memory peak, Mac -> api netpol check, catalog agent on/off) after.
+
+## Built
+- `scripts/obs_dashboards.py` (was a scratch file): writes all 5 dashboard JSON files; `--check`
+  fails on drift (unit test). It reproduces the 3 existing files byte for byte.
+- **Incident KPIs** - "How fast does a declared incident get a first hypothesis and a mitigation,
+  and what is waiting on a human?": open incidents by status; time to first hypothesis (p50/p95
+  + count); time to mitigate BY AN APPROVED ACTION and time to resolve, by severity; approvals
+  waiting now; decisions by role with time to decide.
+  Measured from DECLARED (`created_at`), not `detected_at`: the smokes send a fixed 2026-10-02
+  detection time. A mitigation set by hand (status PATCH) is not counted (its status lives in an
+  event payload Grafana may not read) - said on the panel.
+- **Tool gateway** - "Which tool is denied, failing or slow, and for which agent?": calls per hour
+  by status; denials by code/agent/tool; per tool calls/ok/denied/error/timeout/retried/p95;
+  consequential calls by status.
+- Migration **0027**: `tools.tool_calls.denial_code` = STORED generated column, the code before
+  ':' in `denial_reason`; obs_reader gets SELECT on named columns of incidents, hypotheses,
+  approvals, tool_calls - no titles, statements, payloads, args, reasons, user ids.
+  `incident_events` is NOT granted (first planned; `ActionExecuted` also fires for a FAILED
+  action, so approvals.outcome is the honest source).
+
+## Checked in the sandbox (real Postgres 16, not mocks)
+- `alembic upgrade head`, `alembic check` clean (it caught a missing column comment first),
+  downgrade WITH rows then upgrade: rows kept, codes recomputed.
+- As a login IN obs_reader: `denial_code` readable; `denial_reason`, `incidents.title`,
+  `approvals.action_args` -> permission denied.
+- All 19 Postgres panel queries of all 5 dashboards run AS that role on seeded rows (Grafana
+  macros expanded): 0 failures; values match hand calculation (first hypothesis 90 s / 117 s,
+  mitigation 1,578 s, resolve 7,200 s, decision 300 s).
+- Tests: every query uses only granted columns (0026 + 0027), every grant names real columns,
+  every gateway denial code is a plain identifier, model expression == migration expression,
+  files == generator. Mutations caught: a panel reading `title`, a grant losing `denial_code`,
+  a hand-edited JSON file. `make check` 1180 passed.
+
+## Seen on the Mac (2026-10-20), checked through Grafana's own API as the Grafana user
+- 5 dashboards provisioned and read-only (the 2 new ones appeared only after a Grafana restart -
+  the 10 s rescan did not pick them up; not explained, noted).
+- All 10 panel queries of the 2 new dashboards return real data, except time to resolve (no
+  incident resolved - expected). `denial_reason` and `incidents.title` -> permission denied.
+- fix1: the decisions panel said "PENDING 19" while "waiting now" listed 1: 18 requests had
+  expired but are marked EXPIRED only lazily (decision stays NULL). Now shown as
+  "EXPIRED (not marked yet)".
+- fix1: Grafana logged "frame too large" for tempo:3200 every ~2 min since 23a: Grafana 12
+  streams Tempo search over gRPC by default; streaming is now off in the datasource (expected to
+  stop the line - check the log).
+- Finding for the 23a open item: `query_service_catalog` 111 calls, 4 timeouts, 12 errors, 14
+  retried, p95 663 ms; every other tool 0 timeouts.
+
+## Verify (on the Mac) - 23b
+- [ ] Unpack, `make check` (1180)
+- [ ] `make db-upgrade` -> 0027 (no `db-users` needed: the role exists)
+- [ ] `make obs-up`; Grafana lists 5 dashboards under AEOI (new files load by themselves)
+- [ ] Data: `make tools-smoke` (denials), `make approval-smoke` (approval + consequential call),
+      `make obs-smoke` (hypotheses)
+- [ ] Incident KPIs: every panel shows data except possibly "time to resolve" (no data = honest);
+      the approval-smoke's mitigation appears with a time
+- [ ] Tool gateway: denials show codes (`missing_permission`, `executor_only`,
+      `not_in_agent_allowlist`, ...) and never reason text
+- [ ] Explore -> Postgres: `SELECT denial_reason FROM tools.tool_calls LIMIT 1` -> permission denied

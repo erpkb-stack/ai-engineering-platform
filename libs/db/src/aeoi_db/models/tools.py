@@ -6,7 +6,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, Index, Integer, SmallInteger, String, Text, text
+from sqlalchemy import (
+    CheckConstraint,
+    Computed,
+    DateTime,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -68,6 +78,12 @@ class ToolCall(Base):
     )
     status: Mapped[str] = mapped_column(String(8), nullable=False)
     denial_reason: Mapped[str | None] = mapped_column(Text)
+    # 0027: the code before the colon, derived by the DB - Grafana may read this, not the text
+    denial_code: Mapped[str | None] = mapped_column(
+        String(64),
+        Computed("NULLIF(split_part(denial_reason, ':', 1), '')", persisted=True),
+        comment="The denial code only (derived); readable by obs_reader, the reason text is not",
+    )
     approval_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     latency_ms: Mapped[int | None] = mapped_column(Integer)
     attempt: Mapped[int] = mapped_column(SmallInteger, nullable=False, server_default="1")
