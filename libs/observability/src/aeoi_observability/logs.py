@@ -13,6 +13,7 @@ from typing import Any
 import structlog
 
 from aeoi_common.correlation import get_correlation_id
+from aeoi_observability.telemetry import add_trace_ids, to_otel
 from aeoi_security.redaction import redact_mapping
 
 
@@ -67,8 +68,10 @@ def configure_logging(
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             _add_correlation_id,
+            add_trace_ids,  # Phase 23a: the current span's ids (no-op without a span)
             *exceptions,
             _redact,  # LAST before rendering: nothing escapes redaction
+            to_otel,  # the REDACTED line to the OTel log pipeline (no-op when off)
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(log_level),
@@ -79,6 +82,10 @@ def configure_logging(
     structlog.contextvars.bind_contextvars(service=service_name, env=environment)
     # Route stdlib logs (uvicorn, sqlalchemy) to the same level/stream.
     logging.basicConfig(level=log_level, stream=sys.stdout, format="%(message)s", force=True)
+    # Phase 23a: httpx logs every request line with its FULL URL at INFO, as plain text that
+    # bypasses redaction (found by the telemetry secret test: a planted query token)
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(max(log_level, logging.WARNING))
 
 
 def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:

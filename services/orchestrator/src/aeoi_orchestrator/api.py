@@ -15,6 +15,7 @@ from uuid import UUID
 import structlog
 from fastapi import APIRouter, Depends, Header, Request, Response
 
+from aeoi_common.correlation import get_correlation_id
 from aeoi_common.errors import (
     AEOIError,
     BadRequestError,
@@ -34,6 +35,7 @@ from aeoi_models.api.investigations import (
     StartInvestigation,
     TaskOut,
 )
+from aeoi_observability.telemetry import current_traceparent
 from aeoi_orchestrator.clients import CallError, IncidentClient
 from aeoi_orchestrator.config import Settings
 from aeoi_orchestrator.delegation import DelegationClient, DelegationError
@@ -188,6 +190,8 @@ async def start_investigation(
             who.actor,
             settings.budget_usd,
             settings.investigation_deadline_s,
+            trace_context=current_traceparent(),
+            correlation_id=get_correlation_id(),
             plan={
                 "phase": 14,
                 "agents": agents,

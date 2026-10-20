@@ -5,6 +5,7 @@ description = "Kafka consumers for AEOI: process-once handling, poison -> DLQ, r
 requires-python = ">=3.12"
 dependencies = [
     "aiokafka>=0.11",
+    "opentelemetry-api>=1.45.1",
     "structlog>=24.4",
 ]
 

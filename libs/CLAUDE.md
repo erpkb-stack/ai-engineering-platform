@@ -3,7 +3,7 @@
 - `common` — config base, errors (problem+json), retry/circuit-breaker helpers, idempotency
 - `models` — Pydantic contracts: API DTOs, Kafka event envelopes, Fact/Hypothesis/Recommendation/Evidence
 - `security` — JWT verification, RBAC permission map, PII scrubber, untrusted-data wrapper
-- `observability` — structlog JSON logger, OTel setup, standard metrics
+- `observability` — structlog JSON logger (+ trace ids, + OTel log export after redaction) and `telemetry.py` (Phase 23a, ADR-035): `setup_telemetry`, `continue_from`, `current_traceparent`, `headers_with_context`; OFF unless `AEOI_OTEL_ENDPOINT` is set
 - `messaging` — Kafka consumers (ADR-029): `Consumer`, `KafkaTransport`/`MemoryTransport`, DLQ + replay (`dlq.py`), operator CLI (`python -m aeoi_messaging`)
 - `db` — SQLAlchemy models (one module per schema/owner) + the Alembic migration stream (ADR-013)
 

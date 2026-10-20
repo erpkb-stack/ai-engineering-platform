@@ -37,6 +37,8 @@ class FakeUpstream:
             raise httpx.ConnectError("refused", request=request)
         if self.mode == "slow":
             raise httpx.ReadTimeout("slow", request=request)
+        if self.mode == "dropped" or (self.mode == "dropped-once" and len(self.calls) == 1):
+            raise httpx.ReadError("", request=request)  # Mac fix7: what the 500 really was
         if request.url.path == "/v1/incidents" and request.method == "POST":
             return httpx.Response(
                 201,
@@ -162,6 +164,26 @@ async def test_post_is_never_retried(
     )
     assert r.status_code == 503
     assert len(upstream.calls) == 1
+
+
+async def test_a_dropped_connection_is_a_503_that_says_retry_with_the_key(
+    client: httpx.AsyncClient, upstream: FakeUpstream, keys: KeyPair
+) -> None:
+    """Mac, Phase 23a fix7: a ReadError from incident-service became a 500 unhandled_error."""
+    upstream.mode = "dropped"
+    r = await client.post(
+        "/api/v1/incidents",
+        json=BODY,
+        headers=auth(keys, "SRE") | {"Idempotency-Key": f"k-{uuid.uuid4()}"},
+    )
+    assert r.status_code == 503
+    assert r.headers["content-type"].startswith("application/problem+json")
+    assert "Idempotency-Key" in r.json()["detail"]
+    assert len(upstream.calls) == 1  # a POST is never retried here
+    upstream.calls.clear()
+    upstream.mode = "dropped-once"  # a stale keep-alive: the GET's second try succeeds
+    r = await client.get("/api/v1/incidents", headers=auth(keys, "ENGINEER"))
+    assert r.status_code == 200 and len(upstream.calls) == 2
 
 
 async def test_timeout_is_503(

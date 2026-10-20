@@ -12,6 +12,8 @@ from typing import Any, Literal, Protocol
 import httpx
 from pydantic import BaseModel, Field
 
+from aeoi_common.correlation import CORRELATION_HEADER, get_correlation_id
+
 TokenProvider = Callable[[], Awaitable[str]]
 
 
@@ -129,6 +131,10 @@ class HttpLLMClient:
         when it passes) and used for this HTTP call with a small margin, so the gateway's 504
         with a reason arrives before our local timeout."""
         headers = {"Authorization": f"Bearer {await self._token()}"}
+        # the caller's correlation id travels with every model call (Mac, Phase 23a fix6: one
+        # investigation trace held 10 llm-gateway-only ids, one per call)
+        if cid := get_correlation_id():
+            headers[CORRELATION_HEADER] = cid
         if timeout_s is not None:
             body = {**body, "timeout_ms": max(100, int(timeout_s * 1000))}
         try:

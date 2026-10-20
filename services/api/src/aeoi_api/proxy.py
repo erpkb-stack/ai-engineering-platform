@@ -3,8 +3,10 @@
 Forwards: the user's bearer token (the service verifies it again), correlation id,
 Idempotency-Key, If-Match. Never forwards arbitrary client headers (no header injection
 into internal calls). Rewrites Location from /v1/... to /api/v1/...
-Retries: only safe methods (GET) on CONNECT errors, once. A POST is never retried here -
-the client's Idempotency-Key makes the client's own retry safe instead.
+Retries: only safe methods (GET) on CONNECT errors or a DROPPED connection, once. A POST is
+never retried here - the client's Idempotency-Key makes the client's own retry safe instead.
+A dropped connection (ReadError: e.g. a pooled keep-alive to a pod that was just replaced) is a
+503 that says so - it was a 500 "unhandled_error" until the Mac run of Phase 23a (fix7).
 """
 
 from __future__ import annotations
@@ -59,6 +61,12 @@ class Upstream:
                     raise UpstreamUnavailableError(f"{self.name} is unavailable.") from exc
             except httpx.TimeoutException as exc:
                 raise UpstreamUnavailableError(f"{self.name} timed out.") from exc
+            except httpx.TransportError as exc:  # dropped mid-request (ReadError, protocol)
+                if attempt == attempts:
+                    raise UpstreamUnavailableError(
+                        f"The connection to {self.name} was lost. The request may have been"
+                        " applied: retry it with the same Idempotency-Key."
+                    ) from exc
         out_headers = {
             k: v for k, v in upstream.headers.items() if k.lower() in FORWARD_RESPONSE_HEADERS
         }

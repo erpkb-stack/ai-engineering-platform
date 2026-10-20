@@ -1,0 +1,11 @@
+# Prometheus (Phase 23a, ADR-035): metrics arrive over OTLP from the collector
+# (--web.enable-otlp-receiver); nothing is scraped. service.name becomes the label
+# `service_name` - the dashboards group by it.
+global:
+  scrape_interval: 15s
+otlp:
+  promote_resource_attributes:
+    - service.name
+    - service.namespace
+    - deployment.environment.name
+scrape_configs: []

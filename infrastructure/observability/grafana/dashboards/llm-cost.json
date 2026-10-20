@@ -1,0 +1,164 @@
+{
+  "uid": "aeoi-llm-cost",
+  "title": "AEOI - LLM cost and tokens",
+  "description": "What did each model and agent cost, and which investigations cost the most? (exact rows from model_usage)",
+  "tags": [
+    "aeoi",
+    "phase-23a"
+  ],
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Cost per hour, by model (USD)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "time_series",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT $__timeGroupAlias(created_at, 1h), model AS metric, sum(cost_usd) AS value FROM llm.model_usage WHERE $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "By model: calls, tokens, cost, p95 latency",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT provider, model, count(*) AS calls, sum(input_tokens) AS input_tokens, sum(output_tokens) AS output_tokens, sum(cached_tokens) AS cached_tokens, sum(cost_usd) AS cost_usd, percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms) AS p95_latency_ms, round(100.0 * count(*) FILTER (WHERE status <> 'OK') / count(*), 1) AS not_ok_or_fallback_percent FROM llm.model_usage WHERE $__timeFilter(created_at) GROUP BY provider, model ORDER BY cost_usd DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "By agent: cost and tokens",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT coalesce(agent_name, '(none)') AS agent, operation, count(*) AS calls, sum(cost_usd) AS cost_usd, sum(input_tokens + output_tokens) AS tokens FROM llm.model_usage WHERE $__timeFilter(created_at) GROUP BY 1, 2 ORDER BY cost_usd DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Most expensive investigations",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT investigation_id, count(*) AS calls, sum(cost_usd) AS cost_usd, sum(input_tokens + output_tokens) AS tokens FROM llm.model_usage WHERE investigation_id IS NOT NULL AND $__timeFilter(created_at) GROUP BY investigation_id ORDER BY cost_usd DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

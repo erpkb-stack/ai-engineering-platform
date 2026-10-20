@@ -88,6 +88,8 @@ def build_app(
         log_level=settings.log_level,
         log_json=settings.log_json,
         environment=settings.environment.value,
+        # Phase 23a: the public edge never joins a trace a client names (internal STS calls do)
+        untrusted_trace_paths=("/api/",),
     )
     app.add_middleware(
         CORSMiddleware,
