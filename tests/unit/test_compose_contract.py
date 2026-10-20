@@ -54,6 +54,7 @@ ENV_STATES = {
         "AEOI_OIDC_ISSUER": "http://localhost:8090/realms/aeoi",
         "AEOI_INCIDENT_EVENT_TRANSPORT": "kafka",
         "AEOI_AUDIT_CONSUMER_ENABLED": "true",
+        "AEOI_OTEL_ENDPOINT": "http://localhost:4318",  # Phase 23a
     },
 }
 _VAR = re.compile(r"\$\{(?P<name>[A-Z0-9_]+)(?:(?P<op>:-|:\+|-)(?P<arg>[^}]*))?\}")
@@ -467,3 +468,23 @@ def test_profiles_follow_the_switches_as_the_containers_see_them(
 def test_peak_sampling_reads_docker_stats_units(usage: str, mib: float) -> None:
     apps = _load("scripts/phase21_apps.py", "phase21_apps")
     assert apps.parse_mem(usage) == pytest.approx(mib * 1024**2, rel=1e-3)
+
+
+# Phase 23a fix (Mac, 2026-10-17): tempo-init ran `chown` inside grafana/tempo, which has no
+# chown. A one-shot helper must use an image that ships the tool it execs. This is a regression
+# guard (a list we keep), not proof: only `docker compose up` on the Mac proves it.
+# image -> the helper tools it is KNOWN to have (seen working on the Mac)
+TOOLS_IN_IMAGE = {
+    "apache/kafka:3.9.1": {"/bin/bash"},  # kafka-init, since Phase 18a
+    "redis:7.4-alpine": {"chown"},  # busybox; tempo-init, Phase 23a fix
+}
+
+
+def test_one_shot_helpers_use_an_image_that_has_their_tool() -> None:
+    for name, svc in COMPOSE["services"].items():
+        if svc.get("restart") != "no" or not svc.get("entrypoint"):
+            continue
+        tool = svc["entrypoint"][0]
+        assert tool in TOOLS_IN_IMAGE.get(svc["image"], set()), (
+            f"{name}: {tool} is not known to exist in {svc['image']}"
+        )

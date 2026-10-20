@@ -27,6 +27,8 @@ from datetime import UTC, datetime
 from enum import StrEnum
 
 import structlog
+from opentelemetry import propagate, trace
+from opentelemetry.trace import SpanKind
 
 from aeoi_messaging.transport import Message, Transport
 
@@ -167,7 +169,29 @@ class Consumer:
                     offset=msg.offset, kind=kind.value, error=type(exc).__name__)  # fmt: skip
 
     async def _handle(self, msg: Message) -> bool:
-        """Handle one message until it is committed. False = stopping before it was done."""
+        """Handle one message until it is committed. False = stopping before it was done.
+        Phase 23a (ADR-035): inside a CONSUMER span that continues the producer's trace (the
+        traceparent header), with the producer's correlation id on every log line."""
+        parent = propagate.extract({k: msg.header(k) or "" for k in ("traceparent",)})
+        cid = msg.header("correlation_id") or ""
+        with (
+            structlog.contextvars.bound_contextvars(**({"correlation_id": cid} if cid else {})),
+            trace.get_tracer("aeoi.messaging").start_as_current_span(
+                f"{msg.topic} process",
+                context=parent,
+                kind=SpanKind.CONSUMER,
+                attributes={
+                    "messaging.system": "kafka",
+                    "messaging.destination.name": msg.topic,
+                    "messaging.consumer.group.name": self.name,
+                    "messaging.kafka.offset": msg.offset,
+                    "messaging.destination.partition.id": str(msg.partition),
+                },
+            ),
+        ):
+            return await self._handle_traced(msg)
+
+    async def _handle_traced(self, msg: Message) -> bool:
         attempts = 0
         transient = 0
         while True:

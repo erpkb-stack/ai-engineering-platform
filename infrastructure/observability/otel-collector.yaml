@@ -1,0 +1,80 @@
+# OpenTelemetry Collector (Phase 23a, ADR-035). ONE address for every app: otel-collector:4318
+# (OTLP/HTTP) from kind pods and compose containers alike. The SDK already sends no headers,
+# bodies or query strings; this is the second line: delete header/query attributes, block
+# token-shaped values in ANY attribute, then batch. Telemetry must never block an app:
+# memory_limiter drops data under pressure instead of growing.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 200
+    spike_limit_mib: 50
+  attributes/strip:
+    actions:
+      - pattern: ^http\.(request|response)\.header\..*
+        action: delete
+      - key: url.query
+        action: delete
+  # exception text can hold DB rows, user input, tokens: keep the TYPE only (the SDK does the
+  # same; this covers the Java agent and anything that bypasses the SDK)
+  transform/no-exception-text:
+    error_mode: ignore
+    trace_statements:
+      - set(span.status.message, "") where span.status.message != ""
+      - delete_key(spanevent.attributes, "exception.message")
+      - delete_key(spanevent.attributes, "exception.stacktrace")
+  # the catalog's Java agent traces its health probes (the Python SDK excludes them at source)
+  filter/no-health:
+    error_mode: ignore
+    traces:
+      span:
+        - IsMatch(attributes["url.path"], "^/actuator/health")
+    metrics:
+      datapoint:
+        - IsMatch(attributes["http.route"], "^/actuator/health")
+  redaction:
+    allow_all_keys: true
+    blocked_values:
+      - eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}   # a JWT anywhere
+      - sk-ant-[A-Za-z0-9_-]{8,}                                     # an Anthropic key
+      - (?i)bearer\s+[A-Za-z0-9._~+/=-]{8,}                           # an Authorization value
+    summary: silent
+  batch:
+    send_batch_size: 512
+    timeout: 2s
+
+exporters:
+  otlp_http/tempo:
+    endpoint: http://tempo:4318
+  otlp_http/prometheus:
+    endpoint: http://prometheus:9090/api/v1/otlp
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: warn
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/no-health, transform/no-exception-text, attributes/strip, redaction, batch]
+      exporters: [otlp_http/tempo]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/no-health, batch]
+      exporters: [otlp_http/prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/strip, redaction, batch]
+      exporters: [otlp_http/loki]

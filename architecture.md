@@ -429,6 +429,13 @@ One Postgres instance [P], **schema per owning service**. Tables (spec list) map
 
 ## 19. Observability architecture
 
+**Built in 23a (ADR-035):** the collector and the four backends run in compose (profile
+`observability`, measured ~263 MiB idle); apps export OTLP/HTTP to `otel-collector:4318` only
+when `AEOI_OTEL_ENDPOINT` is set. An investigation stores its trace context, so a run resumed
+after a restart and the audit consumer behind Kafka stay in the request's trace. Exceptions keep
+their type only; LLM cost stays in Postgres (Grafana reads named columns with a read-only login).
+23a dashboards: Platform health, Investigation funnel, LLM cost; the other five are 23b.
+
 ```
 services (OTel SDK: traces, metrics, logs w/ trace_id) → OTel Collector
    → traces: Tempo (or Jaeger) [P]   → metrics: Prometheus   → logs: Loki (optional; stdout JSON otherwise)

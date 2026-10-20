@@ -1,0 +1,21 @@
+# Tempo (Phase 23a, ADR-035): traces, local disk, 24 h. 2.10 (verified on the Mac, Phase 23
+# probe); 3.0 is a major release - not taken without a reason.
+server:
+  http_listen_port: 3200
+  log_level: warn
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        http:
+          endpoint: 0.0.0.0:4318
+compactor:
+  compaction:
+    block_retention: 24h
+storage:
+  trace:
+    backend: local
+    local:
+      path: /var/tempo/traces
+    wal:
+      path: /var/tempo/wal

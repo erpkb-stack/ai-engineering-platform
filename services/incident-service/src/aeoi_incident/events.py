@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from aeoi_common.correlation import get_correlation_id
 from aeoi_db.models.incident import Outbox
 from aeoi_models.events import EventEnvelope, EventType
+from aeoi_observability.telemetry import headers_with_context
 
 log = structlog.get_logger("aeoi.outbox")
 TOPIC_INCIDENT_LIFECYCLE = "incident.lifecycle"
@@ -59,7 +60,11 @@ def stage_event(
             topic=topic,
             event_type=event_type.value,
             payload=json.loads(envelope.model_dump_json()),
-            headers={"correlation_id": get_correlation_id() or "", "schema_version": "1"},
+            # Phase 23a: the traceparent of the REQUEST that made the change, stored with the
+            # row - the relay publishes later, outside any request (ADR-035)
+            headers=headers_with_context(
+                {"correlation_id": get_correlation_id() or "", "schema_version": "1"}
+            ),
         )
     )
     return cast(UUID, envelope.event_id)

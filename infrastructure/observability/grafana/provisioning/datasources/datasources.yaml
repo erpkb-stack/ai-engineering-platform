@@ -1,0 +1,51 @@
+# Grafana datasources (Phase 23a, ADR-035). Fixed uids: the dashboards refer to them, and a unit
+# test checks every panel's datasource uid exists here.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+  - name: Tempo
+    uid: tempo
+    type: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      # from a span to its log lines: the SDK writes trace_id on every line
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-5m"
+        spanEndTimeShift: "5m"
+        # trace_id is STRUCTURED METADATA (the body is only the event name): a line filter on
+        # the body would find nothing (review)
+        customQuery: true
+        query: '{service_namespace="aeoi"} | trace_id="$${__span.traceId}"'
+  - name: Loki
+    uid: loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    jsonData:
+      derivedFields:
+        - name: trace
+          datasourceUid: tempo
+          matcherType: label
+          matcherRegex: trace_id
+          url: "$${__value.raw}"
+  - name: Postgres (read-only)
+    uid: postgres
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres:5432
+    # grafana_ro -> role obs_reader: SELECT on the named columns of two tables, nothing else
+    user: grafana_ro
+    jsonData:
+      database: aeoi
+      sslmode: disable
+      postgresVersion: 1600
+      maxOpenConns: 2
+    secureJsonData:
+      password: $__file{/run/secrets/grafana_ro_password}

@@ -72,6 +72,9 @@ class Store:
         budget_usd: Decimal,
         deadline_s: float,
         plan: dict[str, Any],
+        *,
+        trace_context: str | None = None,
+        correlation_id: str | None = None,
     ) -> Investigation:
         now = datetime.now(UTC)
         inv = Investigation(
@@ -83,6 +86,9 @@ class Store:
             plan=plan,
             started_at=now,
             deadline_at=now + timedelta(seconds=deadline_s),
+            # Phase 23a: every later run - also a resume after a restart - continues these
+            trace_context=(trace_context or None) and trace_context[:64],
+            correlation_id=(correlation_id or None) and correlation_id[:80],
         )
         try:
             async with self.sessions() as s, s.begin():

@@ -26,7 +26,9 @@ from uuid import UUID
 import structlog
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
+from opentelemetry.trace import Span
 
+from aeoi_observability.telemetry import continue_from, tracer
 from aeoi_orchestrator.clients import IncidentClient
 from aeoi_orchestrator.delegation import DelegationClient
 from aeoi_orchestrator.salvage import post_recorded_evidence
@@ -123,54 +125,80 @@ class Engine:
             inv = await self.store.get(investigation_id)
             if inv is None or inv.status != "RUNNING":
                 return
-            grant = inv.delegation_grant_id
-            deadline_at = await self.store.begin_run(investigation_id, self.deadline_s)
-            remaining = (deadline_at - datetime.now(UTC)).total_seconds() if deadline_at else 0
-            if remaining <= 0:
+            # Phase 23a (ADR-035): every run - first, or RESUMED after a restart with no
+            # request of its own - continues the trace and correlation id stored at start
+            with (
+                continue_from(
+                    getattr(inv, "trace_context", None), getattr(inv, "correlation_id", None)
+                ),
+                tracer("aeoi.orchestrator").start_as_current_span(
+                    "investigation.run",
+                    attributes={
+                        "aeoi.investigation_id": str(investigation_id),
+                        "aeoi.incident_id": str(inv.incident_id),
+                    },
+                ) as span,
+            ):
+                await self._run_traced(investigation_id, graph_input, inv, span)
+
+    async def _run_traced(
+        self, investigation_id: UUID, graph_input: dict[str, Any], inv: Any, span: Span
+    ) -> None:
+        grant = inv.delegation_grant_id
+        deadline_at = await self.store.begin_run(investigation_id, self.deadline_s)
+        remaining = (deadline_at - datetime.now(UTC)).total_seconds() if deadline_at else 0
+        if remaining <= 0:
+            await self._fail(
+                investigation_id,
+                "investigation deadline exceeded",
+                grant,
+                task_status="TIMED_OUT",
+            )
+            return
+        cfg = self._config(investigation_id)
+        snap = await self.graph.aget_state(cfg)
+        # no checkpoint yet (crash right after start) -> start from the stored input
+        arg = None if snap.values else graph_input
+        span.set_attribute("aeoi.resumed_from_checkpoint", arg is None)
+        log.info(
+            "investigation_run",
+            investigation_id=str(investigation_id),
+            resume=arg is None,
+            next=list(snap.next or ()),
+        )
+        try:
+            await asyncio.wait_for(
+                self.graph.ainvoke(arg, cfg, durability="sync"), timeout=remaining
+            )
+        except TimeoutError:
+            await self._deadline(investigation_id, grant)
+        except asyncio.CancelledError:
+            if investigation_id not in self._cancelling:
+                log.info(
+                    "investigation_paused_for_shutdown", investigation_id=str(investigation_id)
+                )
+            raise
+        except Exception as exc:
+            log.exception("investigation_crashed", investigation_id=str(investigation_id))
+            try:
                 await self._fail(
                     investigation_id,
-                    "investigation deadline exceeded",
+                    f"orchestrator error: {type(exc).__name__}: {str(exc)[:300]}",
                     grant,
-                    task_status="TIMED_OUT",
+                    task_status="FAILED",
                 )
-                return
-            cfg = self._config(investigation_id)
-            snap = await self.graph.aget_state(cfg)
-            # no checkpoint yet (crash right after start) -> start from the stored input
-            arg = None if snap.values else graph_input
-            log.info(
-                "investigation_run",
-                investigation_id=str(investigation_id),
-                resume=arg is None,
-                next=list(snap.next or ()),
-            )
-            try:
-                await asyncio.wait_for(
-                    self.graph.ainvoke(arg, cfg, durability="sync"), timeout=remaining
-                )
-            except TimeoutError:
-                await self._deadline(investigation_id, grant)
-            except asyncio.CancelledError:
-                if investigation_id not in self._cancelling:
-                    log.info(
-                        "investigation_paused_for_shutdown", investigation_id=str(investigation_id)
-                    )
-                raise
-            except Exception as exc:
-                log.exception("investigation_crashed", investigation_id=str(investigation_id))
-                try:
-                    await self._fail(
-                        investigation_id,
-                        f"orchestrator error: {type(exc).__name__}: {str(exc)[:300]}",
-                        grant,
-                        task_status="FAILED",
-                    )
-                except Exception:  # DB down too: leave RUNNING, the next start resumes
-                    log.exception("investigation_fail_record_failed")
+            except Exception:  # DB down too: leave RUNNING, the next start resumes
+                log.exception("investigation_fail_record_failed")
 
     async def resume_pending(self, only: UUID | None = None) -> list[UUID]:
         """Startup: relaunch every RUNNING investigation this process is not running
-        (`only` = just that one: the operator's resume endpoint)."""
+        (`only` = just that one: the operator's resume endpoint). Phase 23a: inside a span of
+        its own, so a deadline-passed FAIL + revoke at startup is a trace too (with no parent
+        its client calls would be dropped as noise); each relaunched run continues ITS trace."""
+        with tracer("aeoi.orchestrator").start_as_current_span("investigation.resume_pending"):
+            return await self._resume_pending(only)
+
+    async def _resume_pending(self, only: UUID | None) -> list[UUID]:
         resumed: list[UUID] = []
         for r in await self.store.resumable():
             if only is not None and r.investigation_id != only:

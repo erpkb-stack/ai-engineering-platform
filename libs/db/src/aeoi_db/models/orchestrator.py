@@ -77,6 +77,10 @@ class Investigation(Base):
     # whole-investigation deadline: resume after it = FAILED, not a late run
     deadline_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error: Mapped[str | None] = mapped_column(Text)
+    # Phase 23a (ADR-035): the trace and correlation id of the request that started it; every
+    # run - first or RESUMED after a restart - continues them (W3C traceparent, 55 chars)
+    trace_context: Mapped[str | None] = mapped_column(String(64))
+    correlation_id: Mapped[str | None] = mapped_column(String(80))
 
 
 class Task(Base):

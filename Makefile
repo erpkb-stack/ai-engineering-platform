@@ -22,6 +22,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
 .PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
 .PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
 .PHONY: kind-up kind-down k8s-manifests k8s-apply k8s-status k8s-netpol-test k8s-rollout-demo
+.PHONY: obs-up obs-down obs-clean obs-smoke
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -261,6 +262,39 @@ k8s-rollout-demo: ## Restart api + incident-service under traffic: must be 0 fai
 	@set -eu -o pipefail; \
 	  TOKEN="$$(uv run --quiet python -m aeoi_api.devtoken --role SRE)"; export TOKEN; \
 	  $(K8S) rollout-demo
+
+# ---------- observability (Phase 23a, ADR-035) ----------
+# Collector + Tempo + Prometheus + Loki + Grafana in compose. The apps export ONLY when .env sets
+# AEOI_OTEL_ENDPOINT=http://localhost:4318 (host runs use it as written; compose and kind replace
+# it with http://otel-collector:4318). Then make apps-up or make k8s-apply again.
+OBS_PY := uv run --quiet python scripts/obs_smoke.py
+
+obs-up: ## Start the observability stack; Grafana on http://127.0.0.1:3000 (admin, secrets/grafana_admin_password.txt)
+	@set -eu -o pipefail; \
+	  if [ ! -s secrets/grafana_ro_password.txt ]; then \
+	    echo "missing secrets/grafana_ro_password.txt: make db-upgrade, then make db-users"; exit 1; fi; \
+	  if [ ! -s secrets/grafana_admin_password.txt ]; then \
+	    ( umask 077; uv run --quiet python -c "import secrets; print(secrets.token_urlsafe(18))" \
+	        > secrets/grafana_admin_password.txt ); echo "created secrets/grafana_admin_password.txt"; fi; \
+	  trap 'rm -f $(APPS_CFG)' EXIT; \
+	  $(COMPOSE) --profile observability config --format json > $(APPS_CFG); \
+	  $(APPS_PY) fix-perms $(APPS_CFG); \
+	  $(COMPOSE) --profile observability up -d; \
+	  $(OBS_PY) --wait-stack
+
+obs-down: ## Stop the observability stack (keeps its data volumes)
+	$(COMPOSE) --profile observability stop otel-collector tempo prometheus loki grafana
+
+obs-clean: ## Remove the stack AND its data (traces, logs, metrics): make obs-clean CONFIRM=1
+	@[ "$(CONFIRM)" = "1" ] || { echo "This deletes all traces, logs and metrics. Re-run: make obs-clean CONFIRM=1"; exit 1; }
+	$(COMPOSE) --profile observability rm -sf otel-collector tempo-init tempo prometheus loki grafana
+	@for v in aeoi_tempodata aeoi_promdata aeoi_lokidata aeoi_grafanadata; do \
+	  docker volume rm "$$v" >/dev/null 2>&1 && echo "removed $$v" || echo "no $$v"; done
+
+obs-smoke: ## One investigation = ONE trace + its logs + metrics [RESUME=kind|compose: restart the orchestrator mid-run]
+	@set -eu -o pipefail; \
+	  TOKEN="$$(uv run --quiet python -m aeoi_api.devtoken --role SRE)"; export TOKEN; \
+	  $(OBS_PY) $(if $(RESUME),--resume $(RESUME),)
 
 clean: ## DESTROY containers + data volumes: make clean CONFIRM=1
 	@[ "$${CONFIRM:-}" = "1" ] || [ "$(CONFIRM)" = "1" ] || { echo "This deletes all local DB/Kafka data. Re-run: make clean CONFIRM=1"; exit 1; }

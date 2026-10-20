@@ -17,6 +17,8 @@ DEV_ONLY_SWITCHES = (
     "AEOI_TOOLS_CATALOG_URL",
     # Phase 21 (ADR-033): the container's address of the native Ollama; tests pass env= instead
     "AEOI_LLM_PROVIDER_OLLAMA_BASE_URL",
+    # Phase 23a (ADR-035): telemetry export; tests pass in-memory exporters instead
+    "AEOI_OTEL_ENDPOINT",
 )
 
 

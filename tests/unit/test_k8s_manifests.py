@@ -471,7 +471,7 @@ def test_the_host_and_the_internet_only_for_the_llm_gateway(state: str) -> None:
         ips = egress_ip(objs, app)
         assert (("192.168.65.254/32", 11434) in ips) == (app == "llm-gateway")
         assert (("0.0.0.0/0", 443) in ips) == (app == "llm-gateway")
-        assert {port for _, port in ips} <= {5432, 19092, 8080, 11434, 443}
+        assert {port for _, port in ips} <= {5432, 19092, 8080, 11434, 443, 4318}
     rule = next(r for r in policy(objs, "llm-gateway")["egress"]
                 if r["to"][0].get("ipBlock", {}).get("cidr") == "0.0.0.0/0")  # fmt: skip
     excepted = rule["to"][0]["ipBlock"]["except"]
@@ -650,3 +650,15 @@ def test_every_profile_set_k8s_apply_can_pass_builds(profiles: tuple[str, ...]) 
 def test_redis_gets_no_rule_until_an_app_calls_it() -> None:
     objs = objects("switches on", profiles=("apps", "apps-catalog", "kafka"))
     assert all(port != 6379 for app in ALL_APPS for _, port in egress_ip(objs, app))
+
+
+@pytest.mark.parametrize("state", STATES)
+def test_every_app_reaches_the_collector_only_when_telemetry_is_switched_on(state: str) -> None:
+    """Phase 23a (ADR-035): one egress rule per app, compose subnet on 4318, from the env."""
+    objs = objects(state)
+    on = bool(cc.ENV_STATES[state].get("AEOI_OTEL_ENDPOINT"))
+    for app in ALL_APPS:
+        assert (("172.19.0.0/16", 4318) in egress_ip(objs, app)) == on, app
+    if on:
+        g = km.graph(resolved(state))
+        assert "otel-collector:4318" in kd.targets(g)  # the Mac netpol matrix checks it too

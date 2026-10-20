@@ -73,3 +73,30 @@ async def test_fake_client_records_calls() -> None:
     assert (await fake.generate([Msg(role="user", content="q")])).text == "a"
     assert (await fake.generate_structured([Msg(role="user", content="q")], {})).data == {"x": 1}
     assert [c["op"] for c in fake.calls] == ["generate", "generate_structured"]
+
+
+async def test_the_callers_correlation_id_travels_with_every_model_call() -> None:
+    """Mac, Phase 23a fix6: one investigation trace held 10 llm-gateway-only correlation ids
+    (one per model call) because the client sent none and the gateway minted its own."""
+    from aeoi_common.correlation import CORRELATION_HEADER, set_correlation_id
+
+    seen: list[str | None] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request.headers.get(CORRELATION_HEADER))
+        return httpx.Response(503, json={"title": "down", "detail": "test"})
+
+    async def token() -> str:
+        return "t"
+
+    c = HttpLLMClient("http://llm", token, transport=httpx.MockTransport(handler))
+    msgs = [Msg(role="user", content="hi")]
+    meta = CallMetadata(agent_name="triage", prompt_version=1)
+    set_correlation_id("inv-corr-1")
+    with pytest.raises(LLMError):
+        await c.generate(msgs, metadata=meta)
+    set_correlation_id(None)
+    with pytest.raises(LLMError):
+        await c.generate(msgs, metadata=meta)
+    await c.aclose()
+    assert seen == ["inv-corr-1", None]  # sent when there is one; never an empty header

@@ -1,0 +1,10 @@
+# Dashboards are FILES in the repo (Phase 23a): read-only in the UI, changed by a commit.
+apiVersion: 1
+providers:
+  - name: aeoi
+    folder: AEOI
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana-dashboards

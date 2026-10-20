@@ -28,6 +28,8 @@ SERVICE_LOGINS: dict[str, str] = {
     # Phase 20: the Java service-catalog (SELECT on catalog.*). Its role comes from FLYWAY
     # (V1__catalog.sql), not Alembic: until `make catalog-import` ran, this login is skipped.
     "catalog_svc": "svc_catalog",
+    # Phase 23a (ADR-035): Grafana's Postgres datasource - SELECT on a few named COLUMNS only
+    "grafana_ro": "obs_reader",
 }
 # groups created outside Alembic: a missing one is "not set up yet", not an error
 OPTIONAL_GROUPS: dict[str, str] = {"svc_catalog": "make catalog-import (Flyway creates it)"}

@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 import structlog
+from opentelemetry import trace
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from aeoi_common.correlation import CORRELATION_HEADER, new_correlation_id, set_correlation_id
@@ -36,6 +37,8 @@ class CorrelationIdMiddleware:
         else:
             cid = new_correlation_id()
         structlog.contextvars.bind_contextvars(correlation_id=cid)
+        # Phase 23a: the id on the request's span too (search a trace by the id users quote)
+        trace.get_current_span().set_attribute("aeoi.correlation_id", cid)
         start = time.perf_counter()
         status = 500
 
