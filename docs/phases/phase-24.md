@@ -48,6 +48,20 @@ Status: **BUILT in the sandbox (2026-10-21), Verify = the PR's checks on GitHub.
 - [ ] Owner reviews the baseline numbers; decides the gate (e.g. fail on fixable CRITICAL).
 - [ ] Merged only after green; `main`'s run after the merge is green too.
 
+## 3b. First run on GitHub (PR #31, run 39542641451, 2026-10-21)
+- All 6 checks green; `main` green again after PR #30 (first time since 2026-10-08).
+- java: JDK Temurin 21.0.12; `mvn -q` printed NO test count, so green did not prove the tests
+  ran. fix1: a step counts the surefire reports and fails on 0 tests or any skipped test.
+- images: both built (aeoi-py:ci 327 MB, aeoi-catalog:ci 345 MB as reported by the runner);
+  `trivy.tgz: OK`, `Version: 0.69.3`.
+- Scan baseline (HIGH / CRITICAL), per Trivy target:
+  | image | target | HIGH | CRITICAL |
+  |---|---|---|---|
+  | aeoi-py:ci | debian 12.15 (OS packages) | 61 | 2 |
+  | aeoi-py:ci | second target (name to read from the log) | 0 | 1 |
+  | aeoi-catalog:ci | one target (name to read from the log) | 31 | 10 |
+- Gate NOT decided yet: it needs the fixable split and the package names first.
+
 ## 4. Open items (not this phase)
 - Gate the scan after the baseline review (a small follow-up PR).
 - SHA-pin all actions and base images by digest ([Prod], ADR-036 "Not done").

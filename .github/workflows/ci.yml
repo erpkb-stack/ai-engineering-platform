@@ -135,6 +135,18 @@ jobs:
           cache: maven
       - run: make up PROFILE=infra   # the tests use the compose Postgres (own random database)
       - run: make catalog-build
+      - name: Count the Java tests (mvn -q hides them; 0 tests must not look green)
+        run: |
+          python3 - services/service-catalog/target/surefire-reports <<'PY'
+          import pathlib, sys, xml.etree.ElementTree as ET
+          n = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+          for f in pathlib.Path(sys.argv[1]).glob("TEST-*.xml"):
+              suite = ET.parse(f).getroot()
+              for k in n:
+                  n[k] += int(suite.get(k, 0))
+          print(f"java tests: {n}")
+          sys.exit(0 if n["tests"] > 0 and n["skipped"] == 0 else 1)
+          PY
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra logs --tail=200

@@ -42,6 +42,7 @@ def test_the_new_jobs_run_the_same_make_targets_as_the_mac() -> None:
         return "\n".join(str(s.get("run", "")) for s in _steps(jobs[job]))
 
     assert "make catalog-build" in runs("catalog")
+    assert "surefire-reports" in runs("catalog")  # mvn -q hides the count: 0 tests = red
     assert "make ui-install" in runs("frontend") and "make ui-check" in runs("frontend")
     assert "make images" in runs("images")
 
