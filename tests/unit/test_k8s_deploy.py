@@ -77,7 +77,7 @@ def test_facts_are_read_from_docker_and_the_node_ipv4_only() -> None:
     facts = kd.facts_from(network, host, nodes, addrs, kind, ids)
     assert facts == {"compose_subnets": ["172.19.0.0/16"], "host_gateway": "192.168.65.254",
                      "node_sources": ["10.244.0.1", "172.18.0.2", "172.19.0.5"],
-                     "dev_clients": ["172.18.0.1"], "image_ids": ids}  # fmt: skip
+                     "dev_clients": ["172.18.0.1", "172.19.0.1"], "image_ids": ids}  # fmt: skip
     km.Facts.from_json(facts)  # valid input for the generator
     with pytest.raises(kd.DeployError, match="IPv4"):
         kd.facts_from([{"Subnet": "fd00::/64"}], host, nodes, addrs, kind, ids)
@@ -85,6 +85,10 @@ def test_facts_are_read_from_docker_and_the_node_ipv4_only() -> None:
         kd.facts_from(network, "", nodes, addrs, kind, ids)
     with pytest.raises(kd.DeployError, match="kind"):
         kd.facts_from(network, host, nodes, addrs, [], ids)
+    # 23c (proven on the Mac): after a Docker restart the Mac arrives from the COMPOSE gateway;
+    # only gateways (.1) are allowed - never the compose subnet, never a container address
+    assert "172.19.0.0/16" not in facts["dev_clients"]
+    assert all(ip.endswith(".1") for ip in facts["dev_clients"])
     # Docker Desktop may leave Gateway out: the first host of the subnet
     assert kd.ipv4_gateway([{"Subnet": "172.18.0.0/16"}]) == ["172.18.0.1"]
 
@@ -421,3 +425,116 @@ def test_an_unreachable_answer_counts_as_closed_for_a_target_that_is_up() -> Non
 
 def test_the_probe_names_unreachable_and_errno() -> None:
     assert '"unreachable"' in kd.PROBE_CODE and "errno.EHOSTUNREACH" in kd.PROBE_CODE
+
+
+# ---------------------------------------------------------------- Mac -> app (Phase 23c)
+
+
+def _server(behaviour: str) -> tuple[Any, int]:
+    """A real local TCP server that behaves like each case seen on the Mac."""
+    import socket
+    import threading
+
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen()
+
+    def loop() -> None:
+        while True:
+            try:
+                conn, _ = srv.accept()
+            except OSError:
+                return
+            if behaviour == "close":  # accepted, then closed without a byte
+                conn.close()
+            elif behaviour == "silent":  # accepted, nothing ever comes back (2026-10-19)
+                threading.Timer(3, conn.close).start()
+            else:
+                conn.recv(4096)
+                status = "200 OK" if behaviour == "ok" else "503 Service Unavailable"
+                conn.sendall(
+                    f"HTTP/1.1 {status}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode()
+                )
+                conn.close()
+
+    threading.Thread(target=loop, daemon=True).start()
+    return srv, srv.getsockname()[1]
+
+
+@pytest.mark.parametrize(
+    ("behaviour", "verdict"),
+    [("ok", "http:200"), ("503", "http:503"), ("close", "no-answer:"), ("silent", "timeout")],
+)
+def test_the_mac_check_needs_an_http_answer_not_just_a_connection(
+    behaviour: str, verdict: str
+) -> None:
+    srv, port = _server(behaviour)
+    try:
+        got = kd.host_probe(f"http://127.0.0.1:{port}/health/live", timeout=0.5)
+    finally:
+        srv.close()
+    assert got.startswith(verdict), got
+
+
+def test_the_mac_check_names_a_refused_port() -> None:
+    import socket
+
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()  # nothing listens there now
+    assert kd.host_probe(f"http://127.0.0.1:{port}/x", timeout=0.5) == "refused"
+
+
+def test_judge_host_fails_every_app_that_does_not_answer_and_says_what_to_run() -> None:
+    fail, ok = kd.judge_host({"api": "http:200", "audit": "http:503", "rag": "timeout",
+                              "agents": "no-answer:RemoteDisconnected"})  # fmt: skip
+    assert [ln.split()[2] for ln in ok] == ["api", "audit"]  # an error status still ANSWERED
+    assert [ln.split()[2] for ln in fail] == ["agents", "rag"]
+    assert all("conntrack" in ln and "BEFORE recreating" in ln for ln in fail)
+
+
+def test_the_mac_check_covers_every_app_on_a_port_kind_publishes() -> None:
+    import yaml
+
+    cluster = yaml.safe_load((ROOT / "infrastructure/kubernetes/kind/cluster.yaml").read_text())
+    published = {m["hostPort"] for n in cluster["nodes"] for m in n.get("extraPortMappings", [])}
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    apps = {}
+    for name, svc in compose["services"].items():
+        image = str(svc.get("image", ""))
+        kind = next((k for k in km.IMAGES if image.startswith(k + ":")), None)
+        if kind:  # an app (aeoi-py / aeoi-catalog image), not infra
+            port = int(svc["ports"][0].split(":")[1])
+            apps[name] = km.App(name, image, kind, port, {})
+    assert len(apps) == 9, sorted(apps)
+    urls = kd.host_urls(apps)
+    assert urls["api"] == "http://127.0.0.1:8000/health/live"
+    assert urls["service-catalog"] == "http://127.0.0.1:8010/actuator/health/liveness"
+    for url in urls.values():
+        assert int(url.split(":")[2].split("/")[0]) in published, url
+
+
+def test_netpol_test_puts_a_silent_mac_path_in_the_verdict(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """End to end over netpol_test (fake cluster): the Mac lines must reach the FAIL list and
+    the exit code - a check that only prints is how "0 FAILED" lied on 2026-10-19."""
+    tm = _load("tests/unit/test_k8s_manifests.py", "k8s_manifests_t_for_host")
+    cfg = tm.resolved(tm.STATES[0])
+    apps = km.apps_of(cfg)
+    g = km.graph(cfg, apps)
+    allowed_open = {t: "open" for t in kd.targets(g)}  # every pod reaches everything...
+    runner = FakeRunner({"config --format json": (0, json.dumps(cfg)),
+                         "exec deployment/": (0, json.dumps(allowed_open)),
+                         f"exec {kd.PROBE}": (0, json.dumps({}))})  # fmt: skip
+    monkeypatch.setattr(
+        kd, "host_probe", lambda url, timeout=5.0: "timeout" if ":8000/" in url else "http:200"
+    )
+    rc = kd.netpol_test(runner)
+    out = capsys.readouterr().out
+    fail_section = out.split("--- FAIL")[1]
+    assert "mac ->" in fail_section and "api" in fail_section and "timeout" in fail_section
+    assert rc == 1
+    pass_section = out.split("--- PASS")[1].split("--- SKIPPED")[0]
+    assert "mac -> service-catalog" in " ".join(pass_section.split())  # the others answered

@@ -545,3 +545,20 @@ def test_denial_code_is_a_plain_code_and_the_model_matches_migration_0027() -> N
     for code in {r.value for r in DenyReason} | literal:
         assert _re.fullmatch(r"[a-z][a-z_]*", code), code
     assert "denial_reason" not in mig.READABLE["tools.tool_calls"]
+
+
+# Measured on the Mac 2026-10-20 by `make obs-load-peaks` WHILE obs-smoke RESUME=kind,
+# multi-smoke and risk-smoke all passed (Phase 23c). Not a guess - re-measure, then edit.
+MEASURED_PEAK_MIB = {"tempo": 227, "grafana": 252, "loki": 176, "otel-collector": 131,
+                     "prometheus": 95}  # fmt: skip
+
+
+def test_every_backend_limit_keeps_headroom_over_its_measured_peak() -> None:
+    import yaml
+
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    for name, peak in MEASURED_PEAK_MIB.items():
+        raw = compose["services"][name]["deploy"]["resources"]["limits"]["memory"]
+        assert raw.endswith("M"), (name, raw)
+        limit_mib = int(raw[:-1]) * 1000**2 / 1024**2  # compose "M" = 10^6 bytes
+        assert limit_mib >= 1.5 * peak, (name, raw, f"peak {peak} MiB")

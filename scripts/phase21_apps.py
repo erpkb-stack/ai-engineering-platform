@@ -26,6 +26,7 @@ import socket
 import stat
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -209,6 +210,44 @@ def report(peaks: dict[str, int], samples: int) -> str:
     return "\n".join(lines)
 
 
+def peaks_during(
+    commands: list[list[str]],
+    every: float = 2.0,
+    sampler: Callable[[], dict[str, int]] = sample,
+) -> tuple[dict[str, int], int, list[int]]:
+    """Run the commands one after another and sample memory WHILE they run (Phase 23c: a peak
+    taken after the smokes was taken at rest). Returns (peaks, samples, exit codes)."""
+    peaks: dict[str, int] = {}
+    count = [0]
+    missed = [0]
+    stop = threading.Event()
+
+    def loop() -> None:
+        while not stop.is_set():
+            try:
+                got = sampler()
+            except (subprocess.CalledProcessError, ValueError, OSError):
+                missed[0] += 1  # one bad `docker stats` must not end the sampling silently
+            else:
+                for name, used in got.items():
+                    peaks[name] = max(peaks.get(name, 0), used)
+                count[0] += 1
+            stop.wait(every)
+
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+    codes: list[int] = []
+    try:
+        for cmd in commands:
+            codes.append(subprocess.run(cmd, check=False).returncode)  # noqa: S603 - our make targets
+    finally:
+        stop.set()
+        t.join()
+    if missed[0]:
+        print(f"  ! {missed[0]} sample(s) failed (docker stats); {count[0]} counted")
+    return peaks, count[0], codes
+
+
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -220,7 +259,15 @@ def main(argv: list[str]) -> int:
     p = sub.add_parser("peaks")
     p.add_argument("--seconds", type=float, default=600)
     p.add_argument("--every", type=float, default=2)
+    p.add_argument("--during", action="append", default=[],
+                   help="a make target (with VAR=x) to run while sampling; repeatable")  # fmt: skip
     args = ap.parse_args(argv)
+    if args.cmd == "peaks" and args.during:
+        found, n, codes = peaks_during([["make", *d.split()] for d in args.during], args.every)
+        print(report(found, n))
+        for target, code in zip(args.during, codes, strict=True):
+            print(f"  {'ok    ' if code == 0 else 'FAILED'} make {target} (exit {code})")
+        return 0 if found and not any(codes) else 1
     if args.cmd == "peaks":
         peaks: dict[str, int] = {}
         n, end = 0, time.monotonic() + args.seconds

@@ -49,9 +49,11 @@ collector + Tempo + Prometheus + Loki + Grafana = ~263 MiB, ~4 % CPU (architectu
 | A new trace per resumed run (span links only) | the operator would need to know a resume happened to find the second trace |
 
 ## Tradeoffs
-- Memory: the guess was ~0.3-0.6 GiB; measured after a smoke run (not under load) the 5
-  containers peaked at 647 MiB (Tempo 189, Loki 148, Grafana 140, Prometheus 106, collector 64).
-  The loaded peak is still unmeasured (23b).
+- Memory: the guess was ~0.3-0.6 GiB - wrong. Measured UNDER LOAD (23c, three smokes running):
+  881 MiB for the 5 containers (Tempo 227, Grafana 252, Loki 176, collector 131, Prometheus 95);
+  limits set to ~2x those peaks.
+- The OTel Java agent fattens the catalog's latency tail: p99 780.6 ms with it vs 135.7 ms
+  without (p50 unchanged; one run of 300 each, 23c). Kept on: its traces found the tail.
 - Trace size: one investigation = 615-631 spans, 660-662 with a resume - mostly psycopg
   checkpoint writes. Far below Tempo's 5 MB per trace, but it grows with the graph.
 - 100 % sampling: fine at dev traffic, wrong at production scale (tail sampling then).

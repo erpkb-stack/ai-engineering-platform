@@ -457,7 +457,7 @@ services:
     cap_drop: ["ALL"]
     deploy:
       resources:
-        limits: { memory: 512M, cpus: "1.0" }
+        limits: { memory: 384M, cpus: "1.0" }
 
   loki:
     <<: *defaults
@@ -473,7 +473,7 @@ services:
     cap_drop: ["ALL"]
     deploy:
       resources:
-        limits: { memory: 512M, cpus: "1.0" }
+        limits: { memory: 384M, cpus: "1.0" }
 
   grafana:
     <<: *defaults
@@ -503,7 +503,7 @@ services:
     cap_drop: ["ALL"]
     deploy:
       resources:
-        limits: { memory: 384M, cpus: "1.0" }
+        limits: { memory: 512M, cpus: "1.0" }
 
 secrets:
   keycloak_admin_password:

@@ -61,3 +61,14 @@ out) - the Java agent is the first suspect, not proven. And a kind issue from 22
 restart the Mac could not reach the api until the node was recreated; my hypothesis (traffic
 arrives from the other Docker network's gateway, which the policy does not allow) is unproven
 because recreating the node destroyed the evidence - twice.
+
+## Phase 23c - closing those gaps (Mac, 2026-10-20)
+**The Mac path bug, proven.** I added the missing check (Mac -> every app, an HTTP answer - a
+TCP connect passes even when nothing answers, because Docker's proxy accepts it). Its first run
+caught the bug live after a Docker restart. With the node NOT recreated, one experiment - allow
+only the compose network's gateway - turned the timeout into 200. Cause: after a restart Docker
+forwards published ports through the other network. Fix in the generator, both gateways as /32s.
+Lesson: twice I lost the evidence by "fixing" first; a check that runs every time preserved it.
+**Memory under load:** 881 MiB for the stack vs a 0.3-0.6 GiB guess; limits now ~2x peak.
+**The Java agent:** p99 780.6 ms with it vs 135.7 ms without, p50 unchanged - it costs tail
+latency, not typical latency. Kept, because its traces are how the tail was found.

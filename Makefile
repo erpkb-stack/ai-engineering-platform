@@ -22,7 +22,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
 .PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
 .PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
 .PHONY: kind-up kind-down k8s-manifests k8s-apply k8s-status k8s-netpol-test k8s-rollout-demo
-.PHONY: obs-up obs-down obs-clean obs-smoke
+.PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -295,6 +295,14 @@ obs-smoke: ## One investigation = ONE trace + its logs + metrics [RESUME=kind|co
 	@set -eu -o pipefail; \
 	  TOKEN="$$(uv run --quiet python -m aeoi_api.devtoken --role SRE)"; export TOKEN; \
 	  $(OBS_PY) $(if $(RESUME),--resume $(RESUME),)
+
+obs-load-peaks: ## Phase 23c: PEAK memory of every container WHILE obs-smoke RESUME=kind, multi-smoke, risk-smoke run
+	@$(APPS_PY) peaks --during "obs-smoke RESUME=kind" --during multi-smoke --during risk-smoke
+
+catalog-latency: ## Phase 23c: time 300 direct catalog requests: make catalog-latency LABEL=agent-on|agent-off
+	@set -eu -o pipefail; \
+	  [ -n "$(LABEL)" ] || { echo "usage: make catalog-latency LABEL=agent-on|agent-off"; exit 1; }; \
+	  uv run --quiet python scripts/catalog_latency.py --label "$(LABEL)"
 
 clean: ## DESTROY containers + data volumes: make clean CONFIRM=1
 	@[ "$${CONFIRM:-}" = "1" ] || [ "$(CONFIRM)" = "1" ] || { echo "This deletes all local DB/Kafka data. Re-run: make clean CONFIRM=1"; exit 1; }
