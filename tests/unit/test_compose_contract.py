@@ -488,3 +488,50 @@ def test_one_shot_helpers_use_an_image_that_has_their_tool() -> None:
         assert tool in TOOLS_IN_IMAGE.get(svc["image"], set()), (
             f"{name}: {tool} is not known to exist in {svc['image']}"
         )
+
+
+def test_peaks_are_sampled_while_the_smokes_run_not_after() -> None:
+    """Phase 23c: the 23a peak was taken AFTER the smokes (at rest). `peaks --during` runs the
+    targets itself and samples until they end; a failed target is reported, not hidden."""
+    import sys
+    import time as _time
+
+    apps = _load("scripts/phase21_apps.py", "phase21_apps_during")
+    seen: list[float] = []
+
+    def sampler() -> dict[str, int]:
+        seen.append(_time.monotonic())
+        return {"tempo": 100 * len(seen), "loki": 50}
+
+    start = _time.monotonic()
+    slow = [sys.executable, "-c", "import time; time.sleep(0.6)"]
+    failing = [sys.executable, "-c", "raise SystemExit(3)"]
+    peaks, n, codes = apps.peaks_during([slow, failing], every=0.1, sampler=sampler)
+    end = _time.monotonic()
+    assert codes == [0, 3]
+    assert n >= 4 and len(seen) == n  # sampled repeatedly during the 0.6 s run
+    assert all(start <= t <= end for t in seen)
+    assert peaks == {"tempo": 100 * n, "loki": 50}  # the max, not the last
+
+
+def test_a_failed_sample_is_counted_not_the_end_of_sampling(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import subprocess as _sp
+    import sys
+
+    apps = _load("scripts/phase21_apps.py", "phase21_apps_missed")
+    calls = [0]
+
+    def flaky() -> dict[str, int]:
+        calls[0] += 1
+        if calls[0] == 2:
+            raise _sp.CalledProcessError(1, ["docker", "stats"])
+        return {"tempo": calls[0]}
+
+    peaks, n, codes = apps.peaks_during(
+        [[sys.executable, "-c", "import time; time.sleep(0.5)"]], every=0.1, sampler=flaky
+    )
+    assert codes == [0] and n == calls[0] - 1 and n >= 3
+    assert peaks["tempo"] == calls[0]  # sampling went on after the failure
+    assert "1 sample(s) failed" in capsys.readouterr().out

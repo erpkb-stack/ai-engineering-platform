@@ -254,14 +254,14 @@ Result: **PASSED with the gaps named below** (owner's Mac, kind cluster, 9 apps,
 - Java catalog slow tail: server spans of 1.1-1.6 s (Tempo, 6 h); the tool deadline is 2 s, one
   risk-smoke call timed out. New since 22a; the OTel Java agent is the first suspect, NOT proven.
   Next: the same smoke with the agent off, and the slow trace's child spans.
-- Mac -> api after a Docker restart (22a): twice `make smoke` gave 000 (timeout) until the node
-  was recreated. Hypothesis, NOT proven (the evidence was lost both times): published ports then
-  arrive from the `aeoi_default` gateway, `dev-host-ingress` allows only the `kind` gateway.
+- RESOLVED in 23c: Mac -> api after a Docker restart (22a). Twice `make smoke` gave 000 until the
+  node was recreated. Proven on 2026-10-20 (the new 23c check caught it, node NOT recreated):
+  `dev-host-ingress` allowed only the `kind` gateway; adding only `172.19.0.1/32` (the compose
+  gateway) turned the timeout into 200. The generator now allows both gateways.
   BEFORE recreating the node, run: `curl -sS -m 5 http://127.0.0.1:8000/api/v1/health` (timeout?),
   `docker inspect aeoi-control-plane` (its two networks + gateways), and inside the node
   `conntrack -L | grep 30800` while a curl runs (the real `src=`).
-- `make k8s-netpol-test` has no Mac -> api check: it said 0 FAILED while the only path the owner
-  uses was broken. Add one (pod-to-pod is not enough).
+- RESOLVED in 23c: `make k8s-netpol-test` now checks Mac -> every app (an HTTP answer).
 - audit is in the trace but logs no line with its trace_id.
 - `make catalog-smoke` says "make run-catalog" when 8010 does not answer - wrong under kind.
 - the Grafana "span -> logs" link is untested by hand; the dashboards' generator is not in the
@@ -357,3 +357,61 @@ items (loaded memory peak, Mac -> api netpol check, catalog agent on/off) after.
 - [ ] Tool gateway: denials show codes (`missing_permission`, `executor_only`,
       `not_in_agent_allowlist`, ...) and never reason text
 - [ ] Explore -> Postgres: `SELECT denial_reason FROM tools.tool_calls LIMIT 1` -> permission denied
+
+---
+
+# Phase 23c - close the three 23a gaps (owner decision 2026-10-20)
+No new feature. Each item makes a number or a test we quote trustworthy.
+
+## Built
+1. **Mac -> app in `make k8s-netpol-test`.** The pod matrix never tested the path the owner
+   uses; on 2026-10-19 it said "0 FAILED" while every Mac request timed out. Now every app's
+   liveness URL on 127.0.0.1:<port> must give an HTTP ANSWER (any status). A TCP connect is not
+   enough: Docker's port proxy accepts the connection even when nothing answers behind it. A
+   failure prints the diagnostics to run BEFORE recreating the node.
+2. **`make obs-load-peaks`**: runs `obs-smoke RESUME=kind`, `multi-smoke`, `risk-smoke` and
+   samples `docker stats` WHILE they run (the 23a number was taken after, at rest). A failed
+   sample is counted, not the end of sampling; a failed smoke is reported.
+3. **`make catalog-latency LABEL=agent-on|agent-off`**: 300 direct catalog requests (no
+   gateway), the first 10 (cold) reported apart; result file in data/eval/results/. Run once with
+   telemetry on and once off - the only difference for the catalog is the Java agent.
+
+## Tests (sandbox)
+Real sockets for every Mac-path shape (answer, 503, accepted-then-closed, accepted-then-silent,
+refused); end-to-end over netpol_test with a fake cluster (a silent Mac path reaches FAIL and the
+exit code); peaks sampled during real child processes; a fake catalog over real HTTP (slow and
+503 answers counted, the token never written). Mutations caught: a TCP connect counted as a
+pass; the Mac results not added to the verdict.
+
+## Found on the Mac (2026-10-20)
+- First real run of the new check: the node had restarted with Docker 5 min earlier; the check
+  said `mac -> <app> timeout` x9 (the pod matrix alone: 121 passed). Experiment, node NOT
+  recreated: `kubectl patch` dev-host-ingress + `172.19.0.1/32` (the `aeoi_default` gateway) ->
+  `curl` 200 at once. fix1: the generator's `dev_clients` = the kind AND compose gateways (the
+  kind one still required; a test keeps them gateways, never a subnet or a container address).
+- The same restart made `make obs-load-peaks` sample at rest (all 3 smokes failed - reported as
+  FAILED); its table is NOT used.
+
+## Results (Mac, 2026-10-20) - measured, one run each
+- **Mac path:** after fix1 the generated policy holds both gateways (`172.18.0.1/32`,
+  `172.19.0.1/32`); `make k8s-netpol-test` 130 passed / 0 failed incl. 9 `mac -> <app> http:200`
+  - without the hand patch (deleted first: a `kubectl patch` owns the fields, so server-side
+  apply refused; we do not add --force-conflicts, it would hide the next hand edit).
+- **Memory under load** (`make obs-load-peaks`, all 3 smokes ok, 43 samples): tempo 227,
+  grafana 252, loki 176, collector 131, prometheus 95 = **881 MiB** for the stack (ADR-035 guessed
+  0.3-0.6 GiB); kind node 2,372; all containers 4,410 MiB of 7.75 GiB. Limits now ~2x peak:
+  grafana 384M -> 512M (it was at 66 %), loki 512M -> 384M, prometheus 512M -> 384M, tempo 512M and
+  collector 256M kept. A test keeps every limit >= 1.5x its measured peak.
+- **Catalog, Java agent on vs off** (300 direct requests each, both right after a restart):
+  p50 43.8 vs 42.1 ms, p95 148.8 vs 100.1, **p99 780.6 vs 135.7**, max 1,718 vs 925 (the off
+  max is its cold first request), over 2 s: 0 and 0. The agent leaves the typical request alone
+  and fattens the tail (p99 ~5.7x). It does NOT alone explain the gateway's 4 timeouts: direct
+  calls never crossed 2 s in 600 requests. Decision: keep the agent (its traces found this);
+  revisit only if gateway timeouts persist. One run per side: the direction is solid, the size
+  is not. Files: data/eval/results/catalog-latency-agent-{on,off}-2026-10-20T*.json.
+
+## Verify (on the Mac) - 23c - result: PASSED
+- [x] Unpack, `make check` 1193
+- [x] `make k8s-netpol-test`: caught the real failure first (9 x timeout), then 0 FAILED after fix1
+- [x] `make obs-load-peaks`: table + 3 smokes ok -> limits set from it
+- [x] `make catalog-latency` agent-on / agent-off: both files written, compared above

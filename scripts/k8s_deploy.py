@@ -157,12 +157,16 @@ def facts_from(
         sources += [a["address"] for a in n["status"]["addresses"] if a["type"] == "InternalIP"]
         if n["spec"].get("podCIDR"):
             sources.append(pod_gateway(n["spec"]["podCIDR"]))
-    dev = ipv4_gateway(kind_network)
+    # the Mac's 127.0.0.1:80xx arrives from a Docker network GATEWAY: the `kind` one on a fresh
+    # node, the compose one after a Docker restart (proven on the Mac 2026-10-20: adding only
+    # 172.19.0.1/32 turned a timeout into 200). Both are host-side /32s, never a container.
+    kind_gw = ipv4_gateway(kind_network)
+    dev = sorted(set(kind_gw) | set(ipv4_gateway(network)))
     if not subnets:
         raise DeployError(f"no IPv4 subnet on {COMPOSE_NETWORK}")
     if not host:
         raise DeployError("host.docker.internal does not resolve on the kind node")
-    if not dev:
+    if not kind_gw:
         raise DeployError("no IPv4 gateway on the docker network `kind`")
     return {"compose_subnets": subnets, "host_gateway": host,
             "node_sources": sorted(set(sources)), "dev_clients": dev,
@@ -483,6 +487,53 @@ def probe_objects(image: str) -> list[dict[str, Any]]:
     return [pol, pod]
 
 
+# The Mac -> 127.0.0.1:<port> path (Phase 23c). The pod matrix never tested it, and on
+# 2026-10-19 it said "0 FAILED" while every request from the Mac timed out after a Docker
+# restart. Docker's port proxy ACCEPTS the TCP connection even when nothing answers behind it
+# ("0 bytes received"), so only an HTTP answer counts - any status code.
+_HOST_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+HOST_HINT = ("no answer from the Mac. After a Docker restart this was seen twice (phase-23.md 8b):"
+             " BEFORE recreating the node run `docker inspect aeoi-control-plane` (its networks)"
+             " and, in the node, `conntrack -L | grep 30800` while a curl runs (the real src=)")  # fmt: skip
+
+
+def host_probe(url: str, timeout: float = 5.0) -> str:
+    """'http:<status>' when the app answered; otherwise why not."""
+    try:
+        with _HOST_OPENER.open(url, timeout=timeout) as resp:
+            return f"http:{resp.status}"
+    except urllib.error.HTTPError as e:
+        return f"http:{e.code}"
+    except urllib.error.URLError as e:
+        reason = e.reason
+        if isinstance(reason, ConnectionRefusedError):
+            return "refused"
+        if isinstance(reason, (TimeoutError, socket.timeout)):
+            return "timeout"
+        return f"error:{type(reason).__name__}"
+    except TimeoutError:
+        return "timeout"  # the connection was accepted, then nothing came back
+    except (ConnectionError, OSError) as e:
+        return f"no-answer:{type(e).__name__}"  # e.g. accepted, then closed (RemoteDisconnected)
+
+
+def host_urls(apps: dict[str, Any]) -> dict[str, str]:
+    """app -> the liveness URL the Mac reaches through kind's port mapping."""
+    return {name: f"http://127.0.0.1:{a.port}{km.IMAGES[a.kind]['live']}"
+            for name, a in sorted(apps.items())}  # fmt: skip
+
+
+def judge_host(results: dict[str, str]) -> tuple[list[str], list[str]]:
+    """(failures, passed): every app must ANSWER the Mac."""
+    fail: list[str] = []
+    ok: list[str] = []
+    for name, v in sorted(results.items()):
+        line = f"{'mac':>16} -> {name:<26} {v}"
+        (ok if v.startswith("http:") else fail).append(line if v.startswith("http:")
+                                                       else f"{line}  ({HOST_HINT})")  # fmt: skip
+    return fail, ok
+
+
 def netpol_test(r: Runner) -> int:
     config = compose_config(r)  # the switches as they are NOW (they decide the graph)
     apps = km.apps_of(config)
@@ -509,6 +560,11 @@ def netpol_test(r: Runner) -> int:
             "delete", "pod,networkpolicy", PROBE, "--ignore-not-found", "--wait=false", check=False
         )
     fail, skip, ok = judge(g, results)
+    host_fail, host_ok = judge_host(
+        {name: host_probe(url) for name, url in host_urls(apps).items()}
+    )
+    fail += host_fail
+    ok += host_ok
     for title, lines in (("PASS", ok), ("SKIPPED", skip), ("FAIL", fail)):
         print(f"--- {title} ({len(lines)})")
         print("\n".join(lines))

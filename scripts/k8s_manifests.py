@@ -107,7 +107,7 @@ class Facts:
     compose_subnets: list[str]  # aeoi_default: postgres, kafka, keycloak live here
     host_gateway: str  # host.docker.internal as the node resolves it (native Ollama)
     node_sources: list[str]  # EVERY IPv4 address of the node: the kubelet probes come from one
-    dev_clients: list[str]  # the `kind` network gateway: the Mac's 127.0.0.1:80xx arrives from it
+    dev_clients: list[str]  # the kind + compose GATEWAYS: the Mac's 127.0.0.1:80xx arrives from one
     image_ids: dict[str, str] = field(default_factory=dict)  # image -> ID (a rebuild rolls pods)
 
     @classmethod
@@ -574,8 +574,9 @@ def policies(g: Graph, facts: Facts) -> list[dict[str, Any]]:
 
 
 def dev_host_ingress(g: Graph, facts: Facts) -> dict[str, Any]:
-    """DEV ONLY: the Mac's 127.0.0.1:80xx reaches the pods from the `kind` network gateway
-    (Docker Desktop's port forwarding). Only the app ports; a pod listens on its own one only."""
+    """DEV ONLY: the Mac's 127.0.0.1:80xx reaches the pods from a Docker network GATEWAY (Docker
+    Desktop's port forwarding): `kind` on a fresh node, the compose network after a Docker
+    restart (23c, proven). Only the app ports; a pod listens on its own one only."""
     return {"apiVersion": "networking.k8s.io/v1", "kind": "NetworkPolicy",
             "metadata": meta("dev-host-ingress"),
             "spec": {"podSelector": {"matchExpressions": [

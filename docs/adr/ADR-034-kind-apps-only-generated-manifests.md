@@ -66,8 +66,10 @@ kindnet enforces NetworkPolicies (pod->pod and pod->compose both blocked by deny
 - llm-gateway may reach ANY public host on 443 (an exfiltration path if it were compromised);
   [Prod]: an egress proxy or FQDN policy limited to the provider hosts.
 - Kafka egress for incident-service and audit is open even with the `log` transport (static rule).
-- Host traffic (the Mac's 127.0.0.1:80xx) arrives from the `kind` network gateway: a separate
-  `dev-host-ingress` policy in the dev file admits it; kubelet probes are admitted from every
+- Host traffic (the Mac's 127.0.0.1:80xx) arrives from a Docker network GATEWAY - `kind` on a
+  fresh node, the compose network after a Docker restart (Phase 23c: proven on the Mac, it broke
+  the Mac path twice) - so a separate `dev-host-ingress` policy in the dev file admits both
+  gateways (/32, app ports only), and `make k8s-netpol-test` checks Mac -> every app; kubelet probes are admitted from every
   IPv4 address of the node (which one kindnet uses is an implementation detail).
 - The rollout demo: the product GET (1.7 req/s, under the rate limit) is retried by the api proxy
   on a reset, so it alone could hide a drop; two 20 req/s loads hit each pod's /health/live through
