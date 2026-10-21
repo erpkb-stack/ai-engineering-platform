@@ -43,3 +43,32 @@ def test_status_like_columns_are_constrained() -> None:
                 "source",
             }:
                 assert col.name in checks, f"{table.fullname}.{col.name} has no CHECK"
+
+
+def test_no_migration_downgrade_drops_a_role() -> None:
+    """Roles belong to the whole Postgres SERVER; the dev DB beside a test DB still grants them,
+    so DROP ROLE in a downgrade fails and leaves the database half-migrated. Learned twice:
+    0024 (Phase 16, on the Mac) and 0026 (Phase 23a, CI red for 29 integration tests)."""
+    import ast
+    from pathlib import Path
+
+    versions = Path(__file__).resolve().parents[1] / "alembic" / "versions"
+    offenders = []
+    for f in sorted(versions.glob("*.py")):
+        tree = ast.parse(f.read_text())
+        for fn in (
+            n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "downgrade"
+        ):
+            for node in ast.walk(fn):
+                if (
+                    isinstance(node, ast.Constant)
+                    and isinstance(node.value, str)
+                    and "DROP ROLE" in node.value.upper()
+                ):
+                    offenders.append(f.name)
+                if isinstance(node, ast.JoinedStr) and any(
+                    isinstance(v, ast.Constant) and "DROP ROLE" in str(v.value).upper()
+                    for v in node.values
+                ):
+                    offenders.append(f.name)
+    assert not offenders, f"revoke grants instead of dropping the role: {sorted(set(offenders))}"
