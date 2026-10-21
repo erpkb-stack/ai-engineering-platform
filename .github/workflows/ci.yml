@@ -73,6 +73,7 @@ jobs:
         run: |
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out secrets/jwt_private.pem
           openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem
+          make delegation-keys   # Phase 9 (ADR-019): the api's token exchange needs it AT START
           make db-users
           AEOI_LLM_ROUTING_FILE=services/llm-gateway/config/routing.test.yaml AEOI_LLM_LOG_JSON=false \
             uv run uvicorn --factory aeoi_llm.main:build_app --port 8005 > llm.log 2>&1 &
@@ -95,12 +96,17 @@ jobs:
             for i in $(seq 1 30); do curl -sf localhost:$p/health/live > /dev/null && break; sleep 1; done
           done
           ./scripts/smoke-phase7.sh || { tail -n 80 tools.log audit.log api.log; exit 1; }
-      - name: Log Analysis agent smoke (agents + thin orchestrator runner; FAKE model)
+      - name: Log Analysis agent smoke (agents + orchestrator; FAKE model)
+        # Phase 9 moved `agent-run` behind the orchestrator; CI never started it - red from
+        # 2026-10-08 (PR #8) to 2026-10-21 (Phase 24 found and fixed it).
         run: |
           make agents-tokens
           uv run uvicorn --factory aeoi_agents.main:build_app --port 8003 > agents.log 2>&1 &
-          for i in $(seq 1 30); do curl -sf localhost:8003/health/live > /dev/null && break; sleep 1; done
-          ./scripts/smoke-phase8.sh || { tail -n 80 agents.log tools.log incident.log; exit 1; }
+          uv run uvicorn --factory aeoi_orchestrator.main:build_app --port 8002 > orch.log 2>&1 &
+          for p in 8003 8002; do
+            for i in $(seq 1 30); do curl -sf localhost:$p/health/live > /dev/null && break; sleep 1; done
+          done
+          ./scripts/smoke-phase8.sh || { tail -n 80 orch.log agents.log tools.log incident.log; exit 1; }
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200
