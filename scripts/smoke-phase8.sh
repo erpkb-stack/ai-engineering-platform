@@ -30,6 +30,13 @@ KEY=$(json "d['key']" < "$TMP/inc.json"); ok "demo incident $KEY (detected 2026-
 echo "  running the Log Analysis agent (local CPU model can take ~1 min)..."
 if make -s agent-run INCIDENT="$KEY" ${ROUTE:+ROUTE=$ROUTE} > "$TMP/run.txt" 2>&1; then
   ok "agent run COMPLETE"; sed 's/^/    /' "$TMP/run.txt" | head -40
+elif grep -q "status=PARTIAL" "$TMP/run.txt" && grep -Eq '^[[:space:]]*error: postmortem:' "$TMP/run.txt" \
+     && ! grep -E '^[[:space:]]*error: ' "$TMP/run.txt" | grep -vq 'error: postmortem:'; then
+  # Phase 12 added a postmortem step after the agents; a FAKE model (CI) writes no citable
+  # sentence, so code marks the run PARTIAL. Only that degradation is accepted - the log agent's
+  # own work is checked below. With a real model (Mac) the run is COMPLETE.
+  warn "run PARTIAL only because the postmortem narrative needs a real model (FAKE model here)"
+  sed 's/^/    /' "$TMP/run.txt" | head -12
 else bad "agent run failed:"; sed 's/^/    /' "$TMP/run.txt" | head -40; fi
 grep -q "ERR_POOL_TIMEOUT" "$TMP/run.txt" && ok "facts name the demo error code (ERR_POOL_TIMEOUT)" || bad "no ERR_POOL_TIMEOUT fact"
 grep -q "DEGRADED" "$TMP/run.txt" && warn "run was degraded (see line above) - facts are still code-made"
