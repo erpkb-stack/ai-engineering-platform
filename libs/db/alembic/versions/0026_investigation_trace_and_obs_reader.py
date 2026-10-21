@@ -7,7 +7,7 @@
    ONLY the columns the dashboards read - no incident text, no plan, no error text, no user id.
    Column grants, so a new column is NOT readable until a migration says so.
 
-Downgrade drops both columns and the role (no other data involved).
+Downgrade drops both columns and revokes the grants; the role stays (server-wide, see 0024).
 
 Revision ID: 0026
 Revises: 0025
@@ -64,6 +64,9 @@ def downgrade() -> None:
         schema = table.split(".")[0]
         op.execute(f"REVOKE SELECT ({', '.join(columns)}) ON {table} FROM {ROLE}")
         op.execute(f"REVOKE USAGE ON SCHEMA {schema} FROM {ROLE}")
-    op.execute(f"DROP ROLE IF EXISTS {ROLE}")
+    # the role is NOT dropped (the 0024 rule): roles belong to the whole SERVER, and another
+    # database of it (the dev DB beside a test DB) still grants obs_reader rights - DROP ROLE
+    # then fails and leaves this database half-downgraded (CI, 2026-10-21: 29 integration
+    # tests). Without grants here it can read nothing in this database.
     op.drop_column("investigations", "correlation_id", schema="orchestrator")
     op.drop_column("investigations", "trace_context", schema="orchestrator")
