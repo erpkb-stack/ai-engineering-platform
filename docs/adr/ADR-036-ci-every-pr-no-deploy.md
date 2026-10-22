@@ -1,6 +1,6 @@
 # ADR-036: CI checks everything on every PR; images built and scanned, not pushed or deployed
 
-Status: Proposed (24a merged PR #31; 24b adds the gate)
+Status: Proposed (verified 2026-10-22: PR #31 + #32, main bd89585 green)
 Date: 2026-10-21
 Refines: architecture.md §23 (CI/CD), C9; ADR-033 (images)
 
