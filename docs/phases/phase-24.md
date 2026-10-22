@@ -1,7 +1,7 @@
 # Phase 24 - CI catch-up + images (ADR-036)
 
-Status: **24a merged (PR #31, main 6c5db2d). 24b BUILT in the sandbox (2026-10-21), Verify =
-its PR's checks.**
+Status: **VERIFIED 2026-10-22.** 24a = PR #31, 24b = PR #32; `main` bd89585 green (run
+39866262666).
 
 ## 0. Gate and scope
 - **Gate: passed.** 23c verified on the Mac and merged (PR #28).
@@ -43,11 +43,11 @@ its PR's checks.**
   and the real scan (Docker Hub and the Trivy DB are blocked). The PR's checks are the test.
 
 ## 3. Verify (on GitHub, by the owner)
-- [ ] PR opened; `gh pr checks` shows all 6 jobs green.
-- [ ] `catalog`: the log shows the Java tests ran (count) - not skipped.
-- [ ] `images`: both images built; the job summary has the CRITICAL/HIGH/fixable table.
-- [ ] Owner reviews the baseline numbers; decides the gate (e.g. fail on fixable CRITICAL).
-- [ ] Merged only after green; `main`'s run after the merge is green too.
+- [x] PR opened; `gh pr checks` shows all 6 jobs green.
+- [x] `catalog`: the log shows the Java tests ran (count) - not skipped.
+- [x] `images`: both images built; the job summary has the CRITICAL/HIGH/fixable table.
+- [x] Owner reviews the baseline numbers; decides the gate (e.g. fail on fixable CRITICAL).
+- [x] Merged only after green; `main`'s run after the merge is green too.
 
 ## 3b. First run on GitHub (PR #31, run 39542641451, 2026-10-21)
 - All 6 checks green; `main` green again after PR #30 (first time since 2026-10-08).
@@ -114,16 +114,26 @@ has a fix the gate fails and names it - that is the gate working, not a bug.
 - fix3: `tomcat.version` 10.1.61 (newest 10.1.x on Central), the three Tomcat exceptions
   deleted. Rule learned: check that the version RESOLVES before an override, and check what
   exists before writing "not available" into an exception.
+- Also red on run 39858852014: compose infra, `test_partitions_come_from_fresh_metadata...`
+  (`None == [0, 1, 2]`) - a pre-existing RACE, not 24b: the fixture created the topic and the
+  test read metadata at once; `create_topics()` returns before the metadata lists it. Green on
+  every earlier run. The fix: the fixture waits (max 15 s) until all partitions are visible,
+  and fails loudly if they never appear. Not "re-run until green": a re-run hides a race.
+  **It missed PR #32:** I added it to the fix3 package AFTER the owner had already applied
+  the first fix3, so PR #32's green integration run (269 passed) was luck, not the fix - and I
+  said "the fix holds". Found when the closing PR's base hash for this file did not match
+  (2026-10-22). The fixture fix lands in the closing PR.
 - Lesson: Boot 3.5.16 is 4 months old and already behind Tomcat. On a line with no new
   releases, every new CVE is a manual override or an exception - the cost of staying on 3.x
   is now visible and recurring, which is the argument for Boot 4.
 
 ## 3e. Verify 24b
-- [ ] Mac: `make catalog-build` (23 tests) on Boot 3.5.16 + Tomcat 10.1.61.
-- [ ] PR: all checks green; `java tests: 23`.
+- [x] Mac: `make catalog-build` on Boot 3.5.16 + Tomcat 10.1.61 (BUILD OK).
+- [x] PR #32 run 39865168207: 6/6 green; `java tests: 23`; integration 269 passed, 0 failed (without
+  the race fix - see 3d); unit 1211.
 - [x] aeoi-py fixable CRITICAL 0 (certifi gone).
-- [ ] aeoi-catalog: fixable 2, excepted 2 (both webmvc), `scan gate: passed`.
-- [ ] `main` green after the merge.
+- [x] aeoi-catalog: CRITICAL 2, fixable 2, excepted 2 (both webmvc), HIGH 6; `scan gate: passed`.
+- [x] `main` green after the merge (bd89585, run 39866262666).
 
 ## 4. Open items (not this phase)
 - Spring Boot 4 (removes both webmvc exceptions) - before 2027-01-31.

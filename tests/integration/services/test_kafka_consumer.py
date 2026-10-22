@@ -49,10 +49,34 @@ async def topic() -> AsyncIterator[str]:
     await admin.start()
     await admin.create_topics([NewTopic(name, 3, 1), NewTopic(f"{name}.dlq", 1, 1)])
     try:
+        await _wait_until_visible({name: 3, f"{name}.dlq": 1})
         yield name
     finally:
         await admin.delete_topics([name, f"{name}.dlq"])
         await admin.close()
+
+
+async def _wait_until_visible(want: dict[str, int], seconds: float = 15) -> None:
+    """create_topics() returns before every broker's METADATA lists the topic (CI, 2026-10-22:
+    a fresh metadata request right after creation saw no partitions). Wait for the metadata,
+    so a test starts from a topic that exists - and fail loudly if it never appears."""
+    from aiokafka import AIOKafkaConsumer
+
+    from aeoi_messaging.transport import topic_partitions
+
+    c: Any = AIOKafkaConsumer(bootstrap_servers=BOOTSTRAP)
+    await c.start()
+    try:
+        deadline = asyncio.get_running_loop().time() + seconds
+        while True:
+            seen = {t: await topic_partitions(c, t) for t in want}
+            if all((p := seen[t]) is not None and len(p) == n for t, n in want.items()):
+                return
+            if asyncio.get_running_loop().time() > deadline:
+                raise AssertionError(f"topics not in metadata after {seconds}s: {seen}")
+            await asyncio.sleep(0.2)
+    finally:
+        await c.stop()
 
 
 async def produce(topic: str, *values: bytes, key: bytes = b"inc-1") -> None:

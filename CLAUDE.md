@@ -7,7 +7,7 @@
      HTML comments like this one are stripped before Claude sees the file. -->
 
 ## Current phase
-**Phase 24 — 24a merged (PR #31); 24b (fix CVEs, scan gate, SHA pins) BUILT, Verify = PR checks green** (Phases 1–23c closed; 22b replicas + Redis DEFERRED by owner decision 2026-10-17 - keep every Deployment at 1 replica, see ADR-034; Phase 22a = the apps on kind from manifests generated from compose, default-deny policies, zero-downtime rollout, ADR-034; Phase 21 = one non-root image for the Python services + catalog image, measured limits, ADR-033; Phase 20 = lean contract-first Java catalog, ADR-032; Phase 18 = 18a only, agent tasks stay on HTTP per ADR-030; Phase 19 Redis deferred to Phase 22 per ADR-031; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-036).
+**Phase 25 — next (need check first)** (Phases 1–24 closed; Phase 24 = CI on every PR with a gated image scan, ADR-036; 22b replicas + Redis DEFERRED by owner decision 2026-10-17 - keep every Deployment at 1 replica, see ADR-034; Phase 22a = the apps on kind from manifests generated from compose, default-deny policies, zero-downtime rollout, ADR-034; Phase 21 = one non-root image for the Python services + catalog image, measured limits, ADR-033; Phase 20 = lean contract-first Java catalog, ADR-032; Phase 18 = 18a only, agent tasks stay on HTTP per ADR-030; Phase 19 Redis deferred to Phase 22 per ADR-031; ADRs still `Proposed`, incl. ADR-014, ADR-016–ADR-036).
 Phase status is tracked in `docs/roadmap.md`. Do NOT start a phase until the previous
 phase's "Verify" checklist passes. Use the `/phase` skill to run a phase.
 
