@@ -22,10 +22,6 @@
 
   <properties>
     <java.version>21</java.version>
-    <!-- Phase 24b (ADR-036): a PATCH override of the version Boot 3.5.16 manages (10.1.55).
-         The scan gate found CVE-2026-65182, -65905, -68525, fixed in 10.1.58, and no newer
-         Boot 3.x exists. Remove this line when the parent manages >= 10.1.58 (Boot 4). -->
-    <tomcat.version>10.1.58</tomcat.version>
   </properties>
 
   <dependencies>

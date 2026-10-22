@@ -19,3 +19,30 @@ expires = 2027-01-31
 reason = """Same as CVE-2026-47884: Trivy lists the fix only in Spring Framework 7.0.9 (Boot 4).
 Found by the gate's first run (PR #32) - it was one of the six CRITICALs hidden by merged
 table cells in the report-only run. Same exposure: 127.0.0.1 only, fictional data."""
+
+[[exception]]
+id = "CVE-2026-65182"
+package = "org.apache.tomcat.embed:tomcat-embed-core"
+image = "aeoi-catalog"
+expires = 2026-11-21
+reason = """Trivy names the fix as Tomcat 10.1.58, but on 2026-10-22 Maven Central had no
+10.1.58 (mvn: Could not find artifact tomcat-embed-core:jar:10.1.58). Short expiry on purpose:
+re-check Central then, and override tomcat.version as soon as the jar exists."""
+
+[[exception]]
+id = "CVE-2026-65905"
+package = "org.apache.tomcat.embed:tomcat-embed-core"
+image = "aeoi-catalog"
+expires = 2026-11-21
+reason = """Trivy names the fix as Tomcat 10.1.58, but on 2026-10-22 Maven Central had no
+10.1.58 (mvn: Could not find artifact tomcat-embed-core:jar:10.1.58). Short expiry on purpose:
+re-check Central then, and override tomcat.version as soon as the jar exists."""
+
+[[exception]]
+id = "CVE-2026-68525"
+package = "org.apache.tomcat.embed:tomcat-embed-core"
+image = "aeoi-catalog"
+expires = 2026-11-21
+reason = """Trivy names the fix as Tomcat 10.1.58, but on 2026-10-22 Maven Central had no
+10.1.58 (mvn: Could not find artifact tomcat-embed-core:jar:10.1.58). Short expiry on purpose:
+re-check Central then, and override tomcat.version as soon as the jar exists."""
