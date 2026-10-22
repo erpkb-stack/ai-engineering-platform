@@ -96,13 +96,27 @@ NOT testable here: the Boot 3.5 build (Maven blocked) - the Mac's `make catalog-
 Expected on the first run, honestly unknown: the other 6 catalog CRITICALs (never seen). If one
 has a fix the gate fails and names it - that is the gate working, not a bug.
 
-## 3d. Verify 24b
-- [ ] Mac: `make catalog-build` (23 tests) and `make catalog-smoke` on Boot 3.5.16.
-- [ ] PR: all checks green; `java tests: 23`, the gate step `scan gate: passed`.
-- [ ] Summary table: aeoi-py fixable CRITICAL 0 (certifi gone); aeoi-catalog fixable 1, excepted 1.
+## 3d. The gate's first run (PR #32, run 39853119576, 2026-10-22)
+- 5 checks green; `java tests: 23` on Boot 3.5.16 (Mac too: Tomcat 10.1.55 started, Flyway ran).
+- aeoi-py: CRITICAL 2 (sqlite, zlib: no fix), **fixable 0 - certifi gone**; HIGH 61.
+- aeoi-catalog: CRITICAL 10 -> 5; fixable 5, excepted 1; HIGH 6 (was 31).
+- `scan gate: FAILED` on 4 - the gate working: a second spring-webmvc CVE (CVE-2026-47890, fix
+  only 7.0.9) and three Tomcat CVEs (CVE-2026-65182, -65905, -68525) fixed in **10.1.58**, newer
+  than what Boot 3.5.16 manages.
+- fix1: `<tomcat.version>10.1.58</tomcat.version>` (a patch override, removed when the parent
+  manages it) + a dated exception for CVE-2026-47890 (same reason as -47884).
+- Lesson: Boot 3.5.16 is 4 months old and already behind Tomcat. On a line with no new
+  releases, every new CVE is a manual override or an exception - the cost of staying on 3.x
+  is now visible and recurring, which is the argument for Boot 4.
+
+## 3e. Verify 24b
+- [ ] Mac: `make catalog-build` (23 tests) on Boot 3.5.16 + Tomcat 10.1.58.
+- [ ] PR: all checks green; `java tests: 23`.
+- [x] aeoi-py fixable CRITICAL 0 (certifi gone).
+- [ ] aeoi-catalog: fixable 2, excepted 2 (both webmvc), `scan gate: passed`.
 - [ ] `main` green after the merge.
 
 ## 4. Open items (not this phase)
-- Spring Boot 4 (removes the webmvc exception before 2027-01-31).
+- Spring Boot 4 (removes both webmvc exceptions and the Tomcat override) - before 2027-01-31.
 - Base images by digest ([Prod], ADR-036 "Not done").
 - Push / deploy / environments: deferred by owner decision.
