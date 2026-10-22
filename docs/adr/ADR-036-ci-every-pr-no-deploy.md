@@ -35,11 +35,11 @@ Refines: architecture.md §23 (CI/CD), C9; ADR-033 (images)
   meant nothing.
 - **Exceptions are dated promises**: `infrastructure/security/scan-exceptions.toml`, each with
   image + package + id + reason + expiry (max 120 days). Expired or stale entries FAIL the gate.
-  Entries: two spring-webmvc CVEs, fixed only in Framework 7 (Boot 4), until 2027-01-31;
-  three Tomcat CVEs whose fix (10.1.58) is announced but NOT on Maven Central yet, 30 days.
+  Entries: two spring-webmvc CVEs, fixed only in Framework 7 (Boot 4), until 2027-01-31.
 - **A fix inside our line beats an exception**: a PATCH override of a Boot-managed version,
   with a comment saying when to remove it - but only for a version that is PUBLISHED. Trivy's
-  "fixed version" comes from the advisory; the first override (10.1.58) did not resolve.
+  "fixed version" comes from the advisory: 10.1.58 never reached Maven Central (10.1.59-61
+  did), so the override is 10.1.61 - checked in maven-metadata.xml first.
   Minor/major overrides of managed versions are not allowed: that is an upgrade decision.
 - **Pinned inputs (24b):** every action by full commit SHA (resolved from its tag via the
   GitHub API, tag in a comment), runners `ubuntu-24.04` (not `-latest`, which moves to Ubuntu 26

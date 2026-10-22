@@ -107,21 +107,25 @@ has a fix the gate fails and names it - that is the gate working, not a bug.
   **fix1 was wrong:** Maven Central has no 10.1.58 (Mac and CI: "Could not find artifact").
   Trivy's "fixed version" is the advisory's, not proof the release is published. I could not
   check Central from the sandbox and said so, but the package still went out.
-- fix2: the override removed; the three Tomcat CVEs get exceptions that expire in 30 days
-  (2026-11-21), so the check comes back soon: when 10.1.58 is on Central, override and drop them.
+- fix2: the override removed; the three Tomcat CVEs got 30-day exceptions ("fix not published
+  yet"). **fix2's reason was wrong too:** Central has 10.1.59, 10.1.60, 10.1.61 (Mac, 2026-10-22,
+  maven-metadata.xml) - 10.1.58 was skipped, not late. I wrote the reason before that check.
+  CI was green on it (run 39858852014: gate passed, 5 of 5 excepted) except compose infra.
+- fix3: `tomcat.version` 10.1.61 (newest 10.1.x on Central), the three Tomcat exceptions
+  deleted. Rule learned: check that the version RESOLVES before an override, and check what
+  exists before writing "not available" into an exception.
 - Lesson: Boot 3.5.16 is 4 months old and already behind Tomcat. On a line with no new
   releases, every new CVE is a manual override or an exception - the cost of staying on 3.x
   is now visible and recurring, which is the argument for Boot 4.
 
 ## 3e. Verify 24b
-- [ ] Mac: `make catalog-build` (23 tests) on Boot 3.5.16 (Tomcat 10.1.55).
+- [ ] Mac: `make catalog-build` (23 tests) on Boot 3.5.16 + Tomcat 10.1.61.
 - [ ] PR: all checks green; `java tests: 23`.
 - [x] aeoi-py fixable CRITICAL 0 (certifi gone).
-- [ ] aeoi-catalog: fixable 5, excepted 5 (2 webmvc, 3 tomcat), `scan gate: passed`.
+- [ ] aeoi-catalog: fixable 2, excepted 2 (both webmvc), `scan gate: passed`.
 - [ ] `main` green after the merge.
 
 ## 4. Open items (not this phase)
-- Tomcat 10.1.58 on Maven Central -> override + drop 3 exceptions, before 2026-11-21.
 - Spring Boot 4 (removes both webmvc exceptions) - before 2027-01-31.
 - Base images by digest ([Prod], ADR-036 "Not done").
 - Push / deploy / environments: deferred by owner decision.
