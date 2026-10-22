@@ -2,6 +2,9 @@
 # Phase 24 (ADR-036): every PR also runs the Java tests, the console checks, and builds + scans
 # both images. No push, no deploy, no environments (owner decision 2026-10-21).
 # Rule: merge only when every check here is green (CI was red 2026-10-08..10-21 unnoticed).
+# 24b: every action is pinned by full commit SHA (resolved from the tag via the GitHub API on
+# 2026-10-21; the comment names the tag), and the runner OS is pinned (ubuntu-latest moves to
+# Ubuntu 26 from 2026-10-19 - a move is its own PR, not a surprise).
 name: ci
 on:
   push:
@@ -19,11 +22,11 @@ concurrency:
 jobs:
   quality:
     name: lint · typecheck · unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
       - run: uv sync --all-packages --frozen
@@ -33,29 +36,29 @@ jobs:
 
   secrets-scan:
     name: gitleaks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0 (Node 24)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   infra-smoke:
     name: compose infra + database integration
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare local-only config (same as `make setup`, without Python)
         run: |
           cp .env.example .env
           mkdir -p secrets && chmod 700 secrets
           openssl rand -hex 24 > secrets/postgres_password.txt
           chmod 644 secrets/postgres_password.txt
-      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
       - run: uv sync --all-packages --frozen
@@ -118,17 +121,17 @@ jobs:
 
   catalog:
     name: java catalog · mvn verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Prepare local-only config (same as `make setup`, without Python)
         run: |
           cp .env.example .env
           mkdir -p secrets && chmod 700 secrets
           openssl rand -hex 24 > secrets/postgres_password.txt
           chmod 644 secrets/postgres_password.txt
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: "21"
@@ -156,11 +159,11 @@ jobs:
 
   frontend:
     name: console · typecheck · tests · api types
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22"
           cache: npm
@@ -169,8 +172,8 @@ jobs:
       - run: make ui-check
 
   images:
-    name: images · build · trivy scan (report only)
-    runs-on: ubuntu-latest
+    name: images · build · trivy scan · gate
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       # Trivy itself was compromised in March 2026 (v0.69.4, most trivy-action tags, Docker Hub
@@ -180,7 +183,7 @@ jobs:
       TRIVY_VERSION: "0.69.3"
       TRIVY_SHA256: 1816b632dfe529869c740c0913e36bd1629cb7688bd5634f4a858c1d57c88b75
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: make images IMAGE_TAG=ci
       - name: Install Trivy (pinned binary, hash verified)
         run: |
@@ -190,19 +193,14 @@ jobs:
           echo "${TRIVY_SHA256}  trivy.tgz" | sha256sum -c -
           tar -xzf trivy.tgz trivy
           ./trivy --version
-      - name: Scan both images (HIGH + CRITICAL; report only until the baseline is reviewed)
+      - name: Scan both images (HIGH + CRITICAL in the log)
         run: |
-          {
-            echo "| image | CRITICAL | HIGH | fixable |"
-            echo "|---|---|---|---|"
-          } >> "$GITHUB_STEP_SUMMARY"
-          for img in aeoi-py:ci aeoi-catalog:ci; do
+          for img in aeoi-py aeoi-catalog; do
             "$RUNNER_TEMP/trivy" image --scanners vuln --severity HIGH,CRITICAL --exit-code 0 \
-              --no-progress --format json -o "$RUNNER_TEMP/scan.json" "$img"
-            "$RUNNER_TEMP/trivy" convert --format table "$RUNNER_TEMP/scan.json"
-            jq -r --arg img "$img" '[.Results[]?.Vulnerabilities[]?] as $v
-              | "| \($img) | \([$v[] | select(.Severity == "CRITICAL")] | length)"
-              + " | \([$v[] | select(.Severity == "HIGH")] | length)"
-              + " | \([$v[] | select(.FixedVersion // "" | length > 0)] | length) |"' \
-              "$RUNNER_TEMP/scan.json" >> "$GITHUB_STEP_SUMMARY"
+              --no-progress --format json -o "$RUNNER_TEMP/$img.json" "$img:ci"
+            "$RUNNER_TEMP/trivy" convert --format table "$RUNNER_TEMP/$img.json"
           done
+      - name: Gate - fail on a fixable CRITICAL (exceptions dated, see scan-exceptions.toml)
+        run: |
+          python3 scripts/scan_gate.py --summary "$GITHUB_STEP_SUMMARY" \
+            aeoi-py="$RUNNER_TEMP/aeoi-py.json" aeoi-catalog="$RUNNER_TEMP/aeoi-catalog.json"

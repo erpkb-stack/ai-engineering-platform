@@ -15,12 +15,12 @@ permissions:
 jobs:
   claude:
     if: contains(github.event.comment.body, '@claude')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with: { fetch-depth: 0 }
-      - uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@a5a423f75c251dcbff8a74e99f83b2cb03c72bfa # v1 on 2026-10-21
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Claude reads CLAUDE.md, .claude/rules, skills and agents from the repo automatically.

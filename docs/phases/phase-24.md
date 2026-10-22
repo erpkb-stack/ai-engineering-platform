@@ -1,6 +1,7 @@
 # Phase 24 - CI catch-up + images (ADR-036)
 
-Status: **BUILT in the sandbox (2026-10-21), Verify = the PR's checks on GitHub.**
+Status: **24a merged (PR #31, main 6c5db2d). 24b BUILT in the sandbox (2026-10-21), Verify =
+its PR's checks.**
 
 ## 0. Gate and scope
 - **Gate: passed.** 23c verified on the Mac and merged (PR #28).
@@ -58,11 +59,50 @@ Status: **BUILT in the sandbox (2026-10-21), Verify = the PR's checks on GitHub.
   | image | target | HIGH | CRITICAL |
   |---|---|---|---|
   | aeoi-py:ci | debian 12.15 (OS packages) | 61 | 2 |
-  | aeoi-py:ci | second target (name to read from the log) | 0 | 1 |
-  | aeoi-catalog:ci | one target (name to read from the log) | 31 | 10 |
-- Gate NOT decided yet: it needs the fixable split and the package names first.
+  | aeoi-py:ci | Python (python-pkg) | 0 | 1 |
+  | aeoi-catalog:ci | Java (jar) - the Ubuntu layer had none | 31 | 10 |
+- The CRITICALs (Trivy merges table cells, so 4 catalog rows stand for 10):
+  - debian: sqlite CVE-2025-7458 (no fix), zlib CVE-2023-45853 (`will_not_fix`);
+  - python: **certifi 2026.7.22**, GHSA-6q48-6c7w-9gw2 (bundled compromised emSign roots), fixed
+    2026.10.19 - every Python service trusts that bundle;
+  - jar: tomcat-embed-core 10.1.39 (fix 10.1.55), spring-security-core 6.4.4 (fix 6.4.6),
+    spring-security-web (fix 6.5.9 / 7.0.4), spring-webmvc (fix listed ONLY in 7.0.9).
+- Cause of the jar findings: Spring Boot 3.4.4 (March 2025), never upgraded.
+- After the merge, `main`'s run was green (run 39659172205). Two annotations: `ubuntu-latest`
+  moves to Ubuntu 26 from 2026-10-19; gitleaks-action v2 runs on deprecated Node 20.
+
+## 3c. 24b - fix first, then gate (owner: "go 24b", 2026-10-21)
+Checked facts (GitHub API and raw files, from the Mac's VM; Maven Central is blocked in both):
+- Spring Boot releases: newest 3.x = **3.5.16 (2026-06-25)**; 4.0.8 on 2026-08-21; no 3.5.x since.
+- Boot 3.5.16 manages Tomcat **10.1.55**, Spring Security **6.5.11**, Spring Framework
+  **6.2.19** (3.4.4: 10.1.39 / 6.4.4 / 6.2.5).
+- gitleaks-action v3.0.0 (2026-05-30): Node 24, "no changes to inputs, outputs, or behavior".
+
+Changes:
+1. `uv lock --upgrade-package certifi`: 2026.7.22 -> 2026.10.19 (the only lock change).
+2. Spring Boot parent 3.4.4 -> 3.5.16 (fixes tomcat + both spring-security findings by the
+   versions above). Not Boot 4: a major upgrade is its own decision.
+3. The gate: `scripts/scan_gate.py` (stdlib only) fails on a fixable CRITICAL with no live
+   exception, on an expired exception, on one longer than 120 days, and on a stale one.
+   Unfixed CRITICALs and HIGHs are reported, never gating (nobody can upgrade them away).
+4. `infrastructure/security/scan-exceptions.toml`: ONE entry, spring-webmvc CVE-2026-47884
+   (fix only in Framework 7 = Boot 4), expires 2027-01-31, with the reason.
+5. Every action pinned by full commit SHA (tag in a comment), gitleaks-action v3, runners
+   `ubuntu-24.04` (CI and claude.yml). Guard tests: SHA pins, no `-latest`, the gate step.
+Tested here: `scan_gate` 8 tests (pass, fail, expired, too long, stale, other image not
+covered, no reason refused, committed file valid); the CI guard tests FAIL on an unpinned
+action and on `ubuntu-latest` (both tried); actionlint clean.
+NOT testable here: the Boot 3.5 build (Maven blocked) - the Mac's `make catalog-build` and CI.
+Expected on the first run, honestly unknown: the other 6 catalog CRITICALs (never seen). If one
+has a fix the gate fails and names it - that is the gate working, not a bug.
+
+## 3d. Verify 24b
+- [ ] Mac: `make catalog-build` (23 tests) and `make catalog-smoke` on Boot 3.5.16.
+- [ ] PR: all checks green; `java tests: 23`, the gate step `scan gate: passed`.
+- [ ] Summary table: aeoi-py fixable CRITICAL 0 (certifi gone); aeoi-catalog fixable 1, excepted 1.
+- [ ] `main` green after the merge.
 
 ## 4. Open items (not this phase)
-- Gate the scan after the baseline review (a small follow-up PR).
-- SHA-pin all actions and base images by digest ([Prod], ADR-036 "Not done").
+- Spring Boot 4 (removes the webmvc exception before 2027-01-31).
+- Base images by digest ([Prod], ADR-036 "Not done").
 - Push / deploy / environments: deferred by owner decision.
