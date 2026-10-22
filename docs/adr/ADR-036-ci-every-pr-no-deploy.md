@@ -1,6 +1,6 @@
 # ADR-036: CI checks everything on every PR; images built and scanned, not pushed or deployed
 
-Status: Proposed
+Status: Proposed (24a merged PR #31; 24b adds the gate)
 Date: 2026-10-21
 Refines: architecture.md §23 (CI/CD), C9; ADR-033 (images)
 
@@ -27,23 +27,36 @@ Refines: architecture.md §23 (CI/CD), C9; ADR-033 (images)
   (`1816b632…88b75`, Linux-64bit tar.gz) was checked against the release's Sigstore bundle:
   signed 2026-03-03 by `aquasecurity/trivy`'s own release workflow at tag v0.69.3 (before the
   compromise), Rekor log index 1017902085. A version change = a new hash checked the same way.
-- **The scan reports, it does not gate yet.** HIGH + CRITICAL, table in the log, counts in the
-  job summary. A gate set before anyone has seen the baseline would either block every PR or
-  be loosened until it means nothing. The gate is decided after the first baseline is reviewed.
+- **Fix first, then gate (24b).** The first run (report only) found 13 CRITICALs; the
+  fixable ones came from certifi 2026.7.22 and Spring Boot 3.4.4. 24b upgrades both (certifi
+  2026.10.19, Boot 3.5.16 = the newest 3.x), then `scripts/scan_gate.py` fails CI on a CRITICAL
+  that has a fix and no live exception. Unfixed findings and HIGHs are reported only.
+  A gate set before the baseline would have been red on every PR, then loosened until it
+  meant nothing.
+- **Exceptions are dated promises**: `infrastructure/security/scan-exceptions.toml`, each with
+  image + package + id + reason + expiry (max 120 days). Expired or stale entries FAIL the gate.
+  Entries: two spring-webmvc CVEs, fixed only in Framework 7 (Boot 4), until 2027-01-31.
+- **A fix inside our line beats an exception**: a PATCH override of a Boot-managed version,
+  with a comment saying when to remove it - but only for a version that is PUBLISHED. Trivy's
+  "fixed version" comes from the advisory: 10.1.58 never reached Maven Central (10.1.59-61
+  did), so the override is 10.1.61 - checked in maven-metadata.xml first.
+  Minor/major overrides of managed versions are not allowed: that is an upgrade decision.
+- **Pinned inputs (24b):** every action by full commit SHA (resolved from its tag via the
+  GitHub API, tag in a comment), runners `ubuntu-24.04` (not `-latest`, which moves to Ubuntu 26
+  without a commit of ours), gitleaks-action v3 (Node 24).
 - **Rule: merge only when every check is green** (`gh pr checks`). A unit test
-  (`tests/unit/test_ci_workflow.py`) guards the jobs, the read-only permissions, the Trivy pin
-  and "no Trivy action/image".
+  (`tests/unit/test_ci_workflow.py`) guards the jobs, the read-only permissions, the Trivy pin,
+  "no Trivy action/image", SHA-pinned actions, pinned runners and the gate step.
 
 ## Not done (and why)
 - **No push to GHCR, no kind-in-runner deploy, no dev/staging/prod environments**: owner
   decision. Nothing consumes a pushed image yet (the Mac builds its own; kind loads local
   images). [Prod] push by digest, sign (cosign), deploy by digest with environment approvals.
-- **Third-party and first-party actions are pinned by major tag, not SHA** (`actions/*`,
-  `astral-sh/setup-uv`, `gitleaks/gitleaks-action`). The sandbox cannot reach the GitHub API to
-  read and verify SHAs, and an unverified SHA is worse than a tag. [Prod] SHA-pin all actions
-  with Dependabot updates. Recorded as a known gap.
+- **No automated SHA updates** (Dependabot): pins are updated by hand, in a PR. [Prod]
+  Dependabot or Renovate for actions, keeping the SHA + tag comment.
 - **Base images are pinned by tag, not digest** (`.claude/rules/infrastructure.md` asks for
-  digests in CI). Same reason; same gap.
+  digests in CI). A digest needs a way to be updated, or it freezes old CVEs in place; it comes
+  with Dependabot/Renovate, not by hand.
 - **No arm64 build** (the rules ask for an amd64 + arm64 matrix): it doubles the image job's
   time for a platform nobody runs here.
 - **No path filters**: every job runs on every PR. Simpler; the cost is CI minutes, not time
@@ -51,7 +64,10 @@ Refines: architecture.md §23 (CI/CD), C9; ADR-033 (images)
 
 ## Tradeoffs
 - Two more jobs start Docker (catalog, images): more CI minutes per PR, in parallel.
-- A report-only scan can be ignored. It is a step towards a gate, not a control yet.
+- The gate blocks a PR for a CVE published overnight in code the PR did not touch. Accepted:
+  the fix is an upgrade or a dated exception, both visible in review.
+- No Boot 3.5.x release since 3.5.16 (2026-06-25). If that line has ended, new Spring CVEs
+  will need exceptions until Boot 4 - the 120-day limit forces that decision.
 - A pinned scanner gets no fixes by itself; updating it is a manual, reviewed change.
 
 ## Prototype / Production / Enterprise-scale

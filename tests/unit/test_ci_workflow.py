@@ -69,7 +69,22 @@ def test_trivy_is_a_pinned_binary_checked_by_sha256() -> None:
     assert install.index("sha256sum -c -") < install.index("tar -xzf trivy.tgz")
 
 
-def test_no_action_is_pinned_to_a_branch() -> None:
+def test_every_action_is_pinned_by_full_commit_sha() -> None:
+    # 24b: a tag can be moved (the Trivy attack moved 75 of 77); a commit SHA cannot.
     for wf in WORKFLOWS:
-        for ref in re.findall(r"uses:\s*\S+@(\S+)", wf.read_text()):
-            assert ref not in {"main", "master", "latest"}, f"{wf.name}: @{ref}"
+        for ref in re.findall(r"uses:\s*(\S+)", wf.read_text()):
+            if ref.startswith("./"):
+                continue
+            assert re.fullmatch(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}", ref), f"{wf.name}: {ref}"
+
+
+def test_runners_are_pinned_not_latest() -> None:
+    for wf in WORKFLOWS:
+        for runner in re.findall(r"runs-on:\s*(\S+)", wf.read_text()):
+            assert not runner.endswith("-latest"), f"{wf.name}: {runner} moves without a commit"
+
+
+def test_the_images_job_gates_on_the_scan() -> None:
+    install = "\n".join(str(s.get("run", "")) for s in _steps(_ci()["jobs"]["images"]))
+    assert "scripts/scan_gate.py" in install
+    assert install.index('trivy" image') < install.index("scripts/scan_gate.py")
