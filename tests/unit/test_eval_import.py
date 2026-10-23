@@ -119,3 +119,26 @@ def test_an_invalid_investigation_run_is_refused(tmp_path: Path) -> None:
 def test_importer_and_runner_store_the_same_per_case_metrics() -> None:
     run = _load("eval_inv_for_import", "eval_investigations.py")
     assert imp.METRICS == run.METRICS
+
+
+def test_a_run_with_an_invalid_case_or_a_stop_is_stored_failed() -> None:
+    """25c-fix1: an invalid run was stored SUCCEEDED, so a dashboard showed its pass rate."""
+    run = _load("eval_inv_status", "eval_investigations.py")
+    assert run.run_status(False, {"invalid": []}) == "SUCCEEDED"
+    assert run.run_status(False, {"invalid": ["S03"]}) == "FAILED"
+    assert run.run_status(True, {"invalid": []}) == "FAILED"
+
+
+def test_summarize_works_on_a_run_that_stopped_before_any_case() -> None:
+    run = _load("eval_inv_empty", "eval_investigations.py")
+    assert run.summarize([])["cases"] == 0  # the crash path stores this summary
+
+
+def test_the_investigation_panel_shows_only_succeeded_runs() -> None:
+    """25c-fix1: a run that died mid-way stayed RUNNING and showed "passed 10/10"."""
+    d = json.loads((ROOT / "infrastructure/observability/grafana/dashboards/evaluation.json")
+                   .read_text())  # fmt: skip
+    p = next(p for p in d["panels"] if p["title"].startswith("Investigation eval"))
+    q = p["targets"][0]["rawSql"]
+    assert "r.status = 'SUCCEEDED'" in q
+    assert "summary->'invalid'" in q  # rows written before the fix: invalid but SUCCEEDED

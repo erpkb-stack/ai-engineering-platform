@@ -593,7 +593,9 @@ evaluation = dash(
                     f"{COUNT.format(m='proposal_wrong')} AS rollback_wrong, "
                     f"{COUNT.format(m='proposal_missed')} AS rollback_missed "
                     f"FROM {runs_} r JOIN {dss} d ON d.id = r.dataset_id JOIN {evs} e ON e.run_id = r.id "
-                    "WHERE d.name = 'investigations' AND $__timeFilter(r.started_at) "
+                    "WHERE d.name = 'investigations' AND r.status = 'SUCCEEDED' "
+                    "AND jsonb_array_length(coalesce(r.summary->'invalid', '[]')) = 0 "
+                    "AND $__timeFilter(r.started_at) "
                     "GROUP BY r.id, r.started_at, r.summary ORDER BY r.started_at DESC",
                     "table",
                 )
@@ -601,7 +603,9 @@ evaluation = dash(
             0,
             8,
             w=24,
-            desc=UB + "FAKE models (CI): nothing is ever VALIDATED and no rollback is proposed, so "
+            desc=UB + "SUCCEEDED runs without INVALID cases only (older runs stored an invalid run "
+            "as SUCCEEDED): a crashed or invalid run is a failed measurement "
+            "(the runs table above still lists it). FAKE models (CI): nothing is ever VALIDATED and no rollback is proposed, so "
             "validated_wrong 0 and rollbacks 0 say nothing there; only a paid run measures them. "
             "Empty = not scored by that runner version. n_cases is small: quote a rate only with its interval.",
         ),

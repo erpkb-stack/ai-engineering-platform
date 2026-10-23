@@ -1,8 +1,9 @@
 # Phase 25 - MLOps / evaluation (ADR-037)
 
 Status: **25a VERIFIED 2026-10-23** (PR #34, main 499ede9 green, run 39891545509). **25b VERIFIED
-2026-10-23** (PR #35 6/6 green, main run 39901267018 green). **25c BUILT** (result files in the
-`eval` schema + the Evaluation dashboard), Verify = its PR's checks + the dashboard on the Mac.
+2026-10-23** (PR #35 6/6 green, main run 39901267018 green). **25c VERIFIED
+2026-10-23** (PR #36 6/6 green, main 41fcd5a run 39904511914 green, dashboard read on the Mac);
+**25c-fix1** (a crashed run showed as "passed 10/10"), Verify = its PR's checks.
 The rubric flaw (c) after, as its own decision.
 
 ## 0. Gate and scope
@@ -132,6 +133,8 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
 - (c) mechanism vs cause: a saturation on the same service AFTER a deploy is scored as a
   rival cause (S01, S04: HIGH + VALIDATED, wrong). A rubric change needs its own eval cases.
 - The postmortem writer runs (and costs) when no hypothesis survived.
+- A FAKE-model CI run records `cost_usd` 0.00952: a fake model should cost $0. To check: where
+  the FAKE route's price comes from (the cost panel must never show money for fake runs).
 - Rate limits: agents acting for a user spend that user's interactive budget (ADR-037).
 - More pack versions (v2) for new categories - never by editing v1's truth.
 
@@ -163,8 +166,18 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
 - Sandbox replay (ci-sim, 2026-10-23): 29 files read -> 7 runs imported (2 rag, 3 history, the
   real-model run + its rescore), 22 refused with a reason; a second run imports 0.
 
+- **Found on the Mac, not in the sandbox (fix1):** a real-model run that died mid-way
+  (RemoteDisconnected, before 25b's retries) stayed RUNNING forever, and the investigation panel
+  showed it as "10 cases, passed 1.0". The runner marked FAILED only on its own `CallError`, and
+  it stored a run with INVALID cases as SUCCEEDED. Fix: any crash or Ctrl-C -> FAILED; INVALID
+  cases -> FAILED; the panel shows SUCCEEDED runs without invalid cases only (older rows too).
+  Checked on the Mac's own data (read-only query): the RUNNING row is gone, the rest unchanged.
+
 ## 9. Verify 25c
-- [ ] PR: all checks green.
-- [ ] Mac: `make db-upgrade` (0028) + `make eval-import` + the Evaluation dashboard shows the
-      runs (the rescored real run: validated_wrong 2, rollbacks 5 / 0 / 2).
-- [ ] `main` green after the merge.
+- [x] PR #36: 6/6 green; the CI eval "no regression", `invalid: []`.
+- [x] Mac: `make db-upgrade` (0028) + `make eval-import`: 10 runs imported, 12 files refused
+      with a reason, 3 already there (written by the runner); a second import: 0. Dashboard read in the browser: rescored real run
+      passed 0.9375, validated_wrong 2, rollbacks 5 / 0 / 2; rag 2 runs x 3 modes; history 3
+      runs x 8 modes; no panel error.
+- [x] `main` green after the merge (41fcd5a, run 39904511914).
+- [ ] fix1 PR: all checks green.
