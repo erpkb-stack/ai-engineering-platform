@@ -170,6 +170,13 @@ def summarize(cases: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def run_status(stopped: bool, summary: dict[str, Any]) -> str:
+    """eval_runs.status (RUNNING / SUCCEEDED / FAILED, 0010). A run with an INVALID case is a
+    FAILED measurement, not a result: before 25c-fix1 it was stored SUCCEEDED and a dashboard
+    would show its pass rate."""
+    return "FAILED" if stopped or summary["invalid"] else "SUCCEEDED"
+
+
 def regressions(cases: list[dict[str, Any]], baseline: dict[str, Any]) -> list[str]:
     """A case that PASSED in the baseline and fails now. New cases and fixes are not errors."""
     # baseline rows are {"case", "passed", "top"}: no "*_key" field names in a committed file
@@ -384,11 +391,20 @@ def main(argv: list[str]) -> int:
         except CallError as e:
             status = "FAILED"
             print(f"run stopped: {type(e).__name__}: {e}")
+        except BaseException:
+            # any other crash or Ctrl-C: never leave the row RUNNING (a 10-case run died that
+            # way on 2026-10-23 and the dashboard showed it as "passed 10/10")
+            conn.execute(
+                "UPDATE eval.eval_runs SET status = 'FAILED', summary = %s, finished_at = now()"
+                " WHERE id = %s",
+                (Jsonb(summarize(results)), run_id),
+            )
+            raise
         summary = summarize(results)
         conn.execute(
             "UPDATE eval.eval_runs SET status = %s, summary = %s, finished_at = now()"
             " WHERE id = %s",
-            (status, Jsonb(summary), run_id),
+            (run_status(status != "SUCCEEDED", summary), Jsonb(summary), run_id),
         )
     out = {"run_id": str(run_id), "started_at": started.isoformat(timespec="seconds"),
            "config": config, "summary": summary, "cases": results}  # fmt: skip

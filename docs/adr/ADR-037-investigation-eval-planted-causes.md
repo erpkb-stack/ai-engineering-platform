@@ -82,6 +82,8 @@ Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), A
   files (calibration), tuning (rag-sweep) and anecdotes (agent-log-compare) are never imported.
 - **An importer, not each eval writing `eval`:** the rag service does not own the eval schema.
 - **Grafana reads numbers only** (0028): never the planted truth, run config or per-case text.
+- **A failed measurement is never shown as a result** (fix1): a crashed run or one with INVALID
+  cases is stored FAILED; the investigation panel shows SUCCEEDED runs without invalid cases.
 
 ## Not done (and why)
 - No `services/evaluation` service: the runner is a batch CLI; a service adds deploy, auth
