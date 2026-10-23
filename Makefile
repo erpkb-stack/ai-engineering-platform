@@ -449,6 +449,14 @@ eval-investigations: ## Phase 25a: product-path eval vs planted causes [CASES=S0
 	uv run python scripts/eval_investigations.py --seed $(SEED) $(if $(CASES),--cases $(CASES),) \
 	  $(if $(COST),--allow-cost,) $(if $(BASELINE),--baseline $(BASELINE),)
 
+eval-rescore: ## Phase 25b: score a past eval run again from what was stored (free, no model): make eval-rescore FILE=data/eval/results/x.json
+	@test -n "$(FILE)" || { echo "usage: make eval-rescore FILE=data/eval/results/investigations-....json"; exit 2; }
+	uv run python scripts/eval_investigations.py --rescore $(FILE)
+
+eval-calibration: ## Phase 25b: band/status calibration (Wilson 95%) of a run [VS=second run to compare]: make eval-calibration RUN=file
+	@test -n "$(RUN)" || { echo "usage: make eval-calibration RUN=data/eval/results/x.json [VS=y.json]"; exit 2; }
+	uv run python scripts/eval_calibration.py --run $(RUN) $(if $(VS),--vs $(VS),)
+
 history-eval: ## Phase 13: similar-incident eval, keyword vs vector vs hybrid (data/eval/results/history-*.json)
 	$(RAG) history-eval
 

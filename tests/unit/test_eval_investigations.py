@@ -165,3 +165,73 @@ def test_an_unsafe_or_final_failure_names_the_call_and_the_answer(monkeypatch: A
     finally:
         srv.shutdown()
     assert len(seen) == 2
+
+
+# ------------------------------------------------------------------ Phase 25b: status + proposal
+def _hv(rank: int, statement: str, band: str, status: str, by: str = "hypothesis",
+        kind: str = "change") -> dict[str, Any]:  # fmt: skip
+    h = _h(rank, statement, band=band, status=status, kind=kind)
+    return {**h, "produced_by": by}
+
+
+def test_shown_wrong_and_stood_behind_wrong_are_scored_apart() -> None:
+    """S14 on the real-model run: the wrong deploy was HIGH (shown) but PROPOSED (the critic
+    weakened it), so the system did not stand behind it and proposed no rollback."""
+    ev = _load()
+    hyps = [_hv(1, "Deploy DEPLOY-9230 on ledger-api", "HIGH", "PROPOSED"),
+            _hv(2, "An expired TLS certificate", "MEDIUM", "PROPOSED", by="critic", kind="change")]  # fmt: skip
+    s = ev.score(_e(None, decoys=["DEPLOY-9230"]), hyps, {"proposed": False, "why": "..."})
+    assert s["confident_wrong"] and not s["validated_wrong"]
+    assert s["critic_alternatives"] == 1 and len(s["claims"]) == 1  # critic alt: counted only
+    assert s["proposal"] is None and not s["proposal_wrong"] and not s["proposal_missed"]
+
+
+def test_a_validated_mechanism_next_to_its_cause_is_a_validated_wrong_claim() -> None:
+    """S01/S04 on the real-model run: pool saturation HIGH + VALIDATED beside the deploy."""
+    ev = _load()
+    hyps = [_hv(1, "Deploy DEPLOY-9100 on a", "HIGH", "VALIDATED"),
+            _hv(2, "DB connection pool saturation on a", "HIGH", "VALIDATED", kind="saturation")]  # fmt: skip
+    s = ev.score(_e(DEPLOY), hyps, {"proposed": True, "deploy_key": "DEPLOY-9100"})
+    assert s["top1"] and s["validated_wrong"] and s["proposal_correct"]
+    assert [c["correct"] for c in s["claims"]] == [True, False]
+
+
+def test_proposals_wrong_and_missed() -> None:
+    ev = _load()
+    wrong = ev.score(_e(DEPLOY), [_hv(1, "Deploy DEPLOY-9101", "HIGH", "VALIDATED")],
+                     {"proposed": True, "deploy_key": "DEPLOY-9101"})  # fmt: skip
+    assert wrong["proposal_wrong"] and not wrong["proposal_correct"]
+    missed = ev.score(_e(DEPLOY), [_hv(1, "Deploy DEPLOY-9100", "HIGH", "PROPOSED")],
+                      {"proposed": False, "why": "top deploy hypothesis is PROPOSED"})  # fmt: skip
+    assert missed["proposal_missed"] and not missed["proposal_wrong"]
+    # a saturation culprit can never be "missed" by a ROLLBACK rule
+    sat = {"kind": "saturation", "subject": "db_pool_utilization"}
+    assert not ev.score(_e(sat), [], None)["proposal_missed"]
+
+
+def test_rescore_reads_what_was_stored_and_keeps_the_rest(tmp_path: Path) -> None:
+    import json
+
+    ev = _load()
+    old = {"config": {"x": 1}, "summary": {}, "cases": [
+        {"case": "k-S01", "incident": "INC-1", "outcome": "COMPLETE", "latency_s": 1.0,
+         "cost_usd": 0.05, "invalid": False, "expected": _e(DEPLOY), "score": {"passed": True}}]}  # fmt: skip
+    f = tmp_path / "run.json"
+    f.write_text(json.dumps(old))
+
+    class StubApi:
+        calls: list[str] = []
+
+        def call(self, method: str, path: str, body: Any = None, key: str | None = None) -> Any:
+            self.calls.append(f"{method} {path}")
+            if path.endswith("/hypotheses"):
+                return [_hv(1, "Deploy DEPLOY-9100 on a", "HIGH", "VALIDATED")]
+            return [{"status": "COMPLETE", "plan": {"proposal": {"deploy_key": "DEPLOY-9100"}}}]
+
+    api = StubApi()
+    out = ev.rescore(api, f)
+    assert api.calls == ["GET /api/v1/incidents/INC-1/hypotheses",
+                         "GET /api/v1/incidents/INC-1/investigations"]  # fmt: skip
+    case = out["cases"][0]
+    assert case["cost_usd"] == 0.05 and case["score"]["proposal_correct"]
+    assert out["rescored_from"] == "run.json" and out["summary"]["proposals"]["correct"] == 1

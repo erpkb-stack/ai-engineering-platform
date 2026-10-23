@@ -61,8 +61,16 @@ def _mentions(h: dict[str, Any], subject: str) -> bool:
     return subject in h["statement"]
 
 
-def score(expected: dict[str, Any], hyps: list[dict[str, Any]]) -> dict[str, Any]:
-    """Pure: the planted truth vs the stored hypotheses (as GET /hypotheses returns them)."""
+def score(
+    expected: dict[str, Any],
+    hyps: list[dict[str, Any]],
+    proposal: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Pure: the planted truth vs the stored hypotheses (as GET /hypotheses returns them) and
+    the investigation's rollback proposal (plan.proposal).
+    Phase 25b: the band is what the system SHOWS; VALIDATED (critic supported + hard checks)
+    and the proposal are what it STANDS BEHIND - scored apart (`high_wrong` vs
+    `validated_wrong`). `passed` is unchanged, so the 25a baseline still applies."""
     ordered = sorted(hyps, key=lambda h: h["rank"])
     live = [h for h in ordered if h["status"] != "REJECTED"]
     rejected = [h for h in ordered if h["status"] == "REJECTED"]
@@ -82,7 +90,31 @@ def score(expected: dict[str, Any], hyps: list[dict[str, Any]]) -> dict[str, Any
     decoy_above = decoy_rank is not None and (pos is None or decoy_rank < pos)
     rule_out_ok = all(any(_mentions(h, s) for h in rejected) for s in expected["rule_out"])
     top1 = pos == 0
+    code_claims = [h for h in live if h.get("produced_by") != "critic"]
+    claims = [
+        {
+            "rank": h["rank"],
+            "band": h["confidence"],
+            "status": h["status"],
+            "kind": (h.get("detail") or {}).get("cause_kind"),
+            "critic": (h.get("detail") or {}).get("critic_verdict"),
+            "correct": _matches(h, culprit),
+        }
+        for h in code_claims
+    ]  # critic alternatives cannot be matched exactly (no cause kind of ours): counted only
+    validated_wrong = any(c["status"] == "VALIDATED" and not c["correct"] for c in claims)
+    p = proposal or {}
+    deploy = p.get("deploy_key")  # set when the rollback rule held (proposed or refused)
+    is_change = bool(culprit) and culprit["kind"] == "change"  # type: ignore[index]
     return {
+        "top_status": top["status"] if top else None,
+        "claims": claims,
+        "critic_alternatives": sum(1 for h in live if h.get("produced_by") == "critic"),
+        "validated_wrong": validated_wrong,
+        "proposal": deploy,
+        "proposal_correct": bool(deploy) and is_change and deploy == culprit["subject"],  # type: ignore[index]
+        "proposal_wrong": bool(deploy) and not (is_change and deploy == culprit["subject"]),  # type: ignore[index]
+        "proposal_missed": is_change and not deploy,
         "top": top["statement"] if top else None,
         "top_band": top["confidence"] if top else None,
         "ranked_by": (top.get("detail") or {}).get("ranked_by") if top else None,
@@ -125,6 +157,13 @@ def summarize(cases: list[dict[str, Any]]) -> dict[str, Any]:
         else None,
         "cost_usd": round(sum(c.get("cost_usd") or 0 for c in cases), 6),
         "invalid": [c["case"][-3:] for c in cases if c.get("invalid")],
+        # Phase 25b: what the system STANDS BEHIND, next to what it shows (confident_wrong)
+        "validated_wrong": f"{sum(1 for c in cases if c['score'].get('validated_wrong'))}"
+        f"/{len(cases)}",
+        "proposals": {
+            k: sum(1 for c in cases if c["score"].get(f"proposal_{k}"))
+            for k in ("correct", "wrong", "missed")
+        },
     }
 
 
@@ -217,8 +256,22 @@ def run_case(api: Api, case: dict[str, Any], run_tag: str, timeout_s: float) -> 
         "latency_s": latency,
         "cost_usd": round(cost, 6),
         "expected": case["expected"],
-        "score": score(case["expected"], hyps),
+        "score": score(case["expected"], hyps, (inv.get("plan") or {}).get("proposal")),
     }
+
+
+def rescore(api: Api, path: Path) -> dict[str, Any]:
+    """Score a past run again from what the services STORED (hypotheses + the investigation's
+    plan) - no investigation runs, no model is called, nothing is written to `eval`.
+    Phase 25b: the paid real-model run (2026-10-23) predates the status/proposal scores."""
+    old = json.loads(path.read_text())
+    cases = []
+    for c in old["cases"]:
+        hyps = api.call("GET", f"/api/v1/incidents/{c['incident']}/hypotheses")
+        runs = api.call("GET", f"/api/v1/incidents/{c['incident']}/investigations")
+        plan = next((r.get("plan") or {} for r in runs if r.get("status") != "RUNNING"), {})
+        cases.append({**c, "score": score(c["expected"], hyps, plan.get("proposal"))})
+    return {**old, "rescored_from": path.name, "summary": summarize(cases), "cases": cases}
 
 
 # ---------------------------------------------------------------------------------- storage
@@ -258,8 +311,19 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--pace-s", type=float, default=15.0)
     ap.add_argument("--out-dir", type=Path, default=ROOT / "data/eval/results")
     ap.add_argument("--seed", type=int, default=42, help="the seed `make eval-seed` used")
+    ap.add_argument("--rescore", type=Path, help="score a past results file again (free)")
     args = ap.parse_args(argv)
 
+    user = subprocess.run([sys.executable, "-m", "aeoi_api.devtoken", "--role", "SRE"],
+                          cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()  # fmt: skip
+    api = Api(args.api, user)
+    if args.rescore:
+        out = rescore(api, args.rescore)
+        dest = args.rescore.with_name(args.rescore.stem + "-rescored.json")
+        dest.write_text(json.dumps(out, indent=1, default=str) + "\n")
+        print(json.dumps(out["summary"]))
+        print(f"written: {dest.relative_to(ROOT) if dest.is_relative_to(ROOT) else dest}")
+        return 0
     svc_token = (ROOT / "secrets/agents_service_token.txt").read_text().strip()
     try:
         paid = paid_models(args.llm, svc_token)
@@ -270,9 +334,6 @@ def main(argv: list[str]) -> int:
         print(f"the LLM gateway can reach paid models ({', '.join(paid)}): re-run with COST=1 "
               "to spend money, or start it with routing.test.yaml (FAKE models, free).")  # fmt: skip
         return 2
-    user = subprocess.run([sys.executable, "-m", "aeoi_api.devtoken", "--role", "SRE"],
-                          cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()  # fmt: skip
-    api = Api(args.api, user)
     want = {
         f"{args.dataset}-v{args.version}-{c.strip()}" for c in args.cases.split(",") if c.strip()
     }
