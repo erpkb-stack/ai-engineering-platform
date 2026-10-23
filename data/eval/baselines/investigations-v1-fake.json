@@ -1,5 +1,5 @@
 {
- "about": "Phase 25a regression baseline: per-case PASS/FAIL of the investigation eval with the FAKE models (CI's routing.test.yaml), i.e. the CODE path (rubric order). CI fails when a case that passed here fails. A fix that makes a FAIL pass is not an error: update this file in the same PR. Not an accuracy claim: 16 synthetic scenarios written for this eval (an upper bound).",
+ "about": "Phase 25a regression baseline: per-case PASS/FAIL of the investigation eval with the FAKE models (CI's routing.test.yaml), i.e. the CODE path (rubric order). CI fails when a case that passed here fails. A fix that makes a FAIL pass is not an error: update this file in the same PR. Not an accuracy claim: 16 synthetic scenarios written for this eval (an upper bound). Phase 25 (flaw (c)): wrong_high per case = a HIGH claim that is not the planted cause; CI also fails when a case without one gains one.",
  "source": {
   "run_id": "01a165e2-8303-78d3-b40e-a6cce5083160",
   "started_at": "2026-10-22T23:11:45+00:00",
@@ -30,82 +30,103 @@
   {
    "case": "investigations-v1-S01",
    "passed": true,
-   "top": "Deploy DEPLOY-9100 on orders-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms)."
+   "top": "Deploy DEPLOY-9100 on orders-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms).",
+   "wrong_high": true
   },
   {
    "case": "investigations-v1-S02",
    "passed": true,
-   "top": "Deploy DEPLOY-9110 on payments-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min)."
+   "top": "Deploy DEPLOY-9110 on payments-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min).",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S03",
    "passed": true,
-   "top": "Deploy DEPLOY-9120 on inventory-api may have caused the regression: it started 4 min before the first symptom (p95_latency_ms)."
+   "top": "Deploy DEPLOY-9120 on inventory-api may have caused the regression: it started 4 min before the first symptom (p95_latency_ms).",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S04",
    "passed": true,
-   "top": "Deploy DEPLOY-9130 on cart-api may have caused the regression: it started 7 min before the first symptom (p95_latency_ms)."
+   "top": "Deploy DEPLOY-9130 on cart-api may have caused the regression: it started 7 min before the first symptom (p95_latency_ms).",
+   "wrong_high": true
   },
   {
    "case": "investigations-v1-S05",
    "passed": true,
-   "top": "Deploy DEPLOY-9140 on catalog-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min); 1 other deploy(s) also started before it."
+   "top": "Deploy DEPLOY-9140 on catalog-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min); 1 other deploy(s) also started before it.",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S06",
    "passed": true,
-   "top": "DB connection pool saturation on search-api may have driven the symptoms: db_pool_utilization rose from 2026-10-11 13:42:00Z."
+   "top": "DB connection pool saturation on search-api may have driven the symptoms: db_pool_utilization rose from 2026-10-11 13:42:00Z.",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S07",
    "passed": true,
-   "top": "thread pool saturation on pricing-api may have driven the symptoms: thread_pool_utilization rose from 2026-10-12 13:42:00Z."
+   "top": "thread pool saturation on pricing-api may have driven the symptoms: thread_pool_utilization rose from 2026-10-12 13:42:00Z.",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S08",
    "passed": true,
-   "top": "CPU saturation on shipping-api may have driven the symptoms: cpu_util rose from 2026-10-13 13:42:00Z."
+   "top": "CPU saturation on shipping-api may have driven the symptoms: cpu_util rose from 2026-10-13 13:42:00Z.",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S09",
    "passed": true,
-   "top": "A traffic change (requests_per_sec) on returns-api may have driven the symptoms."
+   "top": "A traffic change (requests_per_sec) on returns-api may have driven the symptoms.",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S10",
    "passed": true,
-   "top": "Deploy DEPLOY-9190 on notifications-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms)."
+   "top": "Deploy DEPLOY-9190 on notifications-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms).",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S11",
    "passed": true,
-   "top": null
+   "top": null,
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S12",
    "passed": true,
-   "top": null
+   "top": null,
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S13",
    "passed": true,
-   "top": null
+   "top": null,
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S14",
    "passed": false,
-   "top": "Deploy DEPLOY-9230 on ledger-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min)."
+   "top": "Deploy DEPLOY-9230 on ledger-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min).",
+   "wrong_high": true
   },
   {
    "case": "investigations-v1-S15",
    "passed": true,
-   "top": "Deploy DEPLOY-9240 on fraud-api may have caused the regression: it started 159 min before the first symptom (p95_latency_ms)."
+   "top": "Deploy DEPLOY-9240 on fraud-api may have caused the regression: it started 159 min before the first symptom (p95_latency_ms).",
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S16",
    "passed": true,
-   "top": null
+   "top": null,
+   "wrong_high": false
   }
- ]
+ ],
+ "wrong_high_source": {
+  "run_id": "01a16a14-443a-789f-bf45-121ee738e287",
+  "started_at": "2026-10-23T18:44:35+00:00",
+  "where": "sandbox replay of the CI services, 2026-10-23"
+ }
 }

@@ -101,8 +101,9 @@ def test_the_committed_baseline_covers_the_pack() -> None:
 
     from aeoi_synth import scenarios
 
-    base = json.loads((ROOT / "data/eval/baselines/investigations-v1-fake.json").read_text())
-    assert {c["case"] for c in base["cases"]} == {s.key for s in scenarios.build(42)}
+    for v in scenarios.VERSIONS:
+        base = json.loads((ROOT / f"data/eval/baselines/investigations-v{v}-fake.json").read_text())
+        assert {c["case"] for c in base["cases"]} == {s.key for s in scenarios.build(42, v)}
 
 
 def _server(answers: list[Any]) -> tuple[Any, list[dict[str, str]]]:
@@ -235,3 +236,27 @@ def test_rescore_reads_what_was_stored_and_keeps_the_rest(tmp_path: Path) -> Non
     case = out["cases"][0]
     assert case["cost_usd"] == 0.05 and case["score"]["proposal_correct"]
     assert out["rescored_from"] == "run.json" and out["summary"]["proposals"]["correct"] == 1
+
+
+def test_wrong_high_is_any_high_claim_that_is_not_the_cause_shown_or_not() -> None:
+    """Flaw (c): S01 passes (the deploy is top) while the pool beside it is HIGH too. Code sets
+    the band, so this is measured by the FAKE run in CI - no paid run needed."""
+    ev = _load()
+    hyps = [_hv(1, "Deploy DEPLOY-9100 on a", "HIGH", "PROPOSED"),
+            _hv(2, "DB connection pool saturation on a", "HIGH", "PROPOSED", kind="saturation")]  # fmt: skip
+    s = ev.score(_e(DEPLOY), hyps)
+    assert s["passed"] and s["wrong_high"] and not s["validated_wrong"]
+    hyps[1] = _hv(2, "DB connection pool saturation on a", "MEDIUM", "PROPOSED", kind="saturation")
+    assert not ev.score(_e(DEPLOY), hyps)["wrong_high"]
+    und = ev.score(_e(None), [_hv(1, "Deploy DEPLOY-9100 on a", "HIGH", "PROPOSED")])
+    assert und["wrong_high"] and und["confident_wrong"]  # undetectable: any HIGH claim
+
+
+def test_a_case_that_gains_a_wrong_high_claim_is_a_regression() -> None:
+    """Flaw (c): once a rule removes a wrong HIGH claim, CI keeps it removed."""
+    ev = _load()
+    base = {"cases": [{"case": "a", "passed": True, "wrong_high": False},
+                      {"case": "b", "passed": True, "wrong_high": True},
+                      {"case": "c", "passed": True}]}  # fmt: skip
+    now = [{"case": k, "score": {"passed": True, "wrong_high": True}} for k in "abc"]
+    assert ev.regressions(now, base) == ["a (wrong HIGH claim)"]  # b was already, c not gated

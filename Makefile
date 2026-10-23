@@ -442,11 +442,11 @@ history-explain: ## Phase 13 debug: why each past incident ranked: make history-
 	@test -n "$(Q)" || { echo 'usage: make history-explain Q="pool timeouts after deploy" [SERVICE=checkout-api]'; exit 2; }
 	$(RAG) history-explain --query "$(Q)" $(if $(SERVICE),--service $(SERVICE),)
 
-eval-seed: ## Phase 25a: load the investigation scenario pack (16 planted causes) ON TOP of db-seed [SEED=42]
+eval-seed: ## Phase 25: load the investigation scenario packs (v1: 16 planted causes, v2: 6 flaw-(c) cases) ON TOP of db-seed [SEED=42]
 	uv run python -m aeoi_synth eval-pack --seed $(SEED)
 
-eval-investigations: ## Phase 25a: product-path eval vs planted causes [CASES=S01,S11] [COST=1] [BASELINE=file] (needs the services)
-	uv run python scripts/eval_investigations.py --seed $(SEED) $(if $(CASES),--cases $(CASES),) \
+eval-investigations: ## Phase 25a: product-path eval vs planted causes [VERSION=2] [CASES=S01,S11] [COST=1] [BASELINE=file] (needs the services)
+	uv run python scripts/eval_investigations.py --seed $(SEED) $(if $(VERSION),--version $(VERSION),) $(if $(CASES),--cases $(CASES),) \
 	  $(if $(COST),--allow-cost,) $(if $(BASELINE),--baseline $(BASELINE),)
 
 eval-rescore: ## Phase 25b: score a past eval run again from what was stored (free, no model): make eval-rescore FILE=data/eval/results/x.json
