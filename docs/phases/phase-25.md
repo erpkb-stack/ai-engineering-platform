@@ -3,8 +3,9 @@
 Status: **25a VERIFIED 2026-10-23** (PR #34, main 499ede9 green, run 39891545509). **25b VERIFIED
 2026-10-23** (PR #35 6/6 green, main run 39901267018 green). **25c VERIFIED
 2026-10-23** (PR #36 6/6 green, main 41fcd5a run 39904511914 green, dashboard read on the Mac);
-**25c-fix1** (a crashed run showed as "passed 10/10"), Verify = its PR's checks.
-The rubric flaw (c) after, as its own decision.
+25c-fix1 VERIFIED (PR #37, main e028996 run 39907215844 green, panel re-read on the Mac).
+**25d BUILT: flaw (c) MEASURED** (pack v2 + `wrong_high`, rubric unchanged), Verify = its PR's
+checks. The rubric rule comes after, judged by v1 + v2.
 
 ## 0. Gate and scope
 - **Gate: passed.** Phase 24 verified and closed (PR #33, main ecaaabe).
@@ -130,13 +131,13 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
 - [x] `main` green after the merge (run 39901267018).
 
 ## 7. Open items
-- (c) mechanism vs cause: a saturation on the same service AFTER a deploy is scored as a
-  rival cause (S01, S04: HIGH + VALIDATED, wrong). A rubric change needs its own eval cases.
+- (c) mechanism vs cause: measured in 25d (section 10); the rubric rule is the next step.
 - The postmortem writer runs (and costs) when no hypothesis survived.
-- A FAKE-model CI run records `cost_usd` 0.00952: a fake model should cost $0. To check: where
-  the FAKE route's price comes from (the cost panel must never show money for fake runs).
+- ~~A FAKE CI run records `cost_usd` 0.00952~~ - checked, by design: `routing.test.yaml` prices
+  `fake-large` like a hosted model so CI tests the per-investigation budget ($0.01). Nothing is
+  paid; the Mac uses `routing.yaml` / `routing.local.yaml`, so its cost rows are real.
 - Rate limits: agents acting for a user spend that user's interactive budget (ADR-037).
-- More pack versions (v2) for new categories - never by editing v1's truth.
+- More pack versions for new categories - never by editing an older pack's truth.
 
 ## 8. 25c - the evals in one place (owner: "25c first", twice, after my "low value" need check)
 - **Need check (mine, 2026-10-23): low value.** Every number already lives in a committed file;
@@ -180,4 +181,47 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
       passed 0.9375, validated_wrong 2, rollbacks 5 / 0 / 2; rag 2 runs x 3 modes; history 3
       runs x 8 modes; no panel error.
 - [x] `main` green after the merge (41fcd5a, run 39904511914).
-- [ ] fix1 PR: all checks green.
+- [x] fix1 PR #37: 6/6 green, "no regression"; `main` green (e028996, run 39907215844); the
+      panel re-read on the Mac: the RUNNING row is gone, the 3 real rows unchanged.
+
+## 10. 25d - flaw (c) measured before any rule (owner: "counter-cases first", 2026-10-23)
+- **Read in the code first:** a saturation is contradicted only by symptoms that started
+  BEFORE it (`candidates.can_contradict`). In S01 the deploy (-17), then the pool (-12), then
+  the symptoms (-10): nothing counts against the pool, so it is HIGH beside the deploy. The
+  rubric has no idea of "this resource is HOW the cause did it".
+- **Visible without a paid run:** the band is code, so the FAKE run shows the same wrong HIGH
+  claims as the real one (S01, S04: PROPOSED with FAKE, VALIDATED with Haiku + Sonnet).
+- **New metric `wrong_high`:** any code claim shown HIGH that is not the planted cause (for an
+  undetectable case: any HIGH claim). Stored per case; the CI gate now also fails when a case
+  WITHOUT one gains one, so a later fix stays fixed (a baseline row without the field is not
+  gated).
+- **Pack v2 (6 cases; v1 untouched, byte-identical output - checked by a fingerprint):** own
+  services, in the gap between the main dataset and v1, 12 h apart.
+
+| case | planted | truth | FAKE now (rubric unchanged) |
+|---|---|---|---|
+| S17 | deploy, CPU rises, symptoms (no error log) | the deploy | pass; CPU only MEDIUM |
+| S18 | deploy, thread pool rises, symptoms + log | the deploy | pass, **wrong HIGH** (thread pool) |
+| S19 | traffic surge, pool rises, symptoms | the traffic | **FAIL**: pool top, **wrong HIGH** |
+| S20 | deploy 150 min early, pool rises | the pool | pass (deploy capped MEDIUM by lead) |
+| S21 | partner service deploys, pool rises | the pool | pass (that deploy LOW) |
+| S22 | pool rises, THEN a deploy, symptoms | the pool | **FAIL**: deploy top HIGH, **wrong HIGH** |
+
+- **What it says (6 cases, FAKE = code path, upper bound):**
+  1. The flaw is general, but needs a second source: S17's CPU has no error log, so it stops at
+     MEDIUM; S18's thread pool has one and is HIGH, like S01's pool.
+  2. It is not about deploys: in S19 the pool outranks the traffic surge that drove it.
+  3. **S22 is a second, opposite flaw found by a guard rail:** a deploy that started AFTER the
+     pool rose (but before the symptoms) is the top HIGH answer. A deploy only gains support
+     from what came after it, so it never "sees" that the resource was already rising.
+  4. v1 + v2 together: `wrong_high` 6/22 (S01, S04, S14, S18, S19, S22); passed 19/22.
+- **Not included on purpose:** an innocent deploy minutes before a pool saturation that is the
+  real cause, on the same service: its signals equal S01's and its truth is the opposite. No
+  rule can pass both (a coin flip), so it is a known blind spot, like S14.
+- **Found by the guard while building:** run back to back (CI: v1, then v2), v2's first case
+  was rate-limited and INVALID (the guard worked). The runner now paces before its first case.
+- **Next (a separate decision):** a rule must fix S01, S04, S18, S19 (and ideally S22) WITHOUT
+  breaking S20, S21 or any v1 case - judged by both baselines, then one paid run.
+
+## 11. Verify 25d
+- [ ] PR: all checks green; the CI eval "no regression" for v1 AND v2, `invalid: []` both.

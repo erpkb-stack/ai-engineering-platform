@@ -580,15 +580,16 @@ evaluation = dash(
         ),
         panel(
             2,
-            "Investigation eval per run (16 planted cases)",
+            "Investigation eval per run (pack v1: 16 planted cases, v2: 6)",
             "table",
             PG,
             [
                 sql(
-                    f"SELECT r.started_at, coalesce((r.summary->>'rescored')::int, 0) AS rescored, "
+                    f"SELECT r.started_at, d.version AS pack, coalesce((r.summary->>'rescored')::int, 0) AS rescored, "
                     f"count(DISTINCT e.case_id) AS n_cases, "
                     f"{RATE.format(m='passed')} AS passed, {COUNT.format(m='confident_wrong')} AS confident_wrong, "
                     f"{COUNT.format(m='validated_wrong')} AS validated_wrong, "
+                    f"{COUNT.format(m='wrong_high')} AS wrong_high, "
                     f"{COUNT.format(m='proposal_correct')} AS rollback_correct, "
                     f"{COUNT.format(m='proposal_wrong')} AS rollback_wrong, "
                     f"{COUNT.format(m='proposal_missed')} AS rollback_missed "
@@ -596,7 +597,7 @@ evaluation = dash(
                     "WHERE d.name = 'investigations' AND r.status = 'SUCCEEDED' "
                     "AND jsonb_array_length(coalesce(r.summary->'invalid', '[]')) = 0 "
                     "AND $__timeFilter(r.started_at) "
-                    "GROUP BY r.id, r.started_at, r.summary ORDER BY r.started_at DESC",
+                    "GROUP BY r.id, r.started_at, d.version, r.summary ORDER BY r.started_at DESC",
                     "table",
                 )
             ],

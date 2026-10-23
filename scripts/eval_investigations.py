@@ -49,7 +49,8 @@ _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 FREE_PROVIDERS = ("local_fake", "hosted_fake", "ollama")
 # per-case scores stored in eval.evaluations (one row each); `make eval-import` uses the same list
 METRICS = ("top1", "in_top3", "confident_wrong", "decoy_above", "rule_out_ok", "passed",
-           "validated_wrong", "proposal_correct", "proposal_wrong", "proposal_missed")  # fmt: skip
+           "validated_wrong", "proposal_correct", "proposal_wrong", "proposal_missed",
+           "wrong_high")  # fmt: skip
 
 
 # ---------------------------------------------------------------------------------- scoring
@@ -106,6 +107,10 @@ def score(
         for h in code_claims
     ]  # critic alternatives cannot be matched exactly (no cause kind of ours): counted only
     validated_wrong = any(c["status"] == "VALIDATED" and not c["correct"] for c in claims)
+    # flaw (c): ANY code claim shown HIGH that is not the planted cause - not only the top one
+    # (S01: the deploy is top and right, the pool beside it is HIGH too). Code sets the band, so
+    # the FAKE run in CI measures it; for an undetectable case it is any HIGH claim.
+    wrong_high = any(c["band"] == "HIGH" and not c["correct"] for c in claims)
     p = proposal or {}
     deploy = p.get("deploy_key")  # set when the rollback rule held (proposed or refused)
     is_change = bool(culprit) and culprit["kind"] == "change"  # type: ignore[index]
@@ -114,6 +119,7 @@ def score(
         "claims": claims,
         "critic_alternatives": sum(1 for h in live if h.get("produced_by") == "critic"),
         "validated_wrong": validated_wrong,
+        "wrong_high": wrong_high,
         "proposal": deploy,
         "proposal_correct": bool(deploy) and is_change and deploy == culprit["subject"],  # type: ignore[index]
         "proposal_wrong": bool(deploy) and not (is_change and deploy == culprit["subject"]),  # type: ignore[index]
@@ -163,6 +169,7 @@ def summarize(cases: list[dict[str, Any]]) -> dict[str, Any]:
         # Phase 25b: what the system STANDS BEHIND, next to what it shows (confident_wrong)
         "validated_wrong": f"{sum(1 for c in cases if c['score'].get('validated_wrong'))}"
         f"/{len(cases)}",
+        "wrong_high": f"{sum(1 for c in cases if c['score'].get('wrong_high'))}/{len(cases)}",
         "proposals": {
             k: sum(1 for c in cases if c["score"].get(f"proposal_{k}"))
             for k in ("correct", "wrong", "missed")
@@ -182,7 +189,13 @@ def regressions(cases: list[dict[str, Any]], baseline: dict[str, Any]) -> list[s
     # baseline rows are {"case", "passed", "top"}: no "*_key" field names in a committed file
     # (gitleaks' generic-api-key rule flags a "*_key" name next to a long value)
     was = {c["case"]: c["passed"] for c in baseline["cases"]}
-    return [c["case"] for c in cases if was.get(c["case"]) and not c["score"]["passed"]]
+    out = [c["case"] for c in cases if was.get(c["case"]) and not c["score"]["passed"]]
+    # flaw (c): a case with NO wrong HIGH claim in the baseline must not gain one (a fix stays
+    # fixed). A baseline row without the field (written before it existed) is not gated.
+    clean = {c["case"] for c in baseline["cases"] if c.get("wrong_high") is False}
+    out += [f"{c['case']} (wrong HIGH claim)" for c in cases
+            if c["case"] in clean and c["score"].get("wrong_high")]  # fmt: skip
+    return out
 
 
 # ---------------------------------------------------------------------------------- http
@@ -364,7 +377,9 @@ def main(argv: list[str]) -> int:
         results = []
         status = "SUCCEEDED"
         try:
-            last = 0.0
+            # pace BEFORE the first case too: a second run started right after another (CI
+            # runs pack v1, then v2) hit the rate limit on its first case (S17, INVALID)
+            last = time.monotonic()
             for case in cases:
                 time.sleep(max(0.0, last + args.pace_s - time.monotonic()))
                 last = time.monotonic()
@@ -374,7 +389,8 @@ def main(argv: list[str]) -> int:
                 mark = "INVALID" if r["invalid"] else ("PASS" if s["passed"] else "FAIL")
                 print(f"{case['key'][-3:]} {mark:<7} {r['outcome']:<12} "
                       f"{r['latency_s']:>5}s top={s['top_band'] or '-'} rank={s['culprit_rank']} "
-                      f"wrongHIGH={s['confident_wrong']} | {(s['top'] or 'no hypothesis')[:70]}")  # fmt: skip
+                      f"confWrong={s['confident_wrong']} wrongHigh={s['wrong_high']} | "
+                      f"{(s['top'] or 'no hypothesis')[:60]}")  # fmt: skip
                 for metric in METRICS:
                     if s.get(metric) is not None:
                         conn.execute(

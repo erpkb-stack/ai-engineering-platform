@@ -41,7 +41,8 @@ from aeoi_db.config import libpq_dsn
 ROOT = Path(__file__).resolve().parents[1]
 NEVER = ("rag-sweep-", "calibration-", "agent-log-compare-")
 METRICS = ("top1", "in_top3", "confident_wrong", "decoy_above", "rule_out_ok", "passed",
-           "validated_wrong", "proposal_correct", "proposal_wrong", "proposal_missed")  # fmt: skip
+           "validated_wrong", "proposal_correct", "proposal_wrong", "proposal_missed",
+           "wrong_high")  # fmt: skip
 
 
 class RefusedError(ValueError):
@@ -144,7 +145,7 @@ def map_investigations(d: dict[str, Any]) -> dict[str, Any]:
         raise RefusedError(f"invalid cases {d['summary']['invalid']}: evidence was incomplete")
     s = d["summary"]
     ratios = ("top1", "in_top3", "confident_wrong", "validated_wrong", "undetectable_abstained",
-              "decoy_above", "rule_out_ok", "passed")  # fmt: skip
+              "decoy_above", "rule_out_ok", "passed", "wrong_high")  # fmt: skip
     summary = {
         "cases": s["cases"],
         **{k: _ratio(s[k]) for k in ratios if k in s},

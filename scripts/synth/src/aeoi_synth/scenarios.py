@@ -18,6 +18,15 @@ Three kinds of case:
   hypothesis claimed anyway (a confident wrong answer - the worst error)?
 Scenarios I wrote measure how well the system finds causes I planted: an UPPER bound, not
 real-world accuracy.
+
+Pack v2 (Phase 25, flaw (c)): v1 found a saturation scored HIGH as a RIVAL of the deploy that
+caused it (S01, S04). v2 adds 6 cases BEFORE any rubric change: 3 where a resource is the
+MECHANISM of an earlier cause (S17-S19: the flaw beyond the DB pool and beyond deploys) and 3
+guard rails where the resource IS the cause next to a deploy (S20-S22) - a fix that simply
+blames deploys more must fail those. v1 is unchanged (a new version, never an edit of v1).
+Left out on purpose: an innocent deploy minutes before a pool saturation that is the real
+cause on the same service. Its signals equal S01's and its truth is the opposite: no rule can
+pass both, so it would measure a coin flip. A known blind spot, like S14.
 """
 
 from __future__ import annotations
@@ -29,7 +38,7 @@ from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
 PACK_NAME = "investigations"
-PACK_VERSION = 1
+PACK_VERSION = 1  # the default pack; VERSIONS (below) lists every pack `make eval-seed` loads
 FIRST_DAY = datetime(2026, 10, 6, 14, 0, tzinfo=UTC)  # the demo day is 2026-10-02
 BEFORE = timedelta(minutes=200)  # covers window (60 min) + metrics baseline (120 min) + slack
 AFTER = timedelta(minutes=30)  # the orchestrator's window ends 30 min after detection
@@ -83,6 +92,7 @@ class Spec:
     decoys: tuple[str, ...] = ()  # subjects that must NOT be the top hypothesis
     rule_out: tuple[str, ...] = ()  # subjects that must end up REJECTED
     two_services: bool = False
+    partner: str | None = None  # v2: the second service of a two-service case
 
 
 SYMPTOMS = (("http_5xx_per_min", -10, 2.5), ("p95_latency_ms", -11, 2.4))
@@ -256,6 +266,82 @@ SPECS: tuple[Spec, ...] = (
         two_services=True,
     ),
 )
+# v2: cases in the gap between the main dataset (ends 2026-10-02 10:38) and v1 (2026-10-06), on
+# services neither uses, 12 h apart (more than the deployment agent's 6 h look-back + window)
+FIRST_DAY_V2 = datetime(2026, 10, 3, 2, 0, tzinfo=UTC)
+STEP_V2 = timedelta(hours=12)
+SPECS_V2: tuple[Spec, ...] = (
+    Spec(
+        "S17",
+        "cpu_saturation",
+        "{svc} latency and errors after deploy, CPU high",
+        True,
+        ("change", "#0"),
+        deploys=((-17, {}, 0),),
+        shifts=(*SYMPTOMS, ("cpu_util", -12, 2.0)),
+        decoys=("cpu_util",),
+    ),
+    Spec(
+        "S18",
+        "thread_pool_saturation",
+        "{svc} errors after deploy, executor queue full",
+        True,
+        ("change", "#0"),
+        deploys=((-17, {}, 0),),
+        shifts=(*SYMPTOMS, ("thread_pool_utilization", -12, 2.3)),
+        errors=(("ERR_EXECUTOR_REJECTED", "Task rejected: request executor queue full", -9),),
+        decoys=("thread_pool_utilization",),
+    ),
+    Spec(
+        "S19",
+        "traffic_surge",
+        "{svc} DB pool timeouts during a traffic spike",
+        True,
+        ("traffic", "requests_per_sec"),
+        shifts=(("requests_per_sec", -20, 3.0), ("db_pool_utilization", -15, 1.8), *SYMPTOMS),
+        errors=((*POOL_LOG, -10),),
+        decoys=("db_pool_utilization",),
+    ),
+    Spec(
+        "S20",
+        "connection_pool_exhaustion",
+        "{svc} DB pool timeouts; a deploy this morning",
+        True,
+        ("saturation", "db_pool_utilization"),
+        deploys=((-150, {}, 0),),
+        shifts=(("db_pool_utilization", -18, 1.8), *SYMPTOMS),
+        errors=((*POOL_LOG, -10),),
+        decoys=("#0",),
+    ),
+    Spec(
+        "S21",
+        "connection_pool_exhaustion",
+        "{svc} DB pool timeouts; a partner service deployed",
+        True,
+        ("saturation", "db_pool_utilization"),
+        deploys=((-25, {}, 1),),
+        shifts=(("db_pool_utilization", -18, 1.8), *SYMPTOMS),
+        errors=((*POOL_LOG, -10),),
+        decoys=("#0",),
+        two_services=True,
+        partner="scheduler-api",
+    ),
+    Spec(
+        "S22",
+        "connection_pool_exhaustion",
+        "{svc} DB pool full, then a deploy, then errors",
+        True,
+        ("saturation", "db_pool_utilization"),
+        deploys=((-15, {}, 0),),
+        shifts=(("db_pool_utilization", -25, 1.8), *SYMPTOMS),
+        errors=((*POOL_LOG, -10),),
+        decoys=("#0",),
+    ),
+)
+SERVICES_V2 = ("analytics-api", "chat-api", "geo-api", "invoicing-api", "loyalty-api",
+               "partner-api")  # fmt: skip
+VERSIONS = (1, 2)
+
 SERVICES = (
     "orders-api", "payments-api", "inventory-api", "cart-api", "catalog-api", "search-api",
     "pricing-api", "shipping-api", "returns-api", "notifications-api", "identity-api",
@@ -308,14 +394,25 @@ def _resolve(subject: str, deploy_keys: list[str]) -> str:
     return deploy_keys[int(subject[1:])] if subject.startswith("#") else subject
 
 
-def build(seed: int = 42) -> list[Scenario]:
+def _layout(version: int) -> tuple[tuple[Spec, ...], datetime, timedelta, tuple[str, ...], int]:
+    """specs, first detection, step between cases, services, deploy-key base."""
+    if version == 1:
+        return SPECS, FIRST_DAY, timedelta(days=1), SERVICES, 9100
+    if version == 2:
+        return SPECS_V2, FIRST_DAY_V2, STEP_V2, SERVICES_V2, 9300
+    raise ValueError(f"no scenario pack v{version}")
+
+
+def build(seed: int = 42, version: int = 1) -> list[Scenario]:
+    specs, first_day, step, all_services, key_base = _layout(version)
     out = []
-    for i, s in enumerate(SPECS):
+    for i, s in enumerate(specs):
         rnd = random.Random(f"{seed}:{s.key}")
-        d = FIRST_DAY + timedelta(days=i)
-        svc = SERVICES[i]
-        services = [svc, PARTNERS[0 if s.key == "S05" else 1]] if s.two_services else [svc]
-        keys = [f"DEPLOY-{9100 + 10 * i + n}" for n in range(len(s.deploys))]
+        d = first_day + step * i
+        svc = all_services[i]
+        partner = s.partner or PARTNERS[0 if s.key == "S05" else 1]
+        services = [svc, partner] if s.two_services else [svc]
+        keys = [f"DEPLOY-{key_base + 10 * i + n}" for n in range(len(s.deploys))]
         deps = [
             {
                 "id": uuid5(NAMESPACE_URL, f"aeoi:eval:deploy:{k}"),
@@ -342,7 +439,7 @@ def build(seed: int = 42) -> list[Scenario]:
         )
         out.append(
             Scenario(
-                key=f"{PACK_NAME}-v{PACK_VERSION}-{s.key}",
+                key=f"{PACK_NAME}-v{version}-{s.key}",
                 category=s.category,
                 service=svc,
                 services=services,
@@ -363,6 +460,7 @@ def build(seed: int = 42) -> list[Scenario]:
     return out
 
 
-def pack_range() -> tuple[datetime, datetime]:
+def pack_range(version: int = 1) -> tuple[datetime, datetime]:
     """Every row of the pack has its time in here, and the main dataset has nothing here."""
-    return FIRST_DAY - BEFORE, FIRST_DAY + timedelta(days=len(SPECS) - 1) + AFTER
+    specs, first_day, step, _, _ = _layout(version)
+    return first_day - BEFORE, first_day + step * (len(specs) - 1) + AFTER

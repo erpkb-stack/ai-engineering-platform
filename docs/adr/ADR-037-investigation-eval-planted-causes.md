@@ -1,6 +1,6 @@
 # ADR-037: Investigation eval = planted causes through the product path, a regression gate in CI
 
-Status: Proposed (25a verified PR #34, 25b verified PR #35; 25c adds the import + dashboard)
+Status: Proposed (25a PR #34, 25b PR #35, 25c PR #36-#37 verified; 25d measures flaw (c))
 Date: 2026-10-22
 Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), ADR-020 (outcome)
 
@@ -84,6 +84,17 @@ Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), A
 - **Grafana reads numbers only** (0028): never the planted truth, run config or per-case text.
 - **A failed measurement is never shown as a result** (fix1): a crashed run or one with INVALID
   cases is stored FAILED; the investigation panel shows SUCCEEDED runs without invalid cases.
+
+## 25d additions (2026-10-23): flaw (c) measured before any rule
+- **Measure first, change second:** pack v2 (6 cases) holds the flaw beyond the DB pool and
+  beyond deploys (S17-S19) AND guard rails where the resource IS the cause beside a deploy
+  (S20-S22). A rule that simply blames deploys more fails the guard rails.
+- **`wrong_high`** = any HIGH code claim that is not the planted cause. The band is code, so
+  the free FAKE run in CI measures it; the gate also fails when a case gains one.
+- **A case is left out when no rule could pass it:** an innocent deploy minutes before a
+  same-service saturation that is the real cause has S01's signals and the opposite truth.
+- One guard rail failed BEFORE any change (S22: a deploy after the resource rose is top HIGH):
+  a second flaw, recorded in the v2 baseline as FAIL, not hidden.
 
 ## Not done (and why)
 - No `services/evaluation` service: the runner is a batch CLI; a service adds deploy, auth

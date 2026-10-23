@@ -163,19 +163,29 @@ def write_catalog(ds: Dataset, out_dir: Path) -> Path:
 
 
 def load_pack(conninfo: str, seed: int) -> dict[str, int]:
-    """Phase 25a (ADR-037): the investigation scenario pack, ON TOP of `make db-seed`.
+    """Phase 25 (ADR-037): every investigation scenario pack (v1, v2), ON TOP of `make db-seed`.
 
-    Idempotent and contained: it deletes only its own rows (its deploy keys; logs and metrics
-    of its services inside the pack's time range, where the main dataset has none), then
-    inserts them again, and registers the dataset + cases (with the planted truth) in `eval`.
-    `make db-seed` truncates devdata, so run this AFTER it.
+    Idempotent and contained: per pack it deletes only its own rows (its deploy keys; logs and
+    metrics of its services inside the pack's time range, where the main dataset has none),
+    then inserts them again, and registers the dataset + cases (with the planted truth) in
+    `eval`. `make db-seed` truncates devdata, so run this AFTER it.
     """
     from aeoi_synth import scenarios
 
     if os.environ.get("AEOI_ENV", "development") == "production":
         raise RuntimeError("refusing to load synthetic data with AEOI_ENV=production")
-    pack = scenarios.build(seed)
-    lo, hi = scenarios.pack_range()
+    n = {"deployments": 0, "log_events": 0, "metric_points": 0, "cases": 0}
+    for version in scenarios.VERSIONS:
+        for k, v in _load_one_pack(conninfo, seed, version).items():
+            n[k] += v
+    return n
+
+
+def _load_one_pack(conninfo: str, seed: int, version: int) -> dict[str, int]:
+    from aeoi_synth import scenarios
+
+    pack = scenarios.build(seed, version)
+    lo, hi = scenarios.pack_range(version)
     services = sorted({s for sc in pack for s in sc.services})
     keys = [d["deploy_key"] for sc in pack for d in sc.deployments]
     n = {"deployments": 0, "log_events": 0, "metric_points": 0, "cases": 0}
@@ -216,8 +226,8 @@ def load_pack(conninfo: str, seed: int) -> dict[str, int]:
             "INSERT INTO eval.datasets (id, name, version, description) VALUES (%s, %s, %s, %s)"
             " ON CONFLICT (name, version) DO UPDATE SET description = EXCLUDED.description"
             " RETURNING id",
-            (uuid5(NAMESPACE_URL, f"aeoi:eval:dataset:{scenarios.PACK_NAME}:"
-                   f"{scenarios.PACK_VERSION}"), scenarios.PACK_NAME, scenarios.PACK_VERSION,
+            (uuid5(NAMESPACE_URL, f"aeoi:eval:dataset:{scenarios.PACK_NAME}:{version}"),
+             scenarios.PACK_NAME, version,
              f"{len(pack)} synthetic incidents with a planted cause (seed {seed}); "
              "aeoi_synth.scenarios"),
         )  # fmt: skip

@@ -58,7 +58,7 @@
     },
     {
       "id": 2,
-      "title": "Investigation eval per run (16 planted cases)",
+      "title": "Investigation eval per run (pack v1: 16 planted cases, v2: 6)",
       "type": "table",
       "datasource": {
         "type": "grafana-postgresql-datasource",
@@ -81,7 +81,7 @@
           "format": "table",
           "rawQuery": true,
           "editorMode": "code",
-          "rawSql": "SELECT r.started_at, coalesce((r.summary->>'rescored')::int, 0) AS rescored, count(DISTINCT e.case_id) AS n_cases, avg(e.value) FILTER (WHERE e.metric = 'passed') AS passed, sum(e.value) FILTER (WHERE e.metric = 'confident_wrong')::int AS confident_wrong, sum(e.value) FILTER (WHERE e.metric = 'validated_wrong')::int AS validated_wrong, sum(e.value) FILTER (WHERE e.metric = 'proposal_correct')::int AS rollback_correct, sum(e.value) FILTER (WHERE e.metric = 'proposal_wrong')::int AS rollback_wrong, sum(e.value) FILTER (WHERE e.metric = 'proposal_missed')::int AS rollback_missed FROM eval.eval_runs r JOIN eval.datasets d ON d.id = r.dataset_id JOIN eval.evaluations e ON e.run_id = r.id WHERE d.name = 'investigations' AND r.status = 'SUCCEEDED' AND jsonb_array_length(coalesce(r.summary->'invalid', '[]')) = 0 AND $__timeFilter(r.started_at) GROUP BY r.id, r.started_at, r.summary ORDER BY r.started_at DESC"
+          "rawSql": "SELECT r.started_at, d.version AS pack, coalesce((r.summary->>'rescored')::int, 0) AS rescored, count(DISTINCT e.case_id) AS n_cases, avg(e.value) FILTER (WHERE e.metric = 'passed') AS passed, sum(e.value) FILTER (WHERE e.metric = 'confident_wrong')::int AS confident_wrong, sum(e.value) FILTER (WHERE e.metric = 'validated_wrong')::int AS validated_wrong, sum(e.value) FILTER (WHERE e.metric = 'wrong_high')::int AS wrong_high, sum(e.value) FILTER (WHERE e.metric = 'proposal_correct')::int AS rollback_correct, sum(e.value) FILTER (WHERE e.metric = 'proposal_wrong')::int AS rollback_wrong, sum(e.value) FILTER (WHERE e.metric = 'proposal_missed')::int AS rollback_missed FROM eval.eval_runs r JOIN eval.datasets d ON d.id = r.dataset_id JOIN eval.evaluations e ON e.run_id = r.id WHERE d.name = 'investigations' AND r.status = 'SUCCEEDED' AND jsonb_array_length(coalesce(r.summary->'invalid', '[]')) = 0 AND $__timeFilter(r.started_at) GROUP BY r.id, r.started_at, d.version, r.summary ORDER BY r.started_at DESC"
         }
       ],
       "fieldConfig": {
