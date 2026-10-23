@@ -1,0 +1,222 @@
+{
+ "run": "investigations-2026-10-23T033835-rescored.json",
+ "config": {
+  "dataset": "investigations",
+  "version": 1,
+  "paid_models": [
+   "claude-haiku-4-5-20251001",
+   "claude-sonnet-5-5"
+  ],
+  "cases": "all",
+  "api": "http://localhost:8000"
+ },
+ "calibration": {
+  "by_band": {
+   "HIGH": {
+    "claims": 11,
+    "correct": 8,
+    "wilson95": [
+     0.434,
+     0.903
+    ]
+   },
+   "MEDIUM": {
+    "claims": 3,
+    "correct": 3,
+    "wilson95": [
+     0.438,
+     1.0
+    ]
+   },
+   "LOW": {
+    "claims": 1,
+    "correct": 0,
+    "wilson95": [
+     0.0,
+     0.793
+    ]
+   }
+  },
+  "by_status": {
+   "VALIDATED": {
+    "claims": 11,
+    "correct": 9,
+    "wilson95": [
+     0.523,
+     0.949
+    ]
+   },
+   "PROPOSED": {
+    "claims": 4,
+    "correct": 2,
+    "wilson95": [
+     0.15,
+     0.85
+    ]
+   },
+   "CHALLENGED": {
+    "claims": 0,
+    "correct": 0,
+    "wilson95": null
+   }
+  },
+  "band_x_status": {
+   "HIGH/VALIDATED": {
+    "claims": 9,
+    "correct": 7,
+    "wilson95": [
+     0.453,
+     0.937
+    ]
+   },
+   "HIGH/PROPOSED": {
+    "claims": 2,
+    "correct": 1,
+    "wilson95": [
+     0.095,
+     0.905
+    ]
+   },
+   "MEDIUM/VALIDATED": {
+    "claims": 2,
+    "correct": 2,
+    "wilson95": [
+     0.342,
+     1.0
+    ]
+   },
+   "MEDIUM/PROPOSED": {
+    "claims": 1,
+    "correct": 1,
+    "wilson95": [
+     0.207,
+     1.0
+    ]
+   },
+   "LOW/PROPOSED": {
+    "claims": 1,
+    "correct": 0,
+    "wilson95": [
+     0.0,
+     0.793
+    ]
+   }
+  },
+  "wrong": [
+   "S01 #2 HIGH/VALIDATED (saturation)",
+   "S04 #2 HIGH/VALIDATED (saturation)",
+   "S05 #2 LOW/PROPOSED (change)",
+   "S14 #1 HIGH/PROPOSED (change)"
+  ],
+  "critic_alternatives": 8,
+  "proposals": {
+   "correct": 5,
+   "wrong": 0,
+   "missed": 2
+  }
+ },
+ "vs": {
+  "file": "eval-fake-run-sandbox.json",
+  "config": {
+   "dataset": "investigations",
+   "version": 1,
+   "paid_models": [],
+   "cases": "all",
+   "api": "http://localhost:8000"
+  }
+ },
+ "comparison": {
+  "cases_compared": 16,
+  "only_in_run": [],
+  "only_in_vs": [],
+  "passed": [
+   "15/16",
+   "15/16"
+  ],
+  "changed": [
+   {
+    "case": "S01",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ],
+    "proposal": [
+     "DEPLOY-9100",
+     null
+    ]
+   },
+   {
+    "case": "S02",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ],
+    "proposal": [
+     "DEPLOY-9110",
+     null
+    ]
+   },
+   {
+    "case": "S03",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ],
+    "proposal": [
+     "DEPLOY-9120",
+     null
+    ]
+   },
+   {
+    "case": "S05",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ],
+    "proposal": [
+     "DEPLOY-9140",
+     null
+    ]
+   },
+   {
+    "case": "S06",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ]
+   },
+   {
+    "case": "S07",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ]
+   },
+   {
+    "case": "S08",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ]
+   },
+   {
+    "case": "S09",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ]
+   },
+   {
+    "case": "S10",
+    "top_status": [
+     "VALIDATED",
+     "PROPOSED"
+    ],
+    "proposal": [
+     "DEPLOY-9190",
+     null
+    ]
+   }
+  ]
+ }
+}

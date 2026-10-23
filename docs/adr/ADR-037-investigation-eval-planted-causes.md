@@ -1,6 +1,6 @@
 # ADR-037: Investigation eval = planted causes through the product path, a regression gate in CI
 
-Status: Proposed
+Status: Proposed (25a verified 2026-10-23, PR #34; 25b adds calibration)
 Date: 2026-10-22
 Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), ADR-020 (outcome)
 
@@ -59,12 +59,29 @@ Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), A
 - The FAKE-model run measures the CODE path only (the ranker falls back to rubric order, the
   critic does not answer). What the LLM ranker and critic add is a real-model run (COST=1).
 
+## 25b additions (2026-10-23)
+- **Shown vs stood behind:** the eval scores the band (`confident_wrong`: HIGH and wrong) apart
+  from the status (`validated_wrong`: VALIDATED and wrong) and the rollback proposal
+  (correct / wrong / missed). The band is advice; VALIDATED + the proposal is what the system
+  acts on. The first reading of S14 looked only at the band and was wrong.
+- **Calibration = Wilson 95 % intervals per band and per status**, never a bare percentage:
+  with a dozen claims the interval is the honest answer (HIGH 8/11 -> 0.43-0.90). No
+  bootstrap: one proportion has a closed-form interval. Critic alternatives are counted, not
+  scored (no exact match without a judge).
+- **Re-scoring is free:** a run's stored hypotheses and plan are scored again by a new scorer
+  (`make eval-rescore`), so a paid run is never repeated to measure something new.
+- **No rubric change from 3 critic verdicts:** "weakened -> cap at MEDIUM" would fix S14 and
+  break S04. The critic's doubt is right 2 of 4 times on this pack; its support 9 of 11.
+- **The runner retries only safe calls** (GET, or POST with an Idempotency-Key, same key);
+  everything else is never repeated.
+
 ## Not done (and why)
 - No `services/evaluation` service: the runner is a batch CLI; a service adds deploy, auth
   and a port for no new guarantee. [Prod] a worker consuming InvestigationCompleted.
 - The runner writes `eval` as the schema owner (dev login). [Prod] the evaluation service's
   own login.
-- No bootstrap CI, no A/B, no calibration: 25b, on this pack.
+- No prompt/model A/B beyond FAKE vs real: the real run changed no answer, so a second paid
+  config would measure noise on 16 cases. Revisit with a bigger pack.
 - The rate-limit design question (agents acting for a user spend that user's interactive
   budget: 3 investigations in a minute exhaust it) is recorded, not changed here.
 

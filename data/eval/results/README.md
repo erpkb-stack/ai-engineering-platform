@@ -17,3 +17,7 @@ schema). FAKE-model runs (CI, sandbox) measure the CODE path only and are not co
 committed regression baseline is `data/eval/baselines/investigations-v1-fake.json`. Every
 number is on 16 planted scenarios: an upper bound, never "accuracy" without that sentence.
 Runs with `"invalid"` cases (incomplete evidence, e.g. rate-limited queries) are never quoted.
+Committed (25b): the real-model run `investigations-2026-10-23T033835-rescored.json` (Haiku +
+Sonnet on kind, $0.98, re-scored with the status/proposal metrics) and its
+`calibration-2026-10-23T041541.json` (vs a FAKE sandbox run). Calibration is always quoted
+with its Wilson interval.
