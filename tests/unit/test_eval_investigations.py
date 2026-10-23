@@ -103,3 +103,65 @@ def test_the_committed_baseline_covers_the_pack() -> None:
 
     base = json.loads((ROOT / "data/eval/baselines/investigations-v1-fake.json").read_text())
     assert {c["case"] for c in base["cases"]} == {s.key for s in scenarios.build(42)}
+
+
+def _server(answers: list[Any]) -> tuple[Any, list[dict[str, str]]]:
+    """A local server that plays `answers` in order: "drop" closes the connection without a
+    response, an int is that status with a small problem body, a dict is a 200 JSON body."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    seen: list[dict[str, str]] = []
+
+    class H(BaseHTTPRequestHandler):
+        def _reply(self) -> None:
+            seen.append({"method": self.command, "key": self.headers.get("Idempotency-Key", "")})
+            a = answers.pop(0)
+            if a == "drop":
+                self.close_connection = True
+                self.connection.close()
+                return
+            body = json.dumps(a if isinstance(a, dict) else {"detail": f"status {a}"}).encode()
+            self.send_response(200 if isinstance(a, dict) else a)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        do_GET = do_POST = _reply  # noqa: N815
+
+        def log_message(self, *_: object) -> None:
+            pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, seen
+
+
+def test_a_safe_call_survives_a_dropped_connection_and_a_503(monkeypatch: Any) -> None:
+    ev = _load()
+    monkeypatch.setattr(ev, "RETRY_WAITS_S", (0.0, 0.0))
+    srv, seen = _server(["drop", 503, {"key": "INC-1"}])
+    try:
+        api = ev.Api(f"http://127.0.0.1:{srv.server_address[1]}", "t")
+        assert api.call("POST", "/x", {"a": 1}, key="k-1") == {"key": "INC-1"}
+    finally:
+        srv.shutdown()
+    assert [s["key"] for s in seen] == ["k-1", "k-1", "k-1"]  # the SAME key each time
+
+
+def test_an_unsafe_or_final_failure_names_the_call_and_the_answer(monkeypatch: Any) -> None:
+    import pytest
+
+    ev = _load()
+    monkeypatch.setattr(ev, "RETRY_WAITS_S", (0.0, 0.0))
+    srv, seen = _server([503, 404])
+    try:
+        api = ev.Api(f"http://127.0.0.1:{srv.server_address[1]}", "t")
+        with pytest.raises(ev.CallError, match=r"POST .*/x -> 503: .*status 503"):
+            api.call("POST", "/x", {"a": 1})  # no Idempotency-Key: never repeated
+        with pytest.raises(ev.CallError, match=r"GET .*/y -> 404"):
+            api.call("GET", "/y")  # 404 is an answer, not a retryable failure
+    finally:
+        srv.shutdown()
+    assert len(seen) == 2
