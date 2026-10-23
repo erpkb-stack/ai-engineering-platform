@@ -1,8 +1,8 @@
 # Phase 25 - MLOps / evaluation (ADR-037)
 
-Status: **25a BUILT in the sandbox (2026-10-22), Verify = the PR's checks + an optional
-real-model run on the Mac.** 25b (A/B comparison with bootstrap CI, band calibration) and 25c
-(rag/history/risk evals in the `eval` schema + an eval dashboard) after 25a is verified.
+Status: **25a VERIFIED 2026-10-23** (PR #34, main 499ede9 green, run 39891545509). **25b BUILT**
+(calibration + action-gate scores; real-model run on the Mac), Verify = its PR's checks. 25c
+(rag/history/risk evals in the `eval` schema + an eval dashboard) and the rubric flaw (c) after.
 
 ## 0. Gate and scope
 - **Gate: passed.** Phase 24 verified and closed (PR #33, main ecaaabe).
@@ -67,16 +67,70 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
 - FAKE models = the code path: the ranker fell back to rubric order in every case, the critic
   gave nothing. The LLM's contribution is unmeasured until a real-model run.
 
-## 4. Verify
-- [ ] PR: all checks green; the infra-smoke log shows the eval table, "invalid": [] and
-      "no regression vs investigations-v1-fake.json".
-- [ ] (optional, costs money) Mac: real models on the same pack -
-      `make eval-seed && make eval-investigations COST=1` with the normal routing; paste the
-      summary line and the cost. Expected to differ from FAKE only through the LLM ranker.
+## 4. Verify 25a
+- [x] PR #34: 6/6 green; the CI eval = the sandbox case for case (16/16), "invalid": [],
+      "no regression vs investigations-v1-fake.json"; infra-smoke 4 -> 8 min (paced cases).
+- [x] Real models on the Mac (kind, Haiku ranker + Sonnet critic, 2026-10-23): see 25b.
+- [x] `main` green after the merge (499ede9, run 39891545509).
+
+## 5. 25b - what the LLM adds, and how far a band can be trusted (owner: "go", 2026-10-23)
+### 5a. The real-model run (Mac, kind; 16 cases)
+- First tries died on the first call after hours of idle: a 503 "retry with the same
+  Idempotency-Key" (the api's own fix7 answer) and a RemoteDisconnected from the LLM gateway.
+  The SYSTEM was right; the runner gave up. Fix: safe calls (GET, POST with an
+  Idempotency-Key) retry twice with the same key; a final failure names the call and answer.
+- Then: 16/16 valid, 12 COMPLETE + 4 INCONCLUSIVE, p50 40.8 s, max 55.8 s per case,
+  **cost $0.98** ($0.04-0.10 per case). My estimate from 3 cases was $0.30 - wrong by ~3x:
+  those 3 runs were PARTIAL (critic unanswered) and did less work. Do not extrapolate cost
+  from runs that did less. The 4 INCONCLUSIVE cases still cost $0.05-0.07 each (the
+  postmortem writer runs with no hypothesis) - a small waste, noted.
+- **Per case, the real models changed no answer:** passed 15/16 = FAKE, the same cases.
+### 5b. S14 - read the status, not only the band
+- The ranker (Haiku) wrote a fluent, citation-valid but wrong mechanism for the innocent
+  deploy ("DEBUG logging ... triggered TLS certificate validation errors").
+- The critic (Sonnet): **weakened**, missing "evidence tying the DEBUG change to TLS cert
+  validation, e.g. the cert expiry time"; it proposed "An expired TLS certificate is the root
+  cause" (the planted truth) at MEDIUM.
+- The band stayed HIGH (code; ADR-021), but the hypothesis stayed **PROPOSED** (VALIDATED
+  needs the critic's "supported") and **no rollback was proposed** (the rule needs a VALIDATED
+  deploy). The console already shows the verdict and the missing link. My first reading
+  ("the system threw the critic's answer away") was wrong: I read the band, not the status.
+  The planned "show the critic's challenge" (b) already existed - not built twice.
+- A "weakened -> cap at MEDIUM" rule was checked on paper first: the critic weakened 3 tops,
+  1 wrong (S14) and 2 right (S04, S15). It would fix S14 and break S04 (a wrong pool
+  hypothesis, HIGH + VALIDATED, would then outrank the true deploy). Not adopted: 3 data
+  points do not justify a rubric change, and the gate already holds.
+### 5c. Calibration (the real run, re-scored for free: `make eval-rescore`)
+| claims (code, not rejected) | correct | Wilson 95 % |
+|---|---|---|
+| HIGH | 8/11 | 0.43 - 0.90 |
+| MEDIUM | 3/3 | 0.44 - 1.00 |
+| LOW | 0/1 | 0.00 - 0.79 |
+| **VALIDATED** (what the system stands behind) | **9/11** | 0.52 - 0.95 |
+| PROPOSED | 2/4 | 0.15 - 0.85 |
+- Rollback proposals: **5 correct, 0 wrong, 2 missed** (S04, S15: the critic weakened the
+  correct deploy). I predicted ~9 correct: wrong - I counted the 4 saturation/traffic cases,
+  which no rollback rule can propose. The measurement wins.
+- The critic as a filter: "supported" on 11 claims, 9 right; "weakened/refuted" on 4, 2 right.
+  Its doubts are a coin flip on this pack; its support is mostly right.
+- **Both VALIDATED wrong claims are flaw (c):** pool saturation HIGH + VALIDATED beside the
+  deploy that caused it (S01, S04) - a mechanism scored as a rival cause. The critic called
+  both "supported". That is the next measured decision, not this phase.
+- FAKE vs real, case by case: `passed` identical; 9 cases differ ONLY in status/proposal (the
+  FAKE critic never answers, so nothing is VALIDATED and no rollback is ever proposed). CI
+  therefore measures the ranking; the action gate is measured only by a real-model run.
+- Read every number as an upper bound on planted scenarios, with intervals this wide.
+
+## 6. Verify 25b
+- [ ] PR: all checks green; the infra-smoke eval still "no regression" (passed unchanged).
+- [x] Real-model run + rescore + calibration on the Mac (the numbers above, files committed:
+      `investigations-2026-10-23T033835-rescored.json`, `calibration-2026-10-23T041541.json`).
 - [ ] `main` green after the merge.
 
-## 5. Open items
-- 25b: A/B (FAKE vs real ranker; prompt versions) with bootstrap CI on this pack; band
-  calibration (how often HIGH/MEDIUM/LOW are right) - with the upper-bound caveat.
+## 7. Open items
+- (c) mechanism vs cause: a saturation on the same service AFTER a deploy is scored as a
+  rival cause (S01, S04: HIGH + VALIDATED, wrong). A rubric change needs its own eval cases.
+- The postmortem writer runs (and costs) when no hypothesis survived.
+- 25c: rag/history/risk evals in the `eval` schema + one eval dashboard.
 - Rate limits: agents acting for a user spend that user's interactive budget (ADR-037).
 - More pack versions (v2) for new categories - never by editing v1's truth.
