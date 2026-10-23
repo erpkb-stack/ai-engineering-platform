@@ -1,0 +1,105 @@
+"""Phase 25a (ADR-037): the investigation eval scores what it claims (pure functions)."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "eval_inv", ROOT / "scripts/eval_investigations.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["eval_inv"] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _h(rank: int, statement: str, band: str = "HIGH", status: str = "PROPOSED",
+       kind: str = "change") -> dict[str, Any]:  # fmt: skip
+    return {"rank": rank, "statement": statement, "confidence": band, "status": status,
+            "detail": {"cause_kind": kind, "ranked_by": "rubric"}}  # fmt: skip
+
+
+def _e(culprit: dict[str, str] | None, **kw: Any) -> dict[str, Any]:
+    return {"detectable": culprit is not None, "category": "x", "culprit": culprit,
+            "decoys": kw.get("decoys", []), "rule_out": kw.get("rule_out", [])}  # fmt: skip
+
+
+DEPLOY = {"kind": "change", "subject": "DEPLOY-9100"}
+
+
+def test_top1_needs_the_right_kind_and_subject() -> None:
+    ev = _load()
+    s = ev.score(_e(DEPLOY), [_h(1, "Deploy DEPLOY-9100 on a may have caused it")])
+    assert s["top1"] and s["in_top3"] and s["passed"] and not s["confident_wrong"]
+    # same subject, wrong kind (a saturation statement that mentions the deploy) is no match
+    s = ev.score(_e(DEPLOY), [_h(1, "pool saturation after DEPLOY-9100", kind="saturation")])
+    assert s["top1"] is False and s["culprit_rank"] is None
+
+
+def test_rejected_hypotheses_never_count_as_the_answer() -> None:
+    ev = _load()
+    hyps = [_h(1, "Deploy DEPLOY-9100 did not start it", status="REJECTED"),
+            _h(2, "A traffic change (requests_per_sec)", band="MEDIUM", kind="traffic")]  # fmt: skip
+    s = ev.score(_e(DEPLOY), hyps)
+    assert s["top1"] is False and s["top"].startswith("A traffic") and not s["confident_wrong"]
+
+
+def test_a_wrong_high_top_is_a_confident_wrong_answer() -> None:
+    ev = _load()
+    hyps = [_h(1, "Deploy DEPLOY-9101 on b"), _h(2, "Deploy DEPLOY-9100 on a", band="MEDIUM")]
+    s = ev.score(_e(DEPLOY, decoys=["DEPLOY-9101"]), hyps)
+    assert s["confident_wrong"] and s["decoy_above"] and s["culprit_rank"] == 2 and s["in_top3"]
+    assert not s["passed"]
+
+
+def test_undetectable_passes_only_without_any_high_claim() -> None:
+    ev = _load()
+    assert ev.score(_e(None), [])["passed"]  # no hypothesis at all: the honest answer
+    assert ev.score(_e(None), [_h(1, "Deploy DEPLOY-9230", band="MEDIUM")])["passed"]
+    s = ev.score(_e(None, decoys=["DEPLOY-9230"]), [_h(1, "Deploy DEPLOY-9230 on c")])
+    assert s["confident_wrong"] and s["decoy_above"] and not s["passed"]
+    assert s["top1"] is None and s["in_top3"] is None  # not scored for an undetectable case
+
+
+def test_rule_out_needs_a_rejected_statement_naming_the_subject() -> None:
+    ev = _load()
+    e = _e(DEPLOY, rule_out=["requests_per_sec"])
+    ok = [_h(1, "Deploy DEPLOY-9100"), _h(2, "A traffic surge ... requests_per_sec stayed",
+                                         band="LOW", status="REJECTED", kind="traffic")]  # fmt: skip
+    assert ev.score(e, ok)["rule_out_ok"]
+    assert not ev.score(e, ok[:1])["rule_out_ok"]
+
+
+def test_summary_and_regressions() -> None:
+    ev = _load()
+    cases = [
+        {"case": "k-S01", "expected": _e(DEPLOY), "outcome": "PARTIAL", "latency_s": 2.0,
+         "cost_usd": 0.001, "invalid": False, "score": ev.score(_e(DEPLOY), [_h(1, "DEPLOY-9100")])},
+        {"case": "k-S11", "expected": _e(None), "outcome": "INCONCLUSIVE", "latency_s": 4.0,
+         "cost_usd": 0, "invalid": True, "score": ev.score(_e(None), [_h(1, "Deploy X")])},
+    ]  # fmt: skip
+    s = ev.summarize(cases)
+    assert s["top1"] == "1/1" and s["confident_wrong"] == "1/2" and s["passed"] == "1/2"
+    assert s["undetectable_abstained"] == "0/1" and s["invalid"] == ["S11"]
+    assert s["latency_s"] == {"p50": 3.0, "max": 4.0}
+    base = {"cases": [{"case": "k-S01", "passed": True}, {"case": "k-S11", "passed": True}]}  # fmt: skip
+    assert ev.regressions(cases, base) == ["k-S11"]  # passed in the baseline, fails now
+    assert ev.regressions(cases, {"cases": []}) == []  # new cases are not regressions
+
+
+def test_the_committed_baseline_covers_the_pack() -> None:
+    import json
+
+    from aeoi_synth import scenarios
+
+    base = json.loads((ROOT / "data/eval/baselines/investigations-v1-fake.json").read_text())
+    assert {c["case"] for c in base["cases"]} == {s.key for s in scenarios.build(42)}

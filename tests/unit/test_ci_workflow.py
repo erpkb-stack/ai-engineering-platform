@@ -88,3 +88,13 @@ def test_the_images_job_gates_on_the_scan() -> None:
     install = "\n".join(str(s.get("run", "")) for s in _steps(_ci()["jobs"]["images"]))
     assert "scripts/scan_gate.py" in install
     assert install.index('trivy" image') < install.index("scripts/scan_gate.py")
+
+
+def test_the_investigation_eval_runs_with_its_regression_baseline() -> None:
+    # Phase 25a (ADR-037): the eval in CI is a gate, not a report - and its baseline exists
+    steps = _steps(_ci()["jobs"]["infra-smoke"])
+    run = "\n".join(str(s.get("run", "")) for s in steps)
+    assert "make eval-seed" in run and "make eval-investigations BASELINE=" in run
+    base = re.search(r"BASELINE=(\S+)", run)
+    assert base and (ROOT / base.group(1)).is_file()
+    assert run.index("make db-seed") < run.index("make eval-seed")  # db-seed truncates devdata

@@ -13,7 +13,7 @@ schema; leave a live grant behind a finished investigation (revoke BEFORE finish
 ## Code map
 - `api.py` HTTP: start (order: read incident → insert → exchange → mark → attach grant → launch), read, trace (redacted without the agent's permission), cancel, resume
 - `graph.py` `plan → Send(run_agent) ×4 → collect_evidence → history → code → hypothesize → critique → validate → report → propose → finalize`; every node idempotent;
-  `outcome()` COMPLETE / PARTIAL / FAILED (ADR-020); a bad task fails its branch only
+  `outcome()` COMPLETE / PARTIAL / FAILED (ADR-020); a bad task fails its branch only; a SUCCEEDED metrics/deployment task with `degraded` = "evidence incomplete" → PARTIAL (Phase 25a, ADR-037)
 - `validation.py` (Phase 11) merge ranker + critic, hard checks (citations, support, timing vs the first sustained symptom) and soft checks (critic answered, critic independent); `reasoning_outcome()` COMPLETE/PARTIAL/INCONCLUSIVE
 - `history` node (Phase 13, ADR-023): historical_incident task (reuse guard) → INCIDENT pointers via the evidence endpoint; priors go to hypothesize ONLY (critic copies are blanked); `history_outcome()` PARTIAL when search failed / compared by code / not stored
 - `code` node (Phase 14, ADR-024): code_intelligence task (needs the deployment result) → COMMIT/CODE evidence; `reasoning_results()` adds its result to hypothesize/critique/validate/report ONLY when that evidence was stored; `code_outcome()` PARTIAL when it failed / degraded / not stored. `AEOI_ORCH_CODE` (true)

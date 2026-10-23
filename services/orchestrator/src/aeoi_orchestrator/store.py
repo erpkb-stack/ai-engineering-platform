@@ -326,6 +326,7 @@ class Store:
             "error": row.error,
             "cost_usd": str(row.cost_usd),
             "evidence_count": len((row.output or {}).get("evidence", [])),
+            "degraded": (row.output or {}).get("degraded"),
             "reused": True,
         }
 
@@ -412,6 +413,7 @@ class Store:
             "error": error or (result.error if result else None),
             "cost_usd": str(trace.cost_usd if trace else Decimal(0)),
             "evidence_count": len(result.evidence) if result else 0,
+            "degraded": result.degraded if result else None,
             "reused": False,
         }
 

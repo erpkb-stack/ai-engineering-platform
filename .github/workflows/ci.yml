@@ -112,6 +112,14 @@ jobs:
             for i in $(seq 1 30); do curl -sf localhost:$p/health/live > /dev/null && break; sleep 1; done
           done
           ./scripts/smoke-phase8.sh || { tail -n 80 orch.log agents.log tools.log incident.log; exit 1; }
+      - name: Investigation eval (Phase 25a; FAKE model = the code path; regression gate)
+        # 16 synthetic incidents with a planted cause, through the product path. Fails when a
+        # case that passed in the committed baseline fails now, or when evidence was incomplete
+        # (a run that never read the signal says nothing about the reasoning).
+        run: |
+          make eval-seed
+          make eval-investigations BASELINE=data/eval/baselines/investigations-v1-fake.json \
+            || { tail -n 60 orch.log agents.log tools.log; exit 1; }
       - name: Container logs on failure
         if: failure()
         run: docker compose --profile infra --profile kafka --profile tools logs --tail=200
