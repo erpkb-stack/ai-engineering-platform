@@ -119,12 +119,23 @@ def _task(payload: dict[str, Any], t: dict[str, Any], task_id: UUID) -> AgentTas
     )
 
 
+# Agents whose `degraded` means EVIDENCE IS MISSING (queries failed, were denied or not run).
+# log_analysis' `degraded` means its labels fell back to rules - the evidence is all there.
+EVIDENCE_LOSS_AGENTS = frozenset({"metrics", "deployment"})
+
+
 def outcome(results: list[dict[str, Any]], evidence_error: str | None) -> tuple[str, str | None]:
     """COMPLETE / PARTIAL / FAILED (ADR-020). Evidence that was not stored is FAILED, not
-    PARTIAL: `repost-evidence` repairs it, and a repaired run then becomes COMPLETE/PARTIAL."""
+    PARTIAL: `repost-evidence` repairs it, and a repaired run then becomes COMPLETE/PARTIAL.
+    Phase 25a (eval run, 2026-10-22): a metrics task that SUCCEEDED with 7 of 9 queries
+    rate-limited made the run look complete - "no hypothesis is supported" when the saturation
+    signal was never read. Incomplete evidence is now PARTIAL and named."""
     failed = [f"{r['agent']}: {r.get('error') or r['status']}" for r in results
               if r["status"] != "SUCCEEDED"]  # fmt: skip
     ok = len(results) - len(failed)
+    failed += [f"{r['agent']}: evidence incomplete ({str(r['degraded'])[:300]})" for r in results
+               if r["status"] == "SUCCEEDED" and r.get("degraded")
+               and r["agent"] in EVIDENCE_LOSS_AGENTS]  # fmt: skip
     if evidence_error:
         return "FAILED", "; ".join([*failed, evidence_error])
     if not results:

@@ -70,6 +70,22 @@ def test_outcome_complete_partial_failed() -> None:
     assert status == "FAILED" and error and "evidence was not stored" in error
 
 
+def test_outcome_names_incomplete_evidence_of_a_succeeded_task() -> None:
+    """Phase 25a regression (eval run 2026-10-22): metrics SUCCEEDED with 7 of 9 queries
+    rate-limited and the run said COMPLETE/INCONCLUSIVE as if the signal was absent."""
+    from aeoi_orchestrator.graph import outcome
+
+    lost = {**_r("metrics"), "degraded": "failed: a/cpu_util (rate_limited)"}
+    status, error = outcome([_r("log_analysis"), lost], None)
+    assert status == "PARTIAL" and error and "metrics: evidence incomplete" in error
+    assert "rate_limited" in error
+    # a deployment task that could not read deploys is the same; labels-by-rule is not
+    gone = {**_r("deployment"), "degraded": "no data: get_deployment a (timeout)"}
+    assert outcome([gone], None)[0] == "PARTIAL"
+    labels = {**_r("log_analysis"), "degraded": "labels by rule for 2 cluster(s)"}
+    assert outcome([labels, _r("metrics")], None) == ("COMPLETE", None)
+
+
 def test_a_postmortem_problem_is_partial_and_named_but_never_hides_a_worse_status() -> None:
     """Phase 12 (ADR-022): written by code only (model down), failed, or not stored = PARTIAL
     with the reason; skipped = no change; INCONCLUSIVE/FAILED stay what they are."""
