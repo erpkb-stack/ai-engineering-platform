@@ -457,6 +457,9 @@ eval-calibration: ## Phase 25b: band/status calibration (Wilson 95%) of a run [V
 	@test -n "$(RUN)" || { echo "usage: make eval-calibration RUN=data/eval/results/x.json [VS=y.json]"; exit 2; }
 	uv run python scripts/eval_calibration.py --run $(RUN) $(if $(VS),--vs $(VS),)
 
+eval-import: ## Phase 25c: copy eval result files into the eval schema for the Evaluation dashboard [FILES="a.json b.json"] (default: all; refused kinds named)
+	uv run python scripts/eval_import.py $(FILES)
+
 history-eval: ## Phase 13: similar-incident eval, keyword vs vector vs hybrid (data/eval/results/history-*.json)
 	$(RAG) history-eval
 

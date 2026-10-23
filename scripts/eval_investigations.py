@@ -47,6 +47,9 @@ from aeoi_db.config import libpq_dsn
 ROOT = Path(__file__).resolve().parents[1]
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 FREE_PROVIDERS = ("local_fake", "hosted_fake", "ollama")
+# per-case scores stored in eval.evaluations (one row each); `make eval-import` uses the same list
+METRICS = ("top1", "in_top3", "confident_wrong", "decoy_above", "rule_out_ok", "passed",
+           "validated_wrong", "proposal_correct", "proposal_wrong", "proposal_missed")  # fmt: skip
 
 
 # ---------------------------------------------------------------------------------- scoring
@@ -365,9 +368,8 @@ def main(argv: list[str]) -> int:
                 print(f"{case['key'][-3:]} {mark:<7} {r['outcome']:<12} "
                       f"{r['latency_s']:>5}s top={s['top_band'] or '-'} rank={s['culprit_rank']} "
                       f"wrongHIGH={s['confident_wrong']} | {(s['top'] or 'no hypothesis')[:70]}")  # fmt: skip
-                for metric in ("top1", "in_top3", "confident_wrong", "decoy_above",
-                               "rule_out_ok", "passed"):  # fmt: skip
-                    if s[metric] is not None:
+                for metric in METRICS:
+                    if s.get(metric) is not None:
                         conn.execute(
                             "INSERT INTO eval.evaluations (id, run_id, case_id, metric, value,"
                             " details) VALUES (%s, %s, %s, %s, %s, %s)",

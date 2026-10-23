@@ -1,0 +1,162 @@
+{
+  "uid": "aeoi-evaluation",
+  "title": "AEOI - Evaluation",
+  "description": "What did each eval run measure, on how many cases, and did the investigation eval get worse?",
+  "tags": [
+    "aeoi",
+    "phase-25c"
+  ],
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "",
+  "time": {
+    "from": "now-90d",
+    "to": "now"
+  },
+  "timepicker": {},
+  "templating": {
+    "list": []
+  },
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Eval runs (rag, history, risk-scan imported from files; investigations from the runner)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "cases_scored = per-case rows; 0 for a file run (summary only). rescored = 1: the same paid run scored again (two rows, ONE run). Files are the record (data/eval/results).",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r.started_at, d.name AS dataset, d.version, r.status, r.git_sha, count(DISTINCT e.case_id) AS cases_scored, coalesce((r.summary->>'rescored')::int, 0) AS rescored FROM eval.eval_runs r JOIN eval.datasets d ON d.id = r.dataset_id LEFT JOIN eval.evaluations e ON e.run_id = r.id WHERE $__timeFilter(r.started_at) GROUP BY r.id, r.started_at, d.name, d.version, r.status, r.git_sha, r.summary ORDER BY r.started_at DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Investigation eval per run (16 planted cases)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Upper bound: measured on data written for the eval, not on real incidents. FAKE models (CI): nothing is ever VALIDATED and no rollback is proposed, so validated_wrong 0 and rollbacks 0 say nothing there; only a paid run measures them. Empty = not scored by that runner version. n_cases is small: quote a rate only with its interval.",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r.started_at, coalesce((r.summary->>'rescored')::int, 0) AS rescored, count(DISTINCT e.case_id) AS n_cases, avg(e.value) FILTER (WHERE e.metric = 'passed') AS passed, sum(e.value) FILTER (WHERE e.metric = 'confident_wrong')::int AS confident_wrong, sum(e.value) FILTER (WHERE e.metric = 'validated_wrong')::int AS validated_wrong, sum(e.value) FILTER (WHERE e.metric = 'proposal_correct')::int AS rollback_correct, sum(e.value) FILTER (WHERE e.metric = 'proposal_wrong')::int AS rollback_wrong, sum(e.value) FILTER (WHERE e.metric = 'proposal_missed')::int AS rollback_missed FROM eval.eval_runs r JOIN eval.datasets d ON d.id = r.dataset_id JOIN eval.evaluations e ON e.run_id = r.id WHERE d.name = 'investigations' AND $__timeFilter(r.started_at) GROUP BY r.id, r.started_at, r.summary ORDER BY r.started_at DESC"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "RAG retrieval per run and mode (imported files)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Upper bound: measured on data written for the eval, not on real incidents. Hand-written queries over synthetic docs. Only runs with a real embedding model and a passed validity check are imported.",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r.started_at, m.key AS mode, (m.value->>'n')::int AS n, (m.value->>'recall@5')::float AS recall_at_5, (m.value->'recall@5_ci95'->>0)::float AS ci95_low, (m.value->'recall@5_ci95'->>1)::float AS ci95_high, (m.value->>'mrr@10')::float AS mrr_at_10, (m.value->>'leakage_violations')::int AS leakage FROM eval.eval_runs r JOIN eval.datasets d ON d.id = r.dataset_id CROSS JOIN LATERAL jsonb_each(r.summary) m WHERE d.name = 'rag-retrieval' AND $__timeFilter(r.started_at) ORDER BY r.started_at DESC, m.key"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Similar-incident search per run and mode (imported files)",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "postgres"
+      },
+      "description": "Upper bound: measured on data written for the eval, not on real incidents. Queries written from the synthetic history itself.",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "postgres"
+          },
+          "format": "table",
+          "rawQuery": true,
+          "editorMode": "code",
+          "rawSql": "SELECT r.started_at, m.key AS mode, (m.value->>'n')::int AS n, (m.value->>'hit@5')::float AS hit_at_5, (m.value->'hit@5_ci95'->>0)::float AS ci95_low, (m.value->'hit@5_ci95'->>1)::float AS ci95_high, (m.value->>'mrr@10')::float AS mrr_at_10, (m.value->>'leakage_violations')::int AS leakage FROM eval.eval_runs r JOIN eval.datasets d ON d.id = r.dataset_id CROSS JOIN LATERAL jsonb_each(r.summary) m WHERE d.name = 'history-similarity' AND $__timeFilter(r.started_at) ORDER BY r.started_at DESC, m.key"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ]
+}

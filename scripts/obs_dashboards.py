@@ -73,6 +73,7 @@ def dash(
     panels: list[dict[str, Any]],
     refresh: str = "30s",
     tag: str = "phase-23a",
+    time_from: str = "now-6h",
 ) -> dict[str, Any]:
     return {
         "uid": uid,
@@ -83,7 +84,7 @@ def dash(
         "schemaVersion": 39,
         "version": 1,
         "refresh": refresh,
-        "time": {"from": "now-6h", "to": "now"},
+        "time": {"from": time_from, "to": "now"},
         "timepicker": {},
         "templating": {"list": []},
         "annotations": {"list": []},
@@ -543,8 +544,124 @@ tools = dash(
     tag="phase-23b",
 )
 
+# Phase 25c (ADR-037): eval runs, read as obs_reader (0028: run + numeric columns, never config
+# or details). Every number is an UPPER bound on data written for the eval.
+UB = "Upper bound: measured on data written for the eval, not on real incidents. "
+runs_, evs, dss = "eval.eval_runs", "eval.evaluations", "eval.datasets"
+RATE = "avg(e.value) FILTER (WHERE e.metric = '{m}')"
+COUNT = "sum(e.value) FILTER (WHERE e.metric = '{m}')::int"
+evaluation = dash(
+    "aeoi-evaluation",
+    "AEOI - Evaluation",
+    "What did each eval run measure, on how many cases, and did the investigation eval get worse?",
+    [
+        panel(
+            1,
+            "Eval runs (rag, history, risk-scan imported from files; investigations from the runner)",
+            "table",
+            PG,
+            [
+                sql(
+                    f"SELECT r.started_at, d.name AS dataset, d.version, r.status, r.git_sha, "
+                    f"count(DISTINCT e.case_id) AS cases_scored, "
+                    f"coalesce((r.summary->>'rescored')::int, 0) AS rescored "
+                    f"FROM {runs_} r JOIN {dss} d ON d.id = r.dataset_id "
+                    f"LEFT JOIN {evs} e ON e.run_id = r.id WHERE $__timeFilter(r.started_at) "
+                    "GROUP BY r.id, r.started_at, d.name, d.version, r.status, r.git_sha, r.summary "
+                    "ORDER BY r.started_at DESC",
+                    "table",
+                )
+            ],
+            0,
+            0,
+            w=24,
+            desc="cases_scored = per-case rows; 0 for a file run (summary only). rescored = 1: the "
+            "same paid run scored again (two rows, ONE run). Files are the record (data/eval/results).",
+        ),
+        panel(
+            2,
+            "Investigation eval per run (16 planted cases)",
+            "table",
+            PG,
+            [
+                sql(
+                    f"SELECT r.started_at, coalesce((r.summary->>'rescored')::int, 0) AS rescored, "
+                    f"count(DISTINCT e.case_id) AS n_cases, "
+                    f"{RATE.format(m='passed')} AS passed, {COUNT.format(m='confident_wrong')} AS confident_wrong, "
+                    f"{COUNT.format(m='validated_wrong')} AS validated_wrong, "
+                    f"{COUNT.format(m='proposal_correct')} AS rollback_correct, "
+                    f"{COUNT.format(m='proposal_wrong')} AS rollback_wrong, "
+                    f"{COUNT.format(m='proposal_missed')} AS rollback_missed "
+                    f"FROM {runs_} r JOIN {dss} d ON d.id = r.dataset_id JOIN {evs} e ON e.run_id = r.id "
+                    "WHERE d.name = 'investigations' AND $__timeFilter(r.started_at) "
+                    "GROUP BY r.id, r.started_at, r.summary ORDER BY r.started_at DESC",
+                    "table",
+                )
+            ],
+            0,
+            8,
+            w=24,
+            desc=UB + "FAKE models (CI): nothing is ever VALIDATED and no rollback is proposed, so "
+            "validated_wrong 0 and rollbacks 0 say nothing there; only a paid run measures them. "
+            "Empty = not scored by that runner version. n_cases is small: quote a rate only with its interval.",
+        ),
+        panel(
+            3,
+            "RAG retrieval per run and mode (imported files)",
+            "table",
+            PG,
+            [
+                sql(
+                    f"SELECT r.started_at, m.key AS mode, (m.value->>'n')::int AS n, "
+                    "(m.value->>'recall@5')::float AS recall_at_5, "
+                    "(m.value->'recall@5_ci95'->>0)::float AS ci95_low, "
+                    "(m.value->'recall@5_ci95'->>1)::float AS ci95_high, "
+                    "(m.value->>'mrr@10')::float AS mrr_at_10, "
+                    "(m.value->>'leakage_violations')::int AS leakage "
+                    f"FROM {runs_} r JOIN {dss} d ON d.id = r.dataset_id "
+                    "CROSS JOIN LATERAL jsonb_each(r.summary) m "
+                    "WHERE d.name = 'rag-retrieval' AND $__timeFilter(r.started_at) "
+                    "ORDER BY r.started_at DESC, m.key",
+                    "table",
+                )
+            ],
+            0,
+            16,
+            desc=UB + "Hand-written queries over synthetic docs. Only runs with a real embedding "
+            "model and a passed validity check are imported.",
+        ),
+        panel(
+            4,
+            "Similar-incident search per run and mode (imported files)",
+            "table",
+            PG,
+            [
+                sql(
+                    f"SELECT r.started_at, m.key AS mode, (m.value->>'n')::int AS n, "
+                    "(m.value->>'hit@5')::float AS hit_at_5, "
+                    "(m.value->'hit@5_ci95'->>0)::float AS ci95_low, "
+                    "(m.value->'hit@5_ci95'->>1)::float AS ci95_high, "
+                    "(m.value->>'mrr@10')::float AS mrr_at_10, "
+                    "(m.value->>'leakage_violations')::int AS leakage "
+                    f"FROM {runs_} r JOIN {dss} d ON d.id = r.dataset_id "
+                    "CROSS JOIN LATERAL jsonb_each(r.summary) m "
+                    "WHERE d.name = 'history-similarity' AND $__timeFilter(r.started_at) "
+                    "ORDER BY r.started_at DESC, m.key",
+                    "table",
+                )
+            ],
+            12,
+            16,
+            desc=UB + "Queries written from the synthetic history itself.",
+        ),
+    ],
+    refresh="",
+    tag="phase-25c",
+    time_from="now-90d",
+)
+
 DASHBOARDS = {"platform-health": platform, "investigation-funnel": funnel, "llm-cost": cost,
-              "incident-kpis": kpis, "tool-gateway": tools}  # fmt: skip
+              "incident-kpis": kpis, "tool-gateway": tools, "evaluation": evaluation}  # fmt: skip
 
 
 def render(d: dict[str, Any]) -> str:

@@ -21,3 +21,10 @@ Committed (25b): the real-model run `investigations-2026-10-23T033835-rescored.j
 Sonnet on kind, $0.98, re-scored with the status/proposal metrics) and its
 `calibration-2026-10-23T041541.json` (vs a FAKE sandbox run). Calibration is always quoted
 with its Wilson interval.
+
+## In the `eval` schema (Phase 25c)
+`make eval-import` copies these files into `eval` for the Grafana "AEOI - Evaluation" dashboard.
+The files stay the record. It refuses (and names) what it cannot prove valid: fake-embedding
+runs, `valid: false` modes, rag files older than the validity check (incl. the RERANK run
+above), invalid investigation cases; it never imports `rag-sweep-*`, `calibration-*` or
+`agent-log-compare-*`.
