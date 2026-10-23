@@ -1,8 +1,9 @@
 # Phase 25 - MLOps / evaluation (ADR-037)
 
-Status: **25a VERIFIED 2026-10-23** (PR #34, main 499ede9 green, run 39891545509). **25b BUILT**
-(calibration + action-gate scores; real-model run on the Mac), Verify = its PR's checks. 25c
-(rag/history/risk evals in the `eval` schema + an eval dashboard) and the rubric flaw (c) after.
+Status: **25a VERIFIED 2026-10-23** (PR #34, main 499ede9 green, run 39891545509). **25b VERIFIED
+2026-10-23** (PR #35 6/6 green, main run 39901267018 green). **25c BUILT** (result files in the
+`eval` schema + the Evaluation dashboard), Verify = its PR's checks + the dashboard on the Mac.
+The rubric flaw (c) after, as its own decision.
 
 ## 0. Gate and scope
 - **Gate: passed.** Phase 24 verified and closed (PR #33, main ecaaabe).
@@ -122,15 +123,48 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
 - Read every number as an upper bound on planted scenarios, with intervals this wide.
 
 ## 6. Verify 25b
-- [ ] PR: all checks green; the infra-smoke eval still "no regression" (passed unchanged).
+- [x] PR #35: all checks green; the infra-smoke eval still "no regression" (passed unchanged).
 - [x] Real-model run + rescore + calibration on the Mac (the numbers above, files committed:
       `investigations-2026-10-23T033835-rescored.json`, `calibration-2026-10-23T041541.json`).
-- [ ] `main` green after the merge.
+- [x] `main` green after the merge (run 39901267018).
 
 ## 7. Open items
 - (c) mechanism vs cause: a saturation on the same service AFTER a deploy is scored as a
   rival cause (S01, S04: HIGH + VALIDATED, wrong). A rubric change needs its own eval cases.
 - The postmortem writer runs (and costs) when no hypothesis survived.
-- 25c: rag/history/risk evals in the `eval` schema + one eval dashboard.
 - Rate limits: agents acting for a user spend that user's interactive budget (ADR-037).
 - More pack versions (v2) for new categories - never by editing v1's truth.
+
+## 8. 25c - the evals in one place (owner: "25c first", twice, after my "low value" need check)
+- **Need check (mine, 2026-10-23): low value.** Every number already lives in a committed file;
+  a dashboard adds a view, not a measurement. Owner chose it anyway: built minimal.
+- `scripts/eval_import.py` + `make eval-import [FILES=]`: result FILES -> `eval.datasets` /
+  `eval_runs` (+ per-case `evaluations` for investigation runs whose cases are seeded). The files
+  stay the record; the schema is a copy. Idempotent (an investigation file keeps the runner's
+  run id; others = uuid5 of the file's SHA-256; ON CONFLICT DO NOTHING). Known kinds only.
+- **Refused, with the reason printed:** fake-embedding rag/history runs; a rag mode with
+  `valid: false`; **rag files written before the Phase 7 validity check** - one of them
+  (`rag-2026-10-06T043554`, RERANK=1) is the known-invalid run whose "hybrid" was keyword-only,
+  and my first importer accepted it (found by reading the results README, fixed, tested); an
+  investigation run with invalid cases; never: `rag-sweep-*`, `calibration-*`,
+  `agent-log-compare-*`; anything unknown (e.g. `catalog-latency-*`).
+- `summary` written by the importer = numbers only (test); "11/16" becomes `{"k": 11, "n": 16}`.
+  A rescore is marked `rescored: 1` (two rows, ONE paid run - the dashboard shows the flag).
+- The runner now also stores `validated_wrong` and `proposal_*` per case (one `METRICS` list,
+  shared with the importer - a test). Runs before this show those columns empty, not 0.
+- **Migration 0028:** obs_reader reads ids, names, status, times, git_sha, `summary`, metric +
+  value - never `eval_cases.input/expected` (the planted truth), `eval_runs.config` or
+  `evaluations.details` (hypothesis text). Checked AS obs_reader on a migrated Postgres:
+  every panel query runs; `config`, `expected`, `details` are denied; downgrade/upgrade clean.
+- **Dashboard "AEOI - Evaluation"** (90 days, no auto-refresh): runs table; investigation eval
+  per run (passed rate, confident_wrong, validated_wrong, rollbacks correct/wrong/missed);
+  rag recall@5 + its 95 % interval per mode; similar-incident hit@5 + interval per mode. Every
+  panel says "upper bound" and why FAKE runs show validated_wrong 0.
+- Sandbox replay (ci-sim, 2026-10-23): 29 files read -> 7 runs imported (2 rag, 3 history, the
+  real-model run + its rescore), 22 refused with a reason; a second run imports 0.
+
+## 9. Verify 25c
+- [ ] PR: all checks green.
+- [ ] Mac: `make db-upgrade` (0028) + `make eval-import` + the Evaluation dashboard shows the
+      runs (the rescored real run: validated_wrong 2, rollbacks 5 / 0 / 2).
+- [ ] `main` green after the merge.

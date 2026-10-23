@@ -263,6 +263,7 @@ def test_every_dashboard_answers_a_question_and_uses_known_sources() -> None:
     uids = {d["uid"] for d in ds["datasources"]}
     files = sorted((OBS / "grafana/dashboards").glob("*.json"))
     assert [f.name for f in files] == [
+        "evaluation.json",
         "incident-kpis.json",
         "investigation-funnel.json",
         "llm-cost.json",
@@ -285,11 +286,12 @@ def test_every_dashboard_answers_a_question_and_uses_known_sources() -> None:
 
 
 def test_dashboards_read_only_the_columns_grafana_may_read() -> None:
-    """obs_reader gets SELECT on named COLUMNS (migrations 0026 + 0027); a dashboard naming any
+    """obs_reader gets SELECT on named COLUMNS (migrations 0026-0028); a dashboard naming any
     other column of those tables would fail on the Mac - and would mean widening the grant.
     (The sandbox also ran every panel AS that role on a migrated Postgres: Phase 23b.)"""
     import importlib.util
 
+    from aeoi_db.models.eval import Dataset, EvalCase, EvalRun, Evaluation
     from aeoi_db.models.incident import Approval, Hypothesis, Incident
     from aeoi_db.models.llm import ModelUsage
     from aeoi_db.models.orchestrator import Investigation
@@ -297,7 +299,8 @@ def test_dashboards_read_only_the_columns_grafana_may_read() -> None:
 
     readable: dict[str, tuple[str, ...]] = {}
     for rev, name in (("0026", "0026_investigation_trace_and_obs_reader.py"),
-                      ("0027", "0027_obs_reader_kpis_and_tools.py")):  # fmt: skip
+                      ("0027", "0027_obs_reader_kpis_and_tools.py"),
+                      ("0028", "0028_obs_reader_eval.py")):  # fmt: skip
         spec = importlib.util.spec_from_file_location(
             f"m{rev}", ROOT / "libs/db/alembic/versions" / name
         )
@@ -309,7 +312,9 @@ def test_dashboards_read_only_the_columns_grafana_may_read() -> None:
             readable[table] = cols
     tables = {"orchestrator.investigations": Investigation, "llm.model_usage": ModelUsage,
               "incident.incidents": Incident, "incident.hypotheses": Hypothesis,
-              "incident.approvals": Approval, "tools.tool_calls": ToolCall}  # fmt: skip
+              "incident.approvals": Approval, "tools.tool_calls": ToolCall,
+              "eval.datasets": Dataset, "eval.eval_cases": EvalCase, "eval.eval_runs": EvalRun,
+              "eval.evaluations": Evaluation}  # fmt: skip
     assert set(tables) == set(readable)
     for table, model in tables.items():  # a grant names only real columns
         assert set(readable[table]) <= {c.name for c in model.__table__.columns}, table
@@ -330,6 +335,22 @@ def test_dashboards_read_only_the_columns_grafana_may_read() -> None:
                     granted_elsewhere = {c for u in used if u != name for c in readable[u]}
                     hit = (forbidden - granted_elsewhere) & words
                     assert not hit, (f.name, p["title"], name, hit)
+
+
+def test_grafana_never_reads_eval_truth_config_or_details() -> None:
+    """0028: the eval truth (eval_cases.input/expected), run config and per-case details stay
+    with the schema owner; obs_reader reads ids, names, numbers and the numeric summary."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "m0028", ROOT / "libs/db/alembic/versions/0028_obs_reader_eval.py"
+    )
+    assert spec and spec.loader
+    mig = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mig)
+    granted = {c for cols in mig.READABLE.values() for c in cols}
+    assert not granted & {"input", "expected", "config", "details", "description"}
+    assert mig.down_revision == "0027"
 
 
 def test_the_dashboard_files_are_what_the_generator_writes() -> None:

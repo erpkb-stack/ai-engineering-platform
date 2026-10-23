@@ -1,6 +1,6 @@
 # ADR-037: Investigation eval = planted causes through the product path, a regression gate in CI
 
-Status: Proposed (25a verified 2026-10-23, PR #34; 25b adds calibration)
+Status: Proposed (25a verified PR #34, 25b verified PR #35; 25c adds the import + dashboard)
 Date: 2026-10-22
 Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), ADR-020 (outcome)
 
@@ -74,6 +74,14 @@ Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), A
   break S04. The critic's doubt is right 2 of 4 times on this pack; its support 9 of 11.
 - **The runner retries only safe calls** (GET, or POST with an Idempotency-Key, same key);
   everything else is never repeated.
+
+## 25c additions (2026-10-23)
+- **Files are the record, the schema is a read copy.** `make eval-import` maps known result
+  kinds into `eval`; anything it cannot prove valid is refused and named (fake embeddings,
+  `valid: false`, files older than the validity check, invalid investigation cases). Derived
+  files (calibration), tuning (rag-sweep) and anecdotes (agent-log-compare) are never imported.
+- **An importer, not each eval writing `eval`:** the rag service does not own the eval schema.
+- **Grafana reads numbers only** (0028): never the planted truth, run config or per-case text.
 
 ## Not done (and why)
 - No `services/evaluation` service: the runner is a batch CLI; a service adds deploy, auth
