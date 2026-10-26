@@ -1,0 +1,62 @@
+# AEOI threat model (Phase 26, ADR-038)
+
+What can go wrong, what stops it, and **which test proves it**. Every test named here is
+checked to exist by `tests/unit/test_threat_model.py`, so this page cannot silently go stale.
+A row without a test is a gap, said as one.
+
+Scope: the prototype on the owner's Mac (compose / kind) with fictional data. Production
+differences are in the last column of section 4. Architecture: `architecture.md` §15-16.
+
+## 1. Assets and trust boundaries
+- **Assets:** incident data and evidence (logs, metrics, deploys, code); restricted documents
+  (per-group ACL); the ability to change production (rollback); LLM spend; the audit trail.
+- **Untrusted inputs:** everything a tool returns (logs, commit messages, diffs, documents,
+  past incidents), everything a model writes, everything a user types.
+- **Boundaries:** user -> api (JWT); service -> service (service token + `X-On-Behalf-Of`);
+  agent -> systems (ONLY the tool gateway); any prompt -> a hosted model (ONLY the LLM
+  gateway); model text -> a reader (console, postmortem).
+- **The main control is capability, not detection:** agents hold read tools only. A fully
+  hijacked agent still cannot act: a consequential tool needs a server-verified approval bound
+  to (action, args hash, incident, approver), used once.
+
+## 2. Threats, controls, tests
+
+| id | threat | control (where) | tests | status |
+|---|---|---|---|---|
+| T-INJ-1 | direct injection: instructions in a log line / commit / diff steer an agent | untrusted text only inside `<untrusted_data>`; facts are CODE, the model only labels (`aeoi_security.untrusted`, ADR-018) | `services/agents/tests/test_log_agent.py::test_facts_do_not_depend_on_model_output_even_if_it_is_injected` · `services/agents/tests/test_log_agent.py::test_error_code_text_stays_inside_the_untrusted_block` · `services/agents/tests/test_code_agent.py::test_injected_text_in_a_diff_changes_nothing` · `services/agents/tests/test_release_risk.py::test_injected_text_in_a_commit_message_is_not_in_any_factor` | covered |
+| T-INJ-2 | indirect injection: a stored document or past incident carries instructions | ingest flags + quarantines (no chunks, never retrieved); history hits wrapped as data | `tests/integration/rag/test_rag.py::test_quarantined_docs_never_retrieved` · `tests/integration/rag/test_rag.py::test_quarantine_after_indexing_hides_existing_chunks` · `services/agents/tests/test_history_agent.py::test_injected_text_in_a_past_incident_is_wrapped_as_data` · `services/agents/tests/test_reasoning_agents.py::test_untrusted_data_is_wrapped_in_the_prompt` | covered (detection is heuristic: a miss is still only data, see T-ACT-1) |
+| T-INJ-3 | malicious tool response: a tool returns crafted content | the gateway sanitizes every output (redact, PII, injection flag, evidence ids) before any agent sees it | `services/tool-gateway/tests/test_policy_sanitize.py::test_sanitize_redacts_flags_and_assigns_evidence_ids` · `services/agents/tests/test_log_agent.py::test_gateway_flags_mark_cluster_untrusted` | covered |
+| T-ACT-1 | a hijacked agent changes production | read tools only; consequential tool = approval bound to action + args hash + incident + approver, single use, expires; executor acts AS the approver, never delegated | `services/tool-gateway/tests/test_policy_sanitize.py::test_consequential_policy_lets_only_an_approver_with_an_approval_try` · `services/tool-gateway/tests/test_policy_sanitize.py::test_a_delegated_token_never_acts_even_with_an_approval` · `tests/integration/agents/test_approvals_e2e.py::test_the_gateway_runs_only_this_approval_by_this_approver_with_these_args` · `tests/integration/agents/test_approvals_e2e.py::test_an_expired_approval_never_acts_but_a_finished_one_is_still_reported` · `tests/integration/agents/test_approvals_e2e.py::test_two_executions_at_once_run_it_once_and_the_retry_records_executed` | covered |
+| T-ACT-2 | one person both requests and approves (or an admin approves) | separation of duties: approver = an IC who is NOT the requester; ADMIN cannot approve | `tests/integration/agents/test_approvals_e2e.py::test_investigation_proposes_another_ic_approves_and_the_rollback_runs` · `tests/integration/agents/test_approvals_e2e.py::test_the_approver_cannot_run_or_consume_it_by_hand` · `libs/security/tests/test_auth.py::test_admin_cannot_approve_actions` | covered |
+| T-LEAK-1 | retrieval returns a document the user may not read | ACL filter in SQL BEFORE ranking, both branches; groups never from the request body | `tests/integration/rag/test_rag.py::test_leakage_matrix_is_zero` · `tests/integration/rag/test_rag.py::test_groups_in_body_are_rejected` · `tests/integration/rag/test_rag.py::test_acl_change_takes_effect_immediately` · `tests/integration/db/test_constraints.py::test_engineer_query_never_returns_restricted_chunk` · `tests/integration/rag/test_rag.py::test_incident_search_applies_group_acl_and_service_filter` | covered |
+| T-LEAK-2 | a role reads or does what it may not (RBAC) | permission checks at api route, tool gateway policy and SQL | `tests/integration/services/test_incident_api.py::test_engineer_cannot_change_status` · `tests/integration/services/test_incident_api.py::test_manager_cannot_start_investigation` · `tests/integration/rag/test_codeindex.py::test_a_manager_cannot_read_code` · `services/tool-gateway/tests/test_policy_sanitize.py::test_manual_mode_follows_role_permissions_exactly` · `services/api/tests/test_gateway.py::test_forbidden_never_reaches_upstream` | covered |
+| T-AUTH-1 | forged / misused tokens (alg none, wrong issuer, a delegated token as a bearer) | `Authenticator` routes by issuer, refuses alg none and HS256-with-public-key; delegated tokens only in `X-On-Behalf-Of`, bound to investigation + incident, short-lived | `libs/security/tests/test_auth.py::test_alg_none_rejected` · `libs/security/tests/test_auth.py::test_wrong_audience_and_issuer_rejected` · `libs/security/tests/test_oidc.py::test_hs256_with_the_public_key_and_alg_none_are_refused` · `libs/security/tests/test_delegation.py::test_delegated_token_is_never_a_primary_bearer` · `libs/security/tests/test_delegation.py::test_expired_delegated_token_is_rejected` · `libs/web/tests/test_web.py::test_verify_obo_accepts_user_and_delegated_but_primary_does_not` | covered |
+| T-EXF-1 | exfiltration through a URL the system fetches | no tool takes a URL; HTTP tools only to hosts on an egress allow-list, checked BEFORE connecting; a hosted LLM's URL cannot change by env | `services/tool-gateway/tests/test_policy_sanitize.py::test_egress_allowlist_blocks_before_connecting` · `tests/integration/tools/test_tools.py::test_egress_outside_allowlist_never_leaves` · `tests/unit/test_compose_contract.py::test_the_egress_allow_list_is_exactly_the_hosts_of_the_http_tools` · `services/llm-gateway/tests/test_config.py::test_a_hosted_provider_url_cannot_change_by_env` | covered |
+| T-EXF-2 | exfiltration through text a READER renders (markdown image / link beacon) | console shows model + tool text as text, links only from code fields and only http(s); postmortem drops sentences with link/markup syntax and escapes on render | `frontend/src/pages/incident/Findings.test.tsx::markup in an excerpt or title is shown as text, never rendered` · `services/agents/tests/test_reasoning_agents.py::test_links_and_markup_from_the_model_are_dropped` · `services/incident-service/tests/test_postmortem_render.py::test_model_markup_is_escaped_and_a_negative_gap_is_said_plainly` | covered |
+| T-PII-1 | PII stored in embeddings, traces or tool outputs | `scrub_pii` at ingest, at the tool gateway, in agent traces | `libs/security/tests/test_pii_injection.py::test_scrubs_email_phone_card_ssn` · `tests/integration/rag/test_rag.py::test_pii_never_stored` · `services/tool-gateway/tests/test_policy_sanitize.py::test_uuids_are_identifiers_not_pii` | covered |
+| T-PII-2 | PII a USER typed (incident title) sent to a hosted model | **Phase 26:** the LLM gateway scrubs PII (after secrets) before every hosted provider | `services/llm-gateway/tests/test_gateway.py::test_pii_is_scrubbed_before_a_hosted_provider` | **fixed in Phase 26** (the test failed before) |
+| T-PII-3 | names and free-text addresses | none: patterns catch emails, phones, cards, SSNs only | none | **gap, accepted** (ADR-038: no NER model) |
+| T-SEC-1 | secrets in logs, tool outputs, prompts or the repo | redaction (patterns + sensitive keys) at the tool gateway, LLM gateway, logs; gitleaks in CI + pre-commit | `libs/security/tests/test_security.py::test_redacts_secret_patterns` · `services/tool-gateway/tests/test_policy_sanitize.py::test_secret_across_the_truncation_point_is_still_redacted` · `services/llm-gateway/tests/test_gateway.py::test_secrets_are_redacted_before_a_hosted_provider` · `tests/integration/tools/test_tools.py::test_deployment_and_config_diff_hide_secret_values` · `libs/observability/tests/test_logs.py::test_json_log_has_service_correlation_and_redaction` | covered |
+| T-DOS-1 | one user / a runaway agent exhausts tools or LLM money | Redis token bucket per user + tool (denials count too); LLM budget per investigation; agent tool-call budgets | `services/tool-gateway/tests/test_service.py::test_rate_limit_per_user_and_tool` · `services/tool-gateway/tests/test_service.py::test_denials_are_rate_limited_too` · `services/llm-gateway/tests/test_gateway.py::test_budget_blocks_calls_once_spent` · `services/agents/tests/test_log_agent.py::test_budget_caps_tool_calls` | covered (open: agents spend the USER's interactive budget, ADR-037) |
+| T-SUP-1 | a vulnerable dependency ships | Trivy (SHA-256 pinned binary) on both images, gate on a fixable CRITICAL, dated exceptions; actions pinned by SHA | `tests/unit/test_scan_gate.py::test_a_fixable_critical_fails_and_names_the_fix` · `tests/unit/test_scan_gate.py::test_an_expired_or_too_long_exception_fails` · `tests/unit/test_ci_workflow.py::test_trivy_is_a_pinned_binary_checked_by_sha256` · `tests/unit/test_ci_workflow.py::test_every_action_is_pinned_by_full_commit_sha` | covered for what SHIPS (see section 3) |
+
+## 3. Accepted gaps (each with its reason)
+- **T-PII-3, names and addresses:** an NER model (e.g. Presidio + a spaCy model) is a large
+  download and runs on the Intel Mac's CPU on every prompt; it would also have to be tuned not
+  to flag service and team names. Not measured here: a decision for the owner (ADR-038).
+  Recorded, not hidden: `aeoi_security.pii` says it does not catch names.
+- **Frontend npm packages are not scanned:** the console is not in any image (dev server
+  only), so nothing ships. Scan when it ships.
+- **Detection is heuristic** (injection flags, PII patterns): a miss is still only DATA to the
+  model, and capability limits (T-ACT-1) hold either way.
+- **Two catalog CVEs excepted** until 2027-01-31 (need Spring Boot 4,
+  `infrastructure/security/scan-exceptions.toml`).
+
+## 4. Prototype vs production
+| control | prototype (here) | production |
+|---|---|---|
+| service identity | signed service JWT | mTLS + workload identity |
+| secrets | Docker / K8s secrets from files | a secrets manager + rotation |
+| PII | patterns at 4 boundaries | + NER, DLP on egress |
+| dependency scan | images in CI | + registry scan on a schedule, SBOM |
+| audit | append-only table | + WORM storage, SIEM |

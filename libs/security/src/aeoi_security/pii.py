@@ -2,7 +2,7 @@
 
 Pattern-based, deliberately conservative. It catches the formats that appear in operational
 documents (emails, phone numbers, card numbers, US SSNs). It does NOT catch names or free-text
-addresses - that needs an NER model (Phase 26). Say so when asked; don't oversell it.
+addresses - that needs an NER model, not adopted (ADR-038). Say so when asked; don't oversell it.
 """
 
 from __future__ import annotations
