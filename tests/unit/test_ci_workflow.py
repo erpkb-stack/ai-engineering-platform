@@ -95,6 +95,10 @@ def test_the_investigation_eval_runs_with_its_regression_baseline() -> None:
     steps = _steps(_ci()["jobs"]["infra-smoke"])
     run = "\n".join(str(s.get("run", "")) for s in steps)
     assert "make eval-seed" in run and "make eval-investigations BASELINE=" in run
-    base = re.search(r"BASELINE=(\S+)", run)
-    assert base and (ROOT / base.group(1)).is_file()
+    bases = re.findall(r"BASELINE=(\S+)", run)
+    assert bases and all((ROOT / b).is_file() for b in bases)
+    from aeoi_synth import scenarios  # every pack is gated: v1 and v2 (flaw (c))
+
+    for v in scenarios.VERSIONS:
+        assert f"investigations-v{v}-fake.json" in run
     assert run.index("make db-seed") < run.index("make eval-seed")  # db-seed truncates devdata
