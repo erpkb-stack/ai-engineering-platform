@@ -4,8 +4,8 @@ Status: **25a VERIFIED 2026-10-23** (PR #34, main 499ede9 green, run 39891545509
 2026-10-23** (PR #35 6/6 green, main run 39901267018 green). **25c VERIFIED
 2026-10-23** (PR #36 6/6 green, main 41fcd5a run 39904511914 green, dashboard read on the Mac);
 25c-fix1 VERIFIED (PR #37, main e028996 run 39907215844 green, panel re-read on the Mac).
-**25d BUILT: flaw (c) MEASURED** (pack v2 + `wrong_high`, rubric unchanged), Verify = its PR's
-checks. The rubric rule comes after, judged by v1 + v2.
+25d VERIFIED (PR #38 6/6 green, main 60a70c4). **25e BUILT: rule R1** (a resource is the
+MECHANISM of a close earlier cause), Verify = its PR's checks + one paid run for the status.
 
 ## 0. Gate and scope
 - **Gate: passed.** Phase 24 verified and closed (PR #33, main ecaaabe).
@@ -224,4 +224,39 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
   breaking S20, S21 or any v1 case - judged by both baselines, then one paid run.
 
 ## 11. Verify 25d
-- [ ] PR: all checks green; the CI eval "no regression" for v1 AND v2, `invalid: []` both.
+- [x] PR #38: 6/6 green (the eval job can only pass with "no regression" and no INVALID case
+      for both packs: the runner exits 1 otherwise); merged as 60a70c4.
+
+## 12. 25e - rule R1: a resource is the mechanism of a close earlier cause (owner: "agree")
+- **The rule (`candidates.mechanism_of`):** a resource rise counts AGAINST itself as a separate
+  cause when, on its own service, an earlier cause started no later than it: a traffic change,
+  or a deploy that is itself a candidate and at most 60 min before it (the rubric's own lead
+  limit). The claim stays visible (one contradiction: not HIGH) and says why: "it rose 5 min
+  after DEPLOY-...: possibly that cause's mechanism, not a separate cause".
+- **Designed on paper first, against all 22 cases, then measured (FAKE, sandbox replay of the
+  CI step).** The prediction held case for case:
+
+| | before R1 | with R1 |
+|---|---|---|
+| wrong HIGH claims | 6/22 (S01 S04 S14 S18 S19 S22) | **2/22 (S14, S22)** |
+| passed | 19/22 | **20/22** (S19 fixed) |
+| guard rails S20, S21, v1 S06-S10 | pass | pass (unchanged) |
+
+- **One real-model data point agrees, independently of my pack:** in the first real Sonnet
+  run on the demo, the critic cited the deploy AGAINST the pool ("an intermediate step, not a
+  root cause"); code refused that citation then. With R1 code counts it itself.
+- **S22 deliberately NOT fixed:** "a resource that rose before a deploy counts against the
+  deploy" would break a case with S22's signals and the opposite truth (a pool drifting up,
+  then a bad config deploy causes the errors). The rubric does not read what the error log
+  says, so it cannot tell them apart. A second known flaw, with its reason.
+- **The bet R1 makes:** a same-service deploy within 60 min before a resource rise caused it.
+  An innocent deploy just before a real saturation has the same signals; only real
+  postmortems can say which is more common.
+- **What R1 does not promise:** VALIDATED depends only on the critic (`validation._status`),
+  not on the band. A MEDIUM pool claim the critic calls "supported" is still VALIDATED and
+  wrong. Measured only by a paid run; if it stays, the next rule is "a claim code contradicts
+  cannot be VALIDATED".
+
+## 13. Verify 25e
+- [ ] PR: all checks green; CI eval v1 + v2 "no regression" (both baselines updated in it).
+- [ ] One paid run on the Mac (v1 + v2, COST=1): `validated_wrong` for S01/S04/S18/S19.

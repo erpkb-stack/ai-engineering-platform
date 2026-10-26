@@ -31,7 +31,7 @@
    "case": "investigations-v1-S01",
    "passed": true,
    "top": "Deploy DEPLOY-9100 on orders-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms).",
-   "wrong_high": true
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S02",
@@ -49,7 +49,7 @@
    "case": "investigations-v1-S04",
    "passed": true,
    "top": "Deploy DEPLOY-9130 on cart-api may have caused the regression: it started 7 min before the first symptom (p95_latency_ms).",
-   "wrong_high": true
+   "wrong_high": false
   },
   {
    "case": "investigations-v1-S05",
@@ -125,8 +125,8 @@
   }
  ],
  "wrong_high_source": {
-  "run_id": "01a16a14-443a-789f-bf45-121ee738e287",
-  "started_at": "2026-10-23T18:44:35+00:00",
-  "where": "sandbox replay of the CI services, 2026-10-23"
+  "run_id": "01a17664-a066-7cf2-b9f6-d6c87bf9de1a",
+  "started_at": "2026-10-26T04:07:48+00:00",
+  "where": "sandbox replay of the CI services, 2026-10-25, after rule R1 (Phase 25e)"
  }
 }

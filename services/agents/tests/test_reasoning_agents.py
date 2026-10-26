@@ -12,7 +12,7 @@ from uuid import uuid4
 from aeoi_agents.config import PostmortemBudget, ReasoningBudget
 from aeoi_agents.postmortem.agent import Deps as PDeps
 from aeoi_agents.postmortem.agent import PostmortemAgent, check, timeline
-from aeoi_agents.reasoning.candidates import propose
+from aeoi_agents.reasoning.candidates import mechanism_of, propose
 from aeoi_agents.reasoning.critic import CriticAgent
 from aeoi_agents.reasoning.critic import Deps as CDeps
 from aeoi_agents.reasoning.hypothesis import Deps as HDeps
@@ -155,7 +155,10 @@ def test_candidates_use_timing_and_rule_out_traffic() -> None:
     assert "started 7 min before the first symptom (p95_latency_ms)" in deploy.statement
     assert "may have caused" in deploy.statement  # not validated yet: no "caused"
     pool = next(h for h in hs if "DB connection pool" in h.statement)
-    assert pool.contradicting == ["o2"]  # latency moved first: pool may be a consequence
+    # latency moved first: pool may be a consequence; and (Phase 25e, flaw (c)) the deploy 5 min
+    # before it on the same service may be what drove it: the pool is its mechanism, not a rival
+    assert pool.contradicting == ["o2", "o1"]
+    assert "possibly that cause's mechanism" in pool.statement
     # review finding: thread pool rose AFTER every symptom -> a consequence, ruled out by timing
     assert not any("thread pool" in h.statement for h in hs)
     threads = next(r for r in ruled if "thread pool" in r.statement)
@@ -329,13 +332,14 @@ async def test_first_real_sonnet_critique_does_not_lower_the_deploy() -> None:
     assert by["h1"].confidence.value == "HIGH" and by["h1"].contradicting == []
     assert sorted(by["h1"].critic_disputed) == sorted([ref["cpu_util"], ref["requests_per_sec"]])
     assert by["h1"].status != "CHALLENGED" and "flag flip" in by["h1"].refinement
-    assert by["h2"].confidence == pool.confidence and by["h2"].critic_disputed == [
-        ref["DEPLOY-4821"]
-    ]
+    # the first real Sonnet run cited the deploy AGAINST the pool ("an intermediate step");
+    # code refused it then (disputed). Since 25e code already counts it: nothing to dispute
+    assert by["h2"].confidence == pool.confidence and by["h2"].critic_disputed == []
+    assert ref["DEPLOY-4821"] in pool.contradicting
     assert by["h2"].contradicting == pool.contradicting  # p95 was already code's contradiction
     assert not [h for h in r.hypotheses if h.origin == "critic"]  # no rival restatement
     c = r.critique
-    assert c and c.contradictions_added == 0 and c.contradictions_ineligible == 3
+    assert c and c.contradictions_added == 0 and c.contradictions_ineligible == 2
     assert c.alternatives_merged == 1 and c.alternatives_accepted == 0
 
 
@@ -704,3 +708,35 @@ def test_utilisation_metrics_read_as_percent() -> None:
     assert metric_value("p95_latency_ms", 439.8) == "439.8"  # not a ratio: unchanged
     pool = next(o for o in build(demo()) if o.subject == "db_pool_utilization")
     assert "(peak 200%," in pool.statement  # the demo's peak_value is 2.0
+
+
+def _o(ref: str, role: str, minute: int, svc: str = "a", subject: str = "x") -> Observation:
+    t = datetime(2026, 10, 3, 2, 0, tzinfo=UTC) + timedelta(minutes=minute)
+    return Observation(ref=ref, agent="metrics", role=role, service_key=svc,  # type: ignore[arg-type]
+                       subject=subject, at=t, statement="s",
+                       evidence=build(demo())[0].evidence)  # fmt: skip
+
+
+def test_a_resource_is_the_mechanism_only_of_a_close_earlier_cause_on_its_own_service() -> None:
+    """Phase 25e (flaw (c)): pack v2's guard rails as unit cases."""
+    first = _o("o9", "effect", -10, subject="http_5xx_per_min")
+    pool = _o("o1", "resource", -12, subject="db_pool_utilization")
+    assert mechanism_of(pool, _o("o2", "change", -17), first)  # S01: deploy 5 min before
+    assert mechanism_of(pool, _o("o2", "traffic", -20), first)  # S19: traffic first
+    assert not mechanism_of(pool, _o("o2", "change", -150), first)  # S20: 138 min > 60
+    assert not mechanism_of(pool, _o("o2", "change", -25, svc="b"), first)  # S21: other service
+    assert not mechanism_of(pool, _o("o2", "change", -11), first)  # S22: deploy AFTER the pool
+    assert not mechanism_of(pool, _o("o2", "change", -5), first)  # after the first symptom
+
+
+def test_the_mechanism_rule_keeps_a_pool_that_rose_alone_high() -> None:
+    """S06 shape: no deploy, no traffic before it - the pool is still a HIGH candidate."""
+    obs = [_o("o1", "resource", -18, subject="db_pool_utilization"),
+           _o("o2", "effect", -11, subject="p95_latency_ms"),
+           _o("o3", "effect", -10, subject="http_5xx_per_min")]  # fmt: skip
+    obs.append(Observation(**{**obs[2].model_dump(), "ref": "o4", "agent": "log_analysis",
+                              "subject": "ERR_POOL_TIMEOUT"}))  # fmt: skip
+    obs[1] = Observation(**{**obs[1].model_dump(), "sustained": True})
+    hs, _ = propose(obs)
+    pool = next(h for h in hs if h.cause_kind == "saturation")
+    assert pool.contradicting == [] and pool.confidence.value == "HIGH"
