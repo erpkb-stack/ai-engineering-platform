@@ -1,6 +1,6 @@
 # ADR-039: Load tests run AS the seeded team, against kind, with fake LLMs that wait the MEASURED delay
 
-Status: Proposed
+Status: Proposed (measured 2026-10-26; bottleneck not proven)
 Date: 2026-10-26
 Refines: architecture.md §17 (10 rps prototype / 100 rps production), ADR-014, ADR-034
 
@@ -31,6 +31,13 @@ Refines: architecture.md §17 (10 rps prototype / 100 rps production), ADR-014, 
   run) share the same slots; found in the sandbox (100 left by a buggy first version).
 - **Knee** = the first stage that delivers < 90 % of its target, or p95 > 2x the first
   stage's, or > 1 % errors (5xx / no answer). 429 is never a knee.
+
+## Results (Mac, 2026-10-26; phase-27.md section 5)
+- The read path bends between 10 and 25 rps on this laptop, far below 100; two identical capacity
+  runs differed ~10x, so no absolute number is quotable. The per-user limit never engaged (0 %
+  429): the system bends before the team's ~62 rps policy cap. Overload = slow 503s.
+- Investigations: ~2.8/min = 2 slots / 43.5 s run, as modelled; above it the queue grows.
+- Not proven: which service saturates (the `ps` check used a lifetime average - wrong tool).
 
 ## Tradeoffs
 - A fixed p50 delay has no tail (real p95 is 1.2-1.8x p50): queueing is UNDERstated.
