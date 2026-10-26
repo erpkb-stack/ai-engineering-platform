@@ -1,6 +1,6 @@
 # ADR-037: Investigation eval = planted causes through the product path, a regression gate in CI
 
-Status: Proposed (25a PR #34, 25b PR #35, 25c PR #36-#37 verified; 25d measures flaw (c))
+Status: Proposed (25a-25d verified, PRs #34-#38; 25e adds rule R1 for flaw (c))
 Date: 2026-10-22
 Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), ADR-020 (outcome)
 
@@ -95,6 +95,16 @@ Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), A
   same-service saturation that is the real cause has S01's signals and the opposite truth.
 - One guard rail failed BEFORE any change (S22: a deploy after the resource rose is top HIGH):
   a second flaw, recorded in the v2 baseline as FAIL, not hidden.
+
+## 25e: rule R1 - a resource is the mechanism of a close earlier cause (2026-10-25)
+- A resource rise gets one contradiction (cannot be HIGH) when, on its own service, a traffic
+  change or a candidate deploy at most 60 min earlier came first. Designed on paper against
+  all 22 cases, then measured: wrong HIGH 6/22 -> 2/22, passed 19/22 -> 20/22, no guard rail
+  or v1 case changed. Refines ADR-021's rubric; ADR-021's bands are unchanged.
+- Not adopted: the mirror rule for S22 (a resource that rose before a deploy counts against
+  the deploy) - its counter-case (pool drift, then a bad config deploy) has the same signals.
+- The band is fixed; the STATUS is not guaranteed (VALIDATED needs only the critic): one paid
+  run decides whether "code-contradicted cannot be VALIDATED" is needed.
 
 ## Not done (and why)
 - No `services/evaluation` service: the runner is a batch CLI; a service adds deploy, auth

@@ -5,7 +5,8 @@ can be the CAUSE and it is not later than what it would explain:
 - change:     a deploy that started no later than the first symptom (support: its own
               service only; other early deploys count against it)
 - saturation: a resource signal; symptoms that started BEFORE it are listed as contradicting
-              (they suggest the saturation is a consequence, not the cause)
+              (they suggest the saturation is a consequence, not the cause), and so is an
+              earlier cause on its own service it may be the MECHANISM of (`mechanism_of`)
 - traffic:    a request-rate change
 Ruled out (negative evidence): a deploy that started after the first symptom; a resource or
 traffic metric that stayed within its baseline.
@@ -27,6 +28,24 @@ RESOURCE_WORDS = {
 }
 MAX_CANDIDATES = 8
 MAX_HIGH_LEAD_MIN = 60
+
+
+def mechanism_of(r: Observation, o: Observation, first: Observation) -> bool:
+    """Phase 25e (ADR-037, flaw (c)): may resource rise `r` be HOW cause `o` did it? Then `o`
+    counts AGAINST `r` as a separate cause: same service, `o` no later than `r`, and `o` is a
+    traffic change, or a deploy that is itself a candidate (no later than the first symptom)
+    and at most MAX_HIGH_LEAD_MIN before `r` (the rubric's own lead limit).
+    Measured first (pack v2): S01/S04/S18 (pool, thread pool after a deploy) and S19 (pool
+    after a traffic surge) were HIGH rivals of their own cause; S20 (deploy 132 min before the
+    pool) and S21 (another service's deploy) are guard rails this must not touch.
+    The bet, stated: a same-service deploy within 60 min before a resource rise caused it. An
+    innocent deploy just before a real saturation has the same signals: no rule can tell."""
+    if o.service_key != r.service_key or o.at > r.at:
+        return False
+    if o.role == "traffic":
+        return True
+    return (o.role == "change" and o.at <= first.at
+            and minutes(o.at, r.at) <= MAX_HIGH_LEAD_MIN)  # fmt: skip
 
 
 def evidence_of(refs: list[str], by_ref: dict[str, Observation]) -> list[EvidenceRef]:
@@ -100,6 +119,10 @@ def can_contradict(h: HypothesisOut, o: Observation, by_ref: dict[str, Observati
             return False
         if o.role == "effect" and o.at < cause.at:
             return True
+        first = first_effect(list(by_ref.values()))
+        if (h.cause_kind == "saturation" and cause.role == "resource" and first is not None
+                and mechanism_of(cause, o, first)):  # fmt: skip
+            return True
         return o.role == "steady" and o.subject == cause.subject
     return False
 
@@ -161,12 +184,14 @@ def propose(obs: list[Observation]) -> tuple[list[HypothesisOut], list[RuledOut]
         # out: that anchor can be background noise (review finding)
     for r in (o for o in obs if o.role == "resource"):
         sup = [r.ref] + [e.ref for e in effects if e.at >= r.at]
-        con = [e.ref for e in effects if e.at < r.at]
+        before = [e.ref for e in effects if e.at < r.at]
+        earlier = [o for o in obs if mechanism_of(r, o, first)]
+        con = before + [o.ref for o in earlier]
         what = RESOURCE_WORDS.get(r.subject, f"{r.subject} saturation")
         if len(sup) == 1 and first.sustained and first.at < r.at:
             ruled.append(RuledOut(
-                cause_kind="saturation", contradicting=con[:4],
-                contradicting_evidence=evidence_of(con[:4], by_ref),
+                cause_kind="saturation", contradicting=before[:4],
+                contradicting_evidence=evidence_of(before[:4], by_ref),
                 statement=f"{what} on {r.service_key} is a consequence, not the trigger: "
                 f"{r.subject} rose from {hhmm(r.at)}, after every symptom.",
             ))  # fmt: skip
@@ -175,7 +200,10 @@ def propose(obs: list[Observation]) -> tuple[list[HypothesisOut], list[RuledOut]
             "cause_kind": "saturation", "supporting": sup, "contradicting": con,
             "statement": f"{what} on {r.service_key} may have driven the symptoms: {r.subject} "
             f"rose from {hhmm(r.at)}"
-            + (f"; {len(con)} symptom(s) started earlier." if con else "."),
+            + (f"; {len(before)} symptom(s) started earlier" if before else "")
+            + (f"; it rose {minutes(earlier[0].at, r.at):g} min after {earlier[0].subject}: "
+               "possibly that cause's mechanism, not a separate cause" if earlier else "")
+            + ".",
         })  # fmt: skip
     for t in (o for o in obs if o.role == "traffic"):
         sup = [t.ref] + [e.ref for e in effects if e.at >= t.at]

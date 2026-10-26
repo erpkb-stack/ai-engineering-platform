@@ -1,31 +1,31 @@
 {
- "about": "Phase 25 pack v2 (flaw (c)) regression baseline, FAKE models (CI's routing.test.yaml) = the CODE path, BEFORE any rubric change. S19 and S22 FAIL here on purpose: they are the measured flaw. CI fails when a case that passed here fails, or a case without a wrong HIGH claim gains one. A fix updates this file in the same PR. 6 synthetic scenarios written for this eval: an upper bound.",
+ "about": "Phase 25 pack v2 (flaw (c)) regression baseline, FAKE models (CI's routing.test.yaml) = the CODE path, after rule R1 (Phase 25e: a resource that rose within 60 min after a same-service cause is its mechanism). S22 still FAILS on purpose: a second, opposite flaw, left unfixed for a stated reason (ADR-037). CI fails when a case that passed here fails, or a case without a wrong HIGH claim gains one. A fix updates this file in the same PR. 6 synthetic scenarios written for this eval: an upper bound.",
  "source": {
-  "run_id": "01a16a19-d8ad-78a2-b859-e701593a2442",
-  "started_at": "2026-10-23T18:50:41+00:00",
-  "where": "sandbox replay of the CI services, 2026-10-23"
+  "run_id": "01a17668-5537-7704-9033-42bd7832f23e",
+  "started_at": "2026-10-26T04:11:51+00:00",
+  "where": "sandbox replay of the CI services, 2026-10-25, after rule R1 (Phase 25e)"
  },
  "summary": {
   "cases": 6,
   "detectable": 6,
-  "top1": "4/6",
+  "top1": "5/6",
   "in_top3": "6/6",
-  "confident_wrong": "2/6",
+  "confident_wrong": "1/6",
   "undetectable_abstained": "0/0",
-  "decoy_above": "2/6",
+  "decoy_above": "1/6",
   "rule_out_ok": "0/0",
-  "passed": "4/6",
+  "passed": "5/6",
   "outcomes": {
    "PARTIAL": 6
   },
   "latency_s": {
-   "p50": 2.2,
-   "max": 2.2
+   "p50": 2.1,
+   "max": 2.1
   },
-  "cost_usd": 0.00066,
+  "cost_usd": 0.00396,
   "invalid": [],
   "validated_wrong": "0/6",
-  "wrong_high": "3/6",
+  "wrong_high": "1/6",
   "proposals": {
    "correct": 0,
    "wrong": 0,
@@ -42,14 +42,14 @@
   {
    "case": "investigations-v2-S18",
    "passed": true,
-   "wrong_high": true,
+   "wrong_high": false,
    "top": "Deploy DEPLOY-9310 on chat-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms)."
   },
   {
    "case": "investigations-v2-S19",
-   "passed": false,
-   "wrong_high": true,
-   "top": "DB connection pool saturation on geo-api may have driven the symptoms: db_pool_utilization rose from 2026-10-04 01:45:00Z."
+   "passed": true,
+   "wrong_high": false,
+   "top": "A traffic change (requests_per_sec) on geo-api may have driven the symptoms."
   },
   {
    "case": "investigations-v2-S20",
