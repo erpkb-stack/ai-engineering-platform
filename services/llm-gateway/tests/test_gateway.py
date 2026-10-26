@@ -9,6 +9,7 @@ from decimal import Decimal
 import pytest
 
 from aeoi_common.errors import BadRequestError
+from aeoi_llm.cache import ResponseCache
 from aeoi_llm.config import ModelConfig, RoutingConfig
 from aeoi_llm.errors import (
     AllProvidersFailedError,
@@ -71,7 +72,7 @@ async def test_allow_fallback_false_fails_instead_of_degrading(
     hosted.fail_next(RetryableError("x"), RetryableError("x"))
     with pytest.raises(AllProvidersFailedError):
         await gateway.generate("reasoning", req(), META, allow_fallback=False)
-    assert local.calls == []
+    assert len(local.calls) == 0
 
 
 async def test_rate_limit_status_is_recorded(
@@ -89,7 +90,7 @@ async def test_bad_request_is_not_hidden_by_fallback(
     hosted.fail_next(PermanentError("prompt too long", status=400))
     with pytest.raises(UpstreamRejectedError):
         await gateway.generate("reasoning", req(), META)
-    assert local.calls == []
+    assert len(local.calls) == 0
 
 
 async def test_auth_error_on_primary_falls_back(gateway: Gateway, hosted: FakeProvider) -> None:
@@ -484,3 +485,21 @@ async def test_forced_tool_setting_reaches_the_provider_per_model(
     hosted.structured.append({"a": 1})
     await gw.generate_structured("reasoning", req(json_schema={"type": "object"}), META)
     assert hosted.calls[-1].force_tool is False
+
+
+async def test_simulated_latency_waits_the_agents_measured_median(
+    routing: RoutingConfig, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    """Phase 27: per agent name, "default" for others; never for a config without it."""
+    waits: list[float] = []
+
+    async def record(s: float) -> None:
+        waits.append(s)
+
+    sim = routing.model_copy(update={"simulated_latency_ms": {"critic": 7593, "default": 612}})
+    gw = build_gateway(sim, sink, cache=ResponseCache(100, 3600), request_timeout_s=5,
+                       providers={"hosted_fake": hosted, "local_fake": local})  # fmt: skip
+    gw._sleep = record
+    await gw.generate("reasoning", req(), CallMeta(agent_name="critic"))
+    await gw.generate("fast", req("other"), CallMeta(agent_name="log_analysis"))
+    assert waits == [7.593, 0.612]

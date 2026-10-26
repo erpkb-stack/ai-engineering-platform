@@ -11,7 +11,9 @@ from aeoi_llm.config import RoutingConfig, load_routing
 CONFIG = Path(__file__).resolve().parents[1] / "config"
 
 
-@pytest.mark.parametrize("name", ["routing.yaml", "routing.local.yaml", "routing.test.yaml"])
+@pytest.mark.parametrize(
+    "name", ["routing.yaml", "routing.local.yaml", "routing.test.yaml", "routing.load.yaml"]
+)
 def test_shipped_policies_are_valid(name: str) -> None:
     cfg = load_routing(CONFIG / name)
     assert "reasoning" in cfg.routes
@@ -98,3 +100,17 @@ def test_an_override_for_a_provider_the_policy_does_not_have_is_ignored() -> Non
     """compose always sets the Ollama variable; routing.test.yaml (fakes) has no Ollama."""
     cfg = load_routing(CONFIG / "routing.test.yaml", env={OLLAMA_ENV: "http://localhost:1/v1"})
     assert "ollama" not in cfg.providers
+
+
+def test_simulated_latency_is_refused_unless_every_provider_is_fake() -> None:
+    """Phase 27: a load-test wait must never slow down, or pass for, a real model call."""
+    import yaml
+
+    load = yaml.safe_load((CONFIG / "routing.load.yaml").read_text())
+    assert RoutingConfig.model_validate(load).simulated_latency_ms["postmortem"] > 0
+    real = yaml.safe_load((CONFIG / "routing.yaml").read_text())
+    real["simulated_latency_ms"] = {"default": 100}
+    with pytest.raises(ValueError, match="fake providers only"):
+        RoutingConfig.model_validate(real)
+    for shipped in ("routing.yaml", "routing.local.yaml", "routing.test.yaml"):
+        assert not load_routing(CONFIG / shipped).simulated_latency_ms, shipped

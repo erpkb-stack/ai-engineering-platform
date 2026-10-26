@@ -219,6 +219,9 @@ services:
       AEOI_API_TOOL_GATEWAY_URL: http://tool-gateway:8006
       AEOI_API_ORCHESTRATOR_URL: http://orchestrator:8002
       AEOI_API_AUDIT_SERVICE_URL: http://audit:8008
+      # Phase 27: per-user limit; the CAPACITY load run raises it at deploy time only
+      # (API_RATE_LIMIT_PER_MINUTE=... make k8s-apply) and records the value it ran with
+      AEOI_API_RATE_LIMIT_PER_MINUTE: "${API_RATE_LIMIT_PER_MINUTE:-120}"
     secrets:
       - { source: jwt_public, target: /app/secrets/jwt_public.pem }
       - { source: api_svc_password, target: /app/secrets/api_svc_password.txt }
