@@ -4,8 +4,9 @@ Status: **25a VERIFIED 2026-10-23** (PR #34, main 499ede9 green, run 39891545509
 2026-10-23** (PR #35 6/6 green, main run 39901267018 green). **25c VERIFIED
 2026-10-23** (PR #36 6/6 green, main 41fcd5a run 39904511914 green, dashboard read on the Mac);
 25c-fix1 VERIFIED (PR #37, main e028996 run 39907215844 green, panel re-read on the Mac).
-25d VERIFIED (PR #38 6/6 green, main 60a70c4). **25e BUILT: rule R1** (a resource is the
-MECHANISM of a close earlier cause), Verify = its PR's checks + one paid run for the status.
+25d VERIFIED (PR #38 6/6 green, main 60a70c4). 25e VERIFIED (PR #39 6/6 green after fix1,
+main 4f1037e run 40271309813 green). **PHASE 25 CLOSED 2026-10-26.** Owner decision: no paid
+run for 25e, so the STATUS after R1 (VALIDATED) is unmeasured - see section 14.
 
 ## 0. Gate and scope
 - **Gate: passed.** Phase 24 verified and closed (PR #33, main ecaaabe).
@@ -131,7 +132,11 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
 - [x] `main` green after the merge (run 39901267018).
 
 ## 7. Open items
-- (c) mechanism vs cause: measured in 25d (section 10); the rubric rule is the next step.
+- (c) mechanism vs cause: rule R1 (25e) fixes the BAND on the code path; whether the critic
+  still VALIDATES a code-contradicted pool claim is unmeasured (owner: no paid run). If a later
+  real run shows it: "a claim code contradicts cannot be VALIDATED" (`validation._status`).
+- Known blind spots, each with its reason: S14 (an innocent change minutes before an
+  undetectable failure) and S22 (a deploy after a resource already rose).
 - The postmortem writer runs (and costs) when no hypothesis survived.
 - ~~A FAKE CI run records `cost_usd` 0.00952~~ - checked, by design: `routing.test.yaml` prices
   `fake-large` like a hosted model so CI tests the per-investigation budget ($0.01). Nothing is
@@ -263,5 +268,19 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
   dispute, and the deploy's evidence is now a CONTRADICTS edge of the pool. 262 passed.
 
 ## 13. Verify 25e
-- [ ] PR: all checks green; CI eval v1 + v2 "no regression" (both baselines updated in it).
-- [ ] One paid run on the Mac (v1 + v2, COST=1): `validated_wrong` for S01/S04/S18/S19.
+- [x] PR #39: 6/6 green after fix1 (an integration test asserted the old dispute); CI eval
+      v1 + v2 "no regression"; `main` green (4f1037e, run 40271309813).
+- [~] Paid run (v1 + v2, COST=1, ~$1.40): **declined by the owner (2026-10-26).** Not done,
+      not claimed: `validated_wrong` after R1 is unmeasured.
+
+## 14. Phase 25 - what was measured, and what was not
+| claim | measured on | result |
+|---|---|---|
+| CI catches a regression in the investigation ranking | FAKE, every PR | v1 16 + v2 6 cases, gated |
+| real models change the answer | 1 paid run (25b, $0.98) | no answer changed on v1 |
+| VALIDATED claims are right | same run, Wilson 95 % | 9/11 (0.52-0.95) |
+| rollback proposals | same run | 5 correct, 0 wrong, 2 missed |
+| wrong HIGH claims (flaw (c)) | FAKE, v1 + v2 | 6/22 -> 2/22 with R1 |
+| VALIDATED after R1 | **not measured** (owner: no paid run) | unknown |
+- Every number: synthetic scenarios written for this eval, an UPPER bound. Real labelled
+  incidents (postmortem-confirmed causes) are the production dataset; there are none here.

@@ -1,6 +1,6 @@
 # ADR-037: Investigation eval = planted causes through the product path, a regression gate in CI
 
-Status: Proposed (25a-25d verified, PRs #34-#38; 25e adds rule R1 for flaw (c))
+Status: Proposed (Phase 25 closed 2026-10-26, PRs #34-#39; VALIDATED after R1 unmeasured)
 Date: 2026-10-22
 Refines: architecture.md §20 (MLOps), ADR-021 (code proposes, the LLM ranks), ADR-020 (outcome)
 
