@@ -20,7 +20,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,7 @@ from locust.contrib.fasthttp import FastHttpUser
 
 sys.path.insert(0, str(Path(__file__).parent))
 from loadlib import PLANS, investigation_stage, knee, not_fake, stage_at, summarize_stage, wait_s
+from tokens import running_investigations, tokens
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAN = PLANS[os.environ.get("AEOI_LOAD_PLAN", "policy")]
@@ -51,45 +52,8 @@ class State:
     proc = psutil.Process()
 
 
-def _tokens(role: str) -> list[str]:
-    """Same users and claims as `make token ROLE=... NTH=n` (aeoi_api.devtoken), minted here."""
-    import psycopg
-
-    from aeoi_api.devtoken import QUERY
-    from aeoi_db.config import libpq_dsn
-    from aeoi_security.auth import issue_token
-
-    key = (ROOT / "secrets/jwt_private.pem").read_text()
-    out = []
-    with psycopg.connect(libpq_dsn()) as conn:
-        for skip in range(200):
-            row = conn.execute(QUERY, {"email": None, "role": role, "group": None,
-                                       "without": None, "skip": skip}).fetchone()  # fmt: skip
-            if row is None:
-                break
-            uid, sub, email, name, roles, groups = row
-            out.append(issue_token(private_key=key, subject=sub, user_id=uid, email=email,
-                                   name=name, roles=list(roles), groups=list(groups),
-                                   ttl=timedelta(minutes=120)))  # fmt: skip
-    return out
-
-
-def _running() -> int:
-    """Investigations already RUNNING: a backlog (an earlier run, a crash) sits in the same
-    max_concurrent_investigations slots and would quietly ruin the measurement."""
-    import psycopg
-
-    from aeoi_db.config import libpq_dsn
-
-    with psycopg.connect(libpq_dsn()) as conn:
-        row = conn.execute(
-            "SELECT count(*) FROM orchestrator.investigations WHERE status = 'RUNNING'"
-        ).fetchone()
-    return int(row[0]) if row else 0
-
-
-READERS = _tokens("ENGINEER") + _tokens("SRE")
-STARTERS = _tokens("SRE")
+READERS = tokens("ENGINEER") + tokens("SRE")
+STARTERS = tokens("SRE")
 
 
 def _llm_routes() -> dict[str, Any]:
@@ -101,7 +65,7 @@ def _llm_routes() -> dict[str, Any]:
 @events.test_start.add_listener
 def _guard(environment: Any, **_: Any) -> None:
     State.routes = _llm_routes()
-    State.backlog_start = _running()
+    State.backlog_start = running_investigations()
     if PLAN.investigations_per_min and State.backlog_start:
         print(f"REFUSED: {State.backlog_start} investigations already RUNNING - wait until they "
               "finish (a restart resumes them, it does not clear them).", file=sys.stderr)  # fmt: skip
@@ -301,7 +265,7 @@ def _write(environment: Any, **_: Any) -> None:
                     "simulated_latency_ms": State.routes.get("simulated_latency_ms"),
                     "in_flight_at_end": {n: p.get("in_flight") for n, p in _llm_routes().get("providers", {}).items()}},
             "investigations_running_at_start": State.backlog_start,
-            "investigations_running_at_end": _running(),
+            "investigations_running_at_end": running_investigations(),
             "warning": "client and system share ONE laptop; LLM delays are simulated p50s (no tail)",
         },
         "stages": stages,

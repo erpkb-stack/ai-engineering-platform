@@ -9,9 +9,10 @@ set -u
 PROFILE="${1:-all}"
 if [ -f .env ]; then set -a; . ./.env; set +a; fi
 PG="${AEOI_PG_PORT:-5433}"; REDIS="${AEOI_REDIS_PORT:-6380}"; KAFKA="${AEOI_KAFKA_PORT:-9094}"
-case "$PROFILE" in
-  infra) PORTS="$PG:PG:postgres $REDIS:REDIS:redis" ;;
-  *)     PORTS="$PG:PG:postgres $REDIS:REDIS:redis $KAFKA:KAFKA:kafka" ;;
+case "$PROFILE" in  # redis only with its own profile (Phase 28: unused until 22b, ADR-031)
+  infra) PORTS="$PG:PG:postgres" ;;
+  redis) PORTS="$REDIS:REDIS:redis" ;;
+  *)     PORTS="$PG:PG:postgres $KAFKA:KAFKA:kafka" ;;
 esac
 
 port_in_use() {  # exit 0 if 127.0.0.1:$1 cannot be bound
@@ -42,5 +43,5 @@ for entry in $PORTS; do
   echo "✘ port $port ($svc) is used by: $owner-> stop it, or set AEOI_${key}_PORT=<free port> in .env"
   fail=1
 done
-[ "$fail" -eq 0 ] && echo "✔ ports free for profile '$PROFILE' (pg=$PG redis=$REDIS kafka=$KAFKA)"
+[ "$fail" -eq 0 ] && echo "✔ ports free for profile '$PROFILE' ($PORTS)"
 exit "$fail"

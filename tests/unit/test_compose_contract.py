@@ -535,3 +535,16 @@ def test_a_failed_sample_is_counted_not_the_end_of_sampling(
     assert codes == [0] and n == calls[0] - 1 and n >= 3
     assert peaks["tempo"] == calls[0]  # sampling went on after the failure
     assert "1 sample(s) failed" in capsys.readouterr().out
+
+
+def test_redis_starts_only_on_purpose_until_a_service_uses_it() -> None:
+    """Phase 28 (owner decision): no service imports a Redis client (ADR-031: replicas first),
+    so it is not in any default profile. When a service starts using it, this test must change
+    together with the profiles - not before."""
+    import re as _re
+
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+    assert compose["services"]["redis"]["profiles"] == ["redis"]
+    for f in (ROOT / "services").rglob("*.py"):
+        if "/src/" in str(f):
+            assert not _re.search(r"^\s*(import redis|from redis)", f.read_text(), _re.M), f

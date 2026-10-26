@@ -105,3 +105,22 @@ class BadRequestError(AEOIError):
     status = 400
     type_slug = "bad-request"
     title = "Bad request"
+
+
+# Phase 28a (ADR-040): driver/ORM classes that mean "could not talk to the database"
+# (refused, dropped, server shutting down - and their subclasses, e.g. psycopg's AdminShutdown).
+# Matched by module + name along the MRO, so this lib imports neither SQLAlchemy nor psycopg.
+_DB_DOWN = {("sqlalchemy.exc", "OperationalError"), ("sqlalchemy.exc", "InterfaceError"),
+            ("psycopg", "OperationalError"), ("psycopg", "InterfaceError")}  # fmt: skip
+
+
+def database_unavailable(exc: BaseException) -> str | None:
+    """The class name if `exc` (or its cause/context chain) is a lost database connection."""
+    seen: set[int] = set()
+    e: BaseException | None = exc
+    while e is not None and id(e) not in seen:
+        seen.add(id(e))
+        if any((c.__module__, c.__name__) in _DB_DOWN for c in type(e).__mro__):
+            return type(e).__name__
+        e = e.__cause__ or e.__context__
+    return None

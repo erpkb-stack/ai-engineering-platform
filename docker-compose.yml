@@ -1,5 +1,5 @@
 # AEOI local stack. Use the smallest profile that does the job (Intel Mac RAM is the bottleneck).
-#   make up                 -> infra   : postgres(pgvector) + redis            (~0.7 GB)
+#   make up                 -> infra   : postgres(pgvector)                    (redis: PROFILE=redis, unused until 22b)
 #   make up PROFILE=kafka   -> + kafka (KRaft, 1 broker), then topic init job    (+~0.8 GB)
 #   make keycloak-up        -> keycloak (OIDC IdP, Phase 17, ADR-027)            (+~0.6 GB)
 #   make apps-up            -> postgres + every Python service + (apps-catalog) the Java
@@ -94,7 +94,9 @@ services:
   redis:
     <<: *defaults
     image: redis:7.4-alpine
-    profiles: ["infra", "kafka", "core", "agents", "full"]
+    # Phase 28 (owner, 2026-10-26): NO service uses Redis until replicas exist (ADR-031, 22b
+    # deferred) - it only cost Docker memory. Start it on purpose: make up PROFILE=redis
+    profiles: ["redis"]
     # Cache / rate limits / locks only - NOT a source of truth, so no persistence.
     command: ["redis-server", "--save", "", "--appendonly", "no",
               "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]

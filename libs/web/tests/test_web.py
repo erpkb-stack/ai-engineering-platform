@@ -32,6 +32,16 @@ def app(keys: KeyPair) -> FastAPI:
     async def boom() -> None:
         raise RuntimeError("secret db password in message")
 
+    @r.get("/db-down")
+    async def db_down() -> None:
+        import psycopg
+        import sqlalchemy.exc
+
+        try:
+            raise psycopg.OperationalError("connection refused; SELECT ... params=('secret-row',)")
+        except psycopg.OperationalError as e:
+            raise sqlalchemy.exc.OperationalError("SELECT 1", {"t": "secret-row"}, e) from e
+
     @r.post("/body")
     async def body(b: Body) -> Body:
         return b
@@ -89,6 +99,30 @@ async def test_unhandled_error_does_not_leak(client: httpx.AsyncClient) -> None:
     assert r.status_code == 500
     assert "secret" not in r.text
     assert r.json()["correlation_id"]
+
+
+async def test_a_lost_database_is_a_retryable_503_not_a_500(client: httpx.AsyncClient) -> None:
+    """Phase 28a: found by the Postgres-stop experiment (dry run): a DB outage answered 500
+    "unexpected error" - a bug report for a retryable condition, and no Retry-After."""
+    r = await client.get("/db-down")
+    assert r.status_code == 503
+    assert r.headers["retry-after"] == "5"
+    assert r.json()["type"].endswith("/upstream-unavailable")
+    assert "secret-row" not in r.text and r.json()["correlation_id"]
+
+
+def test_database_unavailable_reads_the_cause_chain_and_ignores_other_errors() -> None:
+    import psycopg
+
+    from aeoi_common.errors import database_unavailable
+
+    outer = RuntimeError("wrapped")
+    outer.__cause__ = psycopg.InterfaceError("closed")
+    assert database_unavailable(outer) == "InterfaceError"
+    # the class the Postgres-stop dry run actually raised (a subclass, in psycopg.errors)
+    assert database_unavailable(psycopg.errors.AdminShutdown("terminating")) == "AdminShutdown"
+    assert database_unavailable(RuntimeError("x")) is None
+    assert database_unavailable(ConnectionError()) is None
 
 
 async def test_validation_error_does_not_echo_input(client: httpx.AsyncClient) -> None:

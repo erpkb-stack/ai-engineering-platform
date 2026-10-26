@@ -1,7 +1,7 @@
 # Phase 27 - Load testing (ADR-039)
 
-Status: **MEASURED on the Mac 2026-10-26** (5 result files in `data/load/results/`). Verify =
-PR #42 checks. The bottleneck is NOT proven; absolute capacity is NOT reproducible (section 5).
+Status: **VERIFIED 2026-10-26** (5 result files in `data/load/results/`; PR #42 merged,
+main run 40399104173 green). The bottleneck is NOT proven; absolute capacity is NOT reproducible (section 5).
 Owner: "go 27"; target **kind**; scope **read path + slow investigations** (2026-10-26).
 
 ## 0. Gate
@@ -107,4 +107,4 @@ policy, capacity (limit 100000/min), investigations, then a second capacity run.
 ## 8. Verify
 - [x] Runs on the Mac: smoke, policy, capacity x2, investigations - files committed; defaults
       restored (queue drained first), smoke 12/12, netpol 130 passed afterwards.
-- [ ] PR #42: all checks green.
+- [x] PR #42: all checks green; merged; `main` run 40399104173 green (checked before Phase 28's first PR).

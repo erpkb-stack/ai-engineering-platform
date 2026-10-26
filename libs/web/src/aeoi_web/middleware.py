@@ -11,6 +11,7 @@ from opentelemetry import trace
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from aeoi_common.correlation import CORRELATION_HEADER, new_correlation_id, set_correlation_id
+from aeoi_common.errors import database_unavailable
 
 _VALID_CID = re.compile(r"^[A-Za-z0-9._:-]{8,80}$")
 _HEADER = CORRELATION_HEADER.lower().encode()
@@ -61,12 +62,25 @@ class CorrelationIdMiddleware:
 
         try:
             await self.app(scope, receive, tracking_send)
-        except Exception:
-            # Error boundary INSIDE the correlation scope, so the 500 carries the id.
+        except Exception as exc:
+            # Error boundary INSIDE the correlation scope, so the error carries the id.
+            if (db := database_unavailable(exc)) is not None:
+                # Phase 28a: the DB down is a retryable 503, not an "unexpected" 500. The TYPE
+                # only - a DB error's text can carry SQL parameters (rows).
+                log.warning(
+                    "dependency_unavailable",
+                    dependency="database",
+                    error=db,
+                    path=scope.get("path"),
+                )
+                if response_started:
+                    raise
+                await _send_problem(cid, scope.get("path", ""), tracking_send, 503)
+                return
             log.exception("unhandled_error", path=scope.get("path"))
             if response_started:
                 raise
-            await _send_500(cid, scope.get("path", ""), tracking_send)
+            await _send_problem(cid, scope.get("path", ""), tracking_send, 500)
         finally:
             log.info(
                 "http_request",
@@ -79,27 +93,34 @@ class CorrelationIdMiddleware:
             set_correlation_id(None)
 
 
-async def _send_500(cid: str, path: str, send: Send) -> None:
+_PROBLEMS = {
+    500: ("internal-error", "Internal error",
+          "Unexpected error. Quote the correlation_id when reporting it."),
+    503: ("upstream-unavailable", "Dependency unavailable",
+          "The database is unavailable. Retry later; quote the correlation_id if it lasts."),
+}  # fmt: skip
+DB_RETRY_AFTER_S = 5
+
+
+async def _send_problem(cid: str, path: str, send: Send, status: int) -> None:
     import json
 
+    slug, title, detail = _PROBLEMS[status]
     body = json.dumps(
         {
-            "type": "https://aeoi.example/problems/internal-error",
-            "title": "Internal error",
-            "status": 500,
-            "detail": "Unexpected error. Quote the correlation_id when reporting it.",
+            "type": f"https://aeoi.example/problems/{slug}",
+            "title": title,
+            "status": status,
+            "detail": detail,
             "instance": path,
             "correlation_id": cid,
         }
     ).encode()
-    await send(
-        {
-            "type": "http.response.start",
-            "status": 500,
-            "headers": [
-                (b"content-type", b"application/problem+json"),
-                (b"content-length", str(len(body)).encode()),
-            ],
-        }
-    )
+    headers = [
+        (b"content-type", b"application/problem+json"),
+        (b"content-length", str(len(body)).encode()),
+    ]
+    if status == 503:
+        headers.append((b"retry-after", str(DB_RETRY_AFTER_S).encode()))
+    await send({"type": "http.response.start", "status": status, "headers": headers})
     await send({"type": "http.response.body", "body": body})

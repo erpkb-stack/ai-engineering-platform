@@ -22,7 +22,7 @@ schema; leave a live grant behind a finished investigation (revoke BEFORE finish
 - `propose` node + `proposal.py` (Phase 16, ADR-026): CODE rule v1 (top hypothesis = VALIDATED deploy, SUCCEEDED, earlier release exists) → proposal FOR the starter (delegated token, `actions:propose`); a 403 (starter cannot request) is an answer; not recorded → PARTIAL. `way_back` quotes code: shown only to code:read
 - `actions.py` (Phase 16): `POST /v1/approvals/{id}/decision` decides AS the IC, then (APPROVED) runs the action_executor with the IC's OWN token (12 s) and records the outcome (`actions:record`); FAILED only when the TOOL failed (`execution_failed` + 4xx) - a refused attempt is never an outcome; unknown → "retry /execute" (safe: one approval never runs twice)
 - `salvage.py` post recorded evidence of SUCCEEDED tasks (deadline → PARTIAL; `repost-evidence`)
-- `engine.py` background runs, deadline (from the first slot), resume on startup, cancel, shutdown (rows stay RUNNING)
+- `engine.py` background runs, deadline (from the first slot), resume on startup, cancel, shutdown (rows stay RUNNING); a lost DB (Phase 28a) WAITS and resumes from the checkpoint, any other crash outside the graph ends FAILED - never left RUNNING
 - `store.py` every DB write, each safe to repeat · `delegation.py` STS client (5-min tokens, refresh from the grant)
 - `clients.py` incident-service + agents HTTP · `__main__.py` CLI over the service (`make agent-run/compare/status`)
 

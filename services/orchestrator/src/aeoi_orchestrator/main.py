@@ -53,6 +53,9 @@ def build_app(
             "options": f"-c search_path={SCHEMA}",
         },
         open=False,
+        # Phase 28a: after a DB restart the pool handed out DEAD connections (AdminShutdown on
+        # first use) - the SQLAlchemy engine has pool_pre_ping, this pool had no check
+        check=AsyncConnectionPool.check_connection,
     )
     http = httpx.AsyncClient(
         transport=transport,
