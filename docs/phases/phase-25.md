@@ -257,6 +257,11 @@ Same result twice, and from a fresh `db-seed` + `eval-seed` through the CI step 
   wrong. Measured only by a paid run; if it stays, the next rule is "a claim code contradicts
   cannot be VALIDATED".
 
+- **CI found what my checks missed:** an integration test still asserted the OLD behaviour
+  (the critic's deploy citation against the pool is "disputed"). I had run only the unit
+  tests; the integration suite runs in the sandbox too (Kafka tests skip). Test updated: no
+  dispute, and the deploy's evidence is now a CONTRADICTS edge of the pool. 262 passed.
+
 ## 13. Verify 25e
 - [ ] PR: all checks green; CI eval v1 + v2 "no regression" (both baselines updated in it).
 - [ ] One paid run on the Mac (v1 + v2, COST=1): `validated_wrong` for S01/S04/S18/S19.

@@ -103,11 +103,14 @@ async def test_hypotheses_ranked_critiqued_validated_and_stored(
     assert planted.deploy_key in h1["statement"] and h1["confidence"] == "HIGH"
     assert h1["rank"] == 1 and h1["status"] == "VALIDATED" and h1["detail"]["ranked_by"] == "llm"
     assert RANKER_MARKER in h1["detail"]["explanation"]
-    # pool saturation: the critic "refuted" it citing the DEPLOY, which cannot contradict a
-    # saturation cause -> disputed (shown by name), band and edges unchanged, not cleared
+    # pool saturation: the critic "refuted" it citing the DEPLOY. Before 25e code refused that
+    # citation (disputed). Since 25e (flaw (c), ADR-037) code itself counts a same-service
+    # deploy 60 min or less before the pool AGAINST it (its mechanism): nothing is disputed,
+    # the deploy is a CONTRADICTS edge, and the critic's verdict alone still clears nothing
     assert h2["status"] == "PROPOSED" and h2["detail"]["critic_verdict"] == "refuted"
-    assert h2["detail"]["critic_disputed"] == [planted.deploy_key]
-    assert all(e["stance"] == "SUPPORTS" or planted.deploy_key not in e["evidence_key"]
+    assert h2["detail"]["critic_disputed"] is None
+    # the deploy observation's evidence (its DEPLOY / CONFIG rows) now CONTRADICTS the pool
+    assert any(e["stance"] == "CONTRADICTS" and e["kind"] in ("DEPLOY", "CONFIG")
                for e in h2["edges"])  # fmt: skip
     assert "Error logs began" in h1["detail"]["refinement"]
     assert h2["detail"]["explanation"] is None  # uncited prose is not stored
