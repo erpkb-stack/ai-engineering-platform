@@ -1,0 +1,28 @@
+# Phase 27 load tests ONLY: the fakes of routing.test.yaml (no network, no cost) plus a per-agent
+# wait, so a FAKE investigation has the measured SHAPE of a real one. The waits are MEASURED:
+# the p50 of OK calls in llm.model_usage on the owner's Mac (Haiku + Sonnet, Phase 25 runs,
+# queried 2026-10-26): log_analysis n=49, hypothesis n=39, historical_incident n=38,
+# critic n=68, postmortem n=79; "default" = calls without an agent name (n=20).
+# A fixed p50 has no tail: the real p95 is 1.2-1.8x it. The config refuses this key unless
+# every provider is fake. Deploy: LLM_ROUTING=routing.load.yaml (make k8s-apply / apps-up).
+version: 1
+budget_usd_per_investigation: 0.01
+providers:
+  hosted_fake: {kind: fake, hosted: true, max_attempts: 2, breaker_threshold: 3}
+  local_fake: {kind: fake, hosted: false, max_attempts: 2}
+models:
+  fake-large: {provider: hosted_fake, input_per_mtok: 2.00, output_per_mtok: 10.00, cached_input_per_mtok: 0.20}
+  fake-small: {provider: local_fake}
+  fake-embed: {provider: local_fake, dimensions: 768, supports_structured: false}
+routes:
+  reasoning: {primary: fake-large, fallbacks: [fake-small]}
+  local: {primary: fake-small}
+  fast: {primary: fake-small}
+  embed: {operation: embed, primary: fake-embed}
+simulated_latency_ms:
+  log_analysis: 2494
+  hypothesis: 5248
+  historical_incident: 5865
+  critic: 7593
+  postmortem: 14693
+  default: 612

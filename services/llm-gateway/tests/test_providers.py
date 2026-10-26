@@ -289,3 +289,15 @@ async def test_anthropic_structured_without_forced_tool_uses_auto_and_instructs(
     )
     await anthropic(handler).generate_structured(replace(req, force_tool=True))
     assert seen[1]["tool_choice"] == {"type": "tool", "name": "critique"}
+
+
+async def test_the_fake_keeps_only_the_last_calls() -> None:
+    """Phase 27: the fake serves CI and load runs; it must not grow with every call."""
+    from aeoi_llm.providers.base import ChatRequest, Message
+    from aeoi_llm.providers.fake import CALLS_KEPT, FakeProvider
+
+    fake = FakeProvider()
+    for i in range(CALLS_KEPT + 50):
+        await fake.generate(ChatRequest(model="m", messages=[Message("user", f"q{i}")]))
+    assert len(fake.calls) == CALLS_KEPT
+    assert fake.calls[-1].messages[0].content == f"q{CALLS_KEPT + 49}"

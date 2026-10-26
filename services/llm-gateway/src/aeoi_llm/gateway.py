@@ -208,6 +208,14 @@ class Gateway:
                 f"Investigation {meta.investigation_id} spent ${spent} of ${budget}."
             )
 
+    async def _simulate(self, meta: CallMeta) -> None:
+        """Load tests only (fake providers, config-checked): the measured per-agent median."""
+        sim = self.routing.simulated_latency_ms
+        if sim:
+            ms = sim.get(meta.agent_name or "", sim.get("default", 0))
+            if ms:
+                await self._sleep(ms / 1000)
+
     @staticmethod
     def _redact(req: ChatRequest) -> tuple[ChatRequest, int]:
         total = 0
@@ -389,6 +397,7 @@ class Gateway:
                 call_req, redactions = self._redact(call_req)
             t0 = time.perf_counter()
             n += 1
+            await self._simulate(meta)
             try:
                 if op == "generate_structured":
                     result, repaired, extra_usage = await self._structured(
@@ -800,6 +809,8 @@ class Gateway:
                 }
                 for name, rt in self.runtimes.items()
             },
+            # Phase 27: a load result records the delays that were live, not the ones intended
+            "simulated_latency_ms": dict(self.routing.simulated_latency_ms),
             "budget_usd_per_investigation": (
                 str(self.routing.budget_usd_per_investigation)
                 if self.routing.budget_usd_per_investigation is not None

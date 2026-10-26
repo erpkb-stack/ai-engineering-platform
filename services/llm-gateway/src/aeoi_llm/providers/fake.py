@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from collections import deque
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import Any
@@ -23,6 +24,8 @@ from aeoi_llm.providers.base import (
     StreamChunk,
     Usage,
 )
+
+CALLS_KEPT = 200
 
 
 def _tokens(text: str) -> int:
@@ -57,7 +60,9 @@ class FakeProvider:
     replies: list[str] = field(default_factory=list)
     structured: list[dict[str, Any]] = field(default_factory=list)
     errors: list[ProviderError] = field(default_factory=list)
-    calls: list[ChatRequest] = field(default_factory=list)
+    # the LAST requests only: the fake also serves CI and load runs (routing.test/load.yaml);
+    # an unbounded list grew with every call - a memory "bottleneck" made by the test double
+    calls: deque[ChatRequest] = field(default_factory=lambda: deque(maxlen=CALLS_KEPT))
     stop_reasons: list[str] = field(default_factory=list)  # per structured call; default end_turn
 
     def fail_next(self, *errors: ProviderError) -> None:

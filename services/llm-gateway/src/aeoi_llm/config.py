@@ -127,9 +127,19 @@ class RoutingConfig(_Strict):
     routes: dict[str, RouteConfig]
     budget_usd_per_investigation: Decimal | None = None
     pricing_note: str = ""
+    # Phase 27 (load tests only): wait this long per call, by agent name ("default" = others),
+    # so a FAKE run has the measured shape of a real one. Refused unless EVERY provider is fake:
+    # it must never slow down, or be mistaken for, a real model call.
+    simulated_latency_ms: dict[str, int] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _check_references(self) -> Self:
+        if self.simulated_latency_ms:
+            real = sorted(n for n, p in self.providers.items() if p.kind != "fake")
+            if real:
+                raise ValueError(f"simulated_latency_ms needs fake providers only; not: {real}")
+            if any(not 0 <= v <= 120_000 for v in self.simulated_latency_ms.values()):
+                raise ValueError("simulated_latency_ms values must be 0..120000")
         for name, m in self.models.items():
             if m.provider not in self.providers:
                 raise ValueError(f"model '{name}' uses unknown provider '{m.provider}'")

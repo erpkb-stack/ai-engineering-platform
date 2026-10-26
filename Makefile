@@ -460,6 +460,11 @@ eval-calibration: ## Phase 25b: band/status calibration (Wilson 95%) of a run [V
 eval-import: ## Phase 25c: copy eval result files into the eval schema for the Evaluation dashboard [FILES="a.json b.json"] (default: all; refused kinds named)
 	uv run python scripts/eval_import.py $(FILES)
 
+load: ## Phase 27: load the DEPLOYED api as the seeded team: make load PLAN=smoke|policy|capacity|investigations [API=http://localhost:8000] (fake LLM only)
+	@set -eu; test -n "$(PLAN)" || { echo "usage: make load PLAN=smoke|policy|capacity|investigations"; exit 2; }; \
+	AEOI_LOAD_PLAN=$(PLAN) uv run --group load locust -f tests/load/locustfile.py --headless \
+	  --host $(or $(API),http://localhost:8000) --only-summary --loglevel WARNING --exit-code-on-error 0
+
 history-eval: ## Phase 13: similar-incident eval, keyword vs vector vs hybrid (data/eval/results/history-*.json)
 	$(RAG) history-eval
 
