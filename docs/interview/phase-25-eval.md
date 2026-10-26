@@ -14,6 +14,7 @@ number is an upper bound on scenarios written for the eval.
 4. What does the LLM add over the code path?
 5. How confident is "HIGH confidence"?
 6. A critic disagreed with a wrong answer. Why not let it lower the confidence?
+7. You found a flaw in your own rubric. How did you fix it without overfitting?
 
 ## 30-second answers
 1. Plant the cause. Each scenario writes deploys, logs and metrics for its own service and
@@ -39,6 +40,14 @@ number is an upper bound on scenarios written for the eval.
 6. I tested the rule on paper first. The critic weakened 3 top claims: 1 wrong, 2 right. The
    cap would fix S14 and break S04, where a wrong HIGH + VALIDATED pool-saturation claim would
    then outrank the true deploy. And the gate already held: S14 stayed PROPOSED, no rollback.
+
+7. Measure before changing. The flaw: a pool saturation caused BY a deploy was scored HIGH as
+   a rival of that deploy. I added 6 counter-cases first - 3 where a resource is the
+   mechanism, 3 guard rails where it IS the cause beside a deploy - and a `wrong_high` metric
+   the free CI run measures. Then one rule, designed on paper against all 22 cases: wrong HIGH
+   6/22 -> 2/22, no guard rail changed. One guard rail failed BEFORE any change (a deploy after
+   the pool rose): I left it unfixed, because its fix breaks a case with the same signals.
+   What I did not measure: whether the real critic still validates the demoted claim.
 
 ## 2-minute answers
 **Q2/Q5 (where are the real errors?).** I first read S14 as "the system acts on a wrong
