@@ -145,6 +145,22 @@ async def test_secrets_are_redacted_before_a_hosted_provider(
     assert r.redactions == 2
 
 
+async def test_pii_is_scrubbed_before_a_hosted_provider(
+    gateway: Gateway, hosted: FakeProvider
+) -> None:
+    """Phase 26 (threat model T-PII-2): text a USER typed (an incident title, a description)
+    reaches the postmortem prompt for Sonnet. Tool outputs and documents were scrubbed at their
+    own boundary; user input was not. The gateway is the one place every prompt passes."""
+    email, phone = "jane.doe@example.com", "+1 (512) 555-0199"
+    r = await gateway.generate(
+        "reasoning", req(f"title: checkout fails for {email}", system=f"call {phone}"), META
+    )
+    sent = hosted.calls[0]
+    assert email not in sent.messages[0].content and phone not in (sent.system or "")
+    assert "[EMAIL]" in sent.messages[0].content
+    assert r.redactions == 2
+
+
 async def test_local_provider_gets_original_text(gateway: Gateway, local: FakeProvider) -> None:
     secret = "sk-ant-" + "a1b2c3d4e5f6g7h8i9"
     r = await gateway.generate("local", req(f"key={secret}"), META)

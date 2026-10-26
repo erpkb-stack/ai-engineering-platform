@@ -46,6 +46,7 @@ from aeoi_llm.providers.base import (
 )
 from aeoi_llm.resilience import Bulkhead, CircuitBreaker, RetryPolicy, with_retries
 from aeoi_llm.usage import UsageRow, UsageSink, cost_usd
+from aeoi_security.pii import scrub_pii
 from aeoi_security.redaction import redact_text, redact_text_counted
 
 log = structlog.get_logger(__name__)
@@ -140,6 +141,17 @@ class ProviderRuntime:
         return self.bulkheads[model]
 
 
+def _clean(text: str) -> tuple[str, int]:
+    """Before a HOSTED provider: secrets, then PII (emails, phones, cards, SSNs). Phase 26
+    (threat model T-PII-2): tool outputs and documents were scrubbed at their own boundary, but
+    text a user typed (an incident title) reached the postmortem prompt unscrubbed. Every prompt
+    passes here, so this is the one boundary that covers all of them. Pattern-based: names and
+    free-text addresses are NOT caught (ADR-038)."""
+    t, n = redact_text_counted(text)
+    r = scrub_pii(t)
+    return r.text, n + r.total
+
+
 def _reason(exc: BaseException) -> str:
     """Short, redacted, human-readable cause. A bare class name ('RetryableError') told the
     owner nothing on the first real run; the message ('cannot connect to ...') tells him what to fix."""
@@ -201,11 +213,11 @@ class Gateway:
         total = 0
         system = req.system
         if system:
-            system, n = redact_text_counted(system)
+            system, n = _clean(system)
             total += n
         messages = []
         for m in req.messages:
-            content, n = redact_text_counted(m.content)
+            content, n = _clean(m.content)
             total += n
             messages.append(Message(m.role, content))
         return replace(req, system=system, messages=messages), total
@@ -708,7 +720,7 @@ class Gateway:
         if rt.hosted:
             cleaned = []
             for text in inputs:
-                t, k = redact_text_counted(text)
+                t, k = _clean(text)
                 cleaned.append(t)
                 redactions += k
             inputs = cleaned
