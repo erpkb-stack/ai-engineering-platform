@@ -85,7 +85,16 @@ def _event(
     )
 
 
-async def create_incident(session: AsyncSession, data: IncidentCreate, who: Principal) -> Incident:
+async def create_incident(
+    session: AsyncSession,
+    data: IncidentCreate,
+    who: Principal,
+    *,
+    source: str = "HUMAN",
+    detail: dict[str, Any] | None = None,
+) -> Incident:
+    """`source`/`detail`: an alert-opened incident (Phase 29b) records ALERT and its triage
+    rule in the IncidentCreated timeline event."""
     incident = Incident(
         id=uuid7(),
         title=data.title,
@@ -102,10 +111,11 @@ async def create_incident(session: AsyncSession, data: IncidentCreate, who: Prin
     session.add(
         _event(
             incident,
-            source="HUMAN",
+            source=source,
             event_type="IncidentCreated",
             summary=f"{incident.key} declared ({incident.severity}) by {who.name or who.actor}",
             actor=who.actor,
+            payload=detail,
         )
     )
     stage_event(

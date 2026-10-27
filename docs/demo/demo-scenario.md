@@ -8,7 +8,7 @@ Status per step: `docs/phases/phase-29.md` section 1 (Phase 29 need check). Ever
 | Min | Step | What the audience sees | Spec item |
 |---|---|---|---|
 | 0:00 | Problem framing | Before/after workflow slide; KPI definitions | business |
-| 1:00 | Incident creation | Alert webhook → incident INC-xxxx, SEV auto-triage, affected services from the catalog | 1 |
+| 1:00 | Incident creation | Signed Alertmanager webhook (`POST /api/v1/alerts`, ADR-044) → incident INC-xxxx; SEV by the code rule (label `error` → SEV2, tier-1 checkout-api → SEV1); the catalog's dependents shown as the blast radius (affected = checkout-api only); the alert re-sent → `duplicate`, still one incident | 1 |
 | 2:00 | Orchestrator planning | plan with chosen agents + budget in the trace view | 2, 3 |
 | 3:00 | Parallel agents | Agent Trace waterfall: logs, metrics, deploy, code, RAG, historical running at the same time | 4–10 |
 | 5:00 | Evidence | Log cluster `ERR_POOL_TIMEOUT`, pool utilisation metric, deploy diff, RUNBOOK-DB-012, similar INC-2911 | 5–10 |

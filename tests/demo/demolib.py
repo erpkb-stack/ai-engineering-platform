@@ -21,6 +21,26 @@ def _t(s: str | None) -> datetime | None:
     return datetime.fromisoformat(s) if s else None
 
 
+def alert_intake(first: tuple[int, Any], again: tuple[int, Any]) -> tuple[Step, str | None]:
+    """Phase 29b (ADR-044): the demo starts from a SIGNED ALERT, not a typed form. Sent twice
+    (Alertmanager re-sends): one incident, the second answer is `duplicate` with the same
+    key, and the triage rule is recorded. Returns (step, incident key)."""
+    (s1, b1), (s2, b2) = first, again
+    if s1 != 200 or not isinstance(b1, dict):
+        return (FAIL, f"webhook answered {s1}"), None
+    r1 = (b1.get("results") or [{}])[0]
+    if r1.get("outcome") != "created" or not r1.get("incident_key"):
+        return (FAIL, f"first alert: {str(r1)[:160]}"), None
+    r2 = ((b2 or {}).get("results") or [{}])[0] if isinstance(b2, dict) else {}
+    key = str(r1["incident_key"])
+    if s2 != 200 or r2.get("outcome") != "duplicate" or r2.get("incident_key") != key:
+        return (FAIL, f"re-sent alert: {s2} {str(r2)[:120]} (must be duplicate of {key})"), key
+    return (
+        PASS,
+        f"{key} {r1.get('severity')} by rule '{r1.get('reason')}'; re-sent = duplicate",
+    ), key
+
+
 def parallel_agents(inv: dict[str, Any]) -> Step:
     """The 4 evidence agents ran AT THE SAME TIME: every interval overlaps every other."""
     spans = []

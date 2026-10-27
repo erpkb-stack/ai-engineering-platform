@@ -44,6 +44,13 @@ class Settings(BaseServiceSettings):
     relay_interval_s: float = 1.0
     relay_batch_size: int = 100
 
+    # Phase 29b (ADR-044): the signed alert webhook. No secret file = the route answers 503
+    # "not configured" (never accept-all). The catalog is optional: without it, triage uses
+    # the label severity only and says so.
+    alert_secret_file: Path = Field(default_factory=lambda: _secret("alert_webhook_secret.txt"))
+    catalog_url: str | None = None  # compose: http://service-catalog:8010 when the catalog runs
+    catalog_token_file: Path = Field(default_factory=lambda: _secret("incident_catalog_token.txt"))
+
     idempotency_ttl_hours: int = 24
     page_size_max: int = 100
 

@@ -6,11 +6,13 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from sqlalchemy import text
 
 from aeoi_incident import __version__
 from aeoi_incident.api import router
+from aeoi_incident.catalog import CatalogClient
 from aeoi_incident.config import EventTransport, Settings
 from aeoi_incident.db import make_engine, make_sessionmaker
 from aeoi_incident.events import KafkaPublisher, LogPublisher, OutboxRelay, Publisher
@@ -26,6 +28,8 @@ def build_app(settings: Settings | None = None, publisher: Publisher | None = No
         if settings.event_transport is EventTransport.KAFKA
         else LogPublisher()
     )
+    http = httpx.AsyncClient() if settings.catalog_url else None
+    catalog = CatalogClient(http, settings.catalog_url, settings.catalog_token_file)
     relay = OutboxRelay(
         sessions, pub, batch_size=settings.relay_batch_size, interval_s=settings.relay_interval_s
     )
@@ -44,6 +48,8 @@ def build_app(settings: Settings | None = None, publisher: Publisher | None = No
                 await task
                 await pub.stop()
             await engine.dispose()
+            if http is not None:
+                await http.aclose()
 
     async def db_ready() -> None:
         async with engine.connect() as conn:
@@ -75,4 +81,5 @@ def build_app(settings: Settings | None = None, publisher: Publisher | None = No
     app.state.engine = engine
     app.state.sessionmaker = sessions
     app.state.relay = relay
+    app.state.catalog = catalog
     return app

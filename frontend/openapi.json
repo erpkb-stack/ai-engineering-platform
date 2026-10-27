@@ -91,6 +91,79 @@
         "title": "ActionRequest",
         "type": "object"
       },
+      "AlertResult": {
+        "properties": {
+          "fingerprint": {
+            "title": "Fingerprint",
+            "type": "string"
+          },
+          "incident_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Incident Key"
+          },
+          "outcome": {
+            "enum": [
+              "created",
+              "duplicate",
+              "ignored_resolved",
+              "rejected"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "reason": {
+            "description": "the triage rule applied, or why nothing was created",
+            "title": "Reason",
+            "type": "string"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Severity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "fingerprint",
+          "outcome",
+          "reason"
+        ],
+        "title": "AlertResult",
+        "type": "object"
+      },
+      "AlertsAccepted": {
+        "description": "200 for every valid, signed batch - per-alert outcomes inside (a 4xx/5xx would make\nAlertmanager retry the WHOLE group, re-sending alerts that were already handled).",
+        "properties": {
+          "received": {
+            "title": "Received",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/AlertResult"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "received",
+          "results"
+        ],
+        "title": "AlertsAccepted",
+        "type": "object"
+      },
       "ApprovalOut": {
         "properties": {
           "action": {
@@ -3426,6 +3499,96 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/alerts": {
+      "post": {
+        "description": "Phase 29b (ADR-044): an alert opens an incident. NO bearer token - the sender signs\ntimestamp + body with the shared secret. Checked HERE (rate limit per sender address,\nthen size, then signature) before anything is forwarded, and again in incident-service.\nThe RAW bytes are forwarded: re-serialising would break the signature.",
+        "operationId": "receive_alerts_api_v1_alerts_post",
+        "parameters": [
+          {
+            "description": "unix seconds, +-300 s",
+            "in": "header",
+            "name": "x-aeoi-timestamp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "unix seconds, +-300 s",
+              "title": "X-Aeoi-Timestamp"
+            }
+          },
+          {
+            "description": "sha256=<hex HMAC-SHA256(secret, ts + '.' + body)>",
+            "in": "header",
+            "name": "x-aeoi-signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "sha256=<hex HMAC-SHA256(secret, ts + '.' + body)>",
+              "title": "X-Aeoi-Signature"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "description": "Prometheus Alertmanager webhook payload, version 4",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertsAccepted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "missing, bad or stale signature"
+          },
+          "413": {
+            "description": "body over 64 KB"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "webhook not configured"
+          }
+        },
+        "summary": "Receive Alerts",
+        "tags": [
+          "alerts"
+        ]
+      }
+    },
     "/api/v1/approvals": {
       "get": {
         "description": "The approvals inbox (Phase 17b): PENDING requests across incidents, the one about to\nexpire first. The console polls it every 15 s.",

@@ -79,7 +79,7 @@ Every KPI has a defined measurement source. Numbers are measured, never assumed.
 
 | ID | Requirement | Phase |
 |---|---|---|
-| FR-1 | Create incident (API/alert webhook), auto-triage severity + affected services | 4, 8 |
+| FR-1 | Create incident (API/alert webhook), auto-triage severity + affected services | 4, 8, 29b (signed webhook, rule-table triage, ADR-044) |
 | FR-2 | Run investigation: plan → parallel agents → hypotheses → critic → validation → report | 9–11 |
 | FR-3 | Each finding is typed Fact / Hypothesis / Recommendation with evidence ids | 10–11 |
 | FR-4 | Evidence graph: hypothesis ↔ evidence edges, navigable in UI | 10, 17 |

@@ -405,6 +405,8 @@ def expected_edges(state: str) -> set[tuple[str, str, int]]:
                 out.add((app, host, int(port)))
             if env.get("AEOI_TOOLS_CATALOG_URL"):
                 out.add((app, "service-catalog", 8010))
+        if app == "incident-service" and env.get("AEOI_INCIDENT_CATALOG_URL"):
+            out.add((app, "service-catalog", 8010))  # Phase 29b: alert triage reads tier
     return out
 
 

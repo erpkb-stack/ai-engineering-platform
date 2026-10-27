@@ -158,6 +158,18 @@ def test_no_app_container_is_told_to_call_localhost() -> None:
                 assert not re.search(r"localhost|127\.0\.0\.1", v), (state, service, k, v)
 
 
+def test_alert_triage_reads_the_catalog_on_the_same_switch_as_the_tool_gateway() -> None:
+    """Phase 29b (ADR-044): one switch. Catalog on -> both call service-catalog; off -> both
+    empty (triage falls back to the label severity, the gateway to the JSON file)."""
+    for state in ENV_STATES.values():
+        inc = env_of("incident-service", state)["AEOI_INCIDENT_CATALOG_URL"]
+        tools = env_of("tool-gateway", state)["AEOI_TOOLS_CATALOG_URL"]
+        assert inc == tools
+    assert env_name(settings_class("incident-service"), "catalog_url") == (
+        "AEOI_INCIDENT_CATALOG_URL"
+    )
+
+
 def test_the_egress_allow_list_is_exactly_the_hosts_of_the_http_tools() -> None:
     """Both directions: a missing host breaks a tool; an extra host widens egress. The list is
     the same in both switch states: with the Java catalog off, `service-catalog:8010` stays

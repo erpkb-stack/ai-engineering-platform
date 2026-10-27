@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from aeoi_api.proxy import Upstream
 from aeoi_common.errors import RateLimitedError
+from aeoi_models.api.alerts import AlertsAccepted
 from aeoi_models.api.approvals import ActionRequest, ApprovalOut, DecisionIn, DecisionResult
 from aeoi_models.api.audit import AuditPage
 from aeoi_models.api.common import Page
@@ -46,6 +47,7 @@ from aeoi_models.api.search import DocumentOut, SearchRequest, SearchResponse
 from aeoi_models.api.tools import ToolInfo, ToolInvokeRequest, ToolResult
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import Perm
+from aeoi_security.webhook import load_secret, read_capped, verify
 from aeoi_web.auth import current_principal
 
 router = APIRouter(prefix="/api/v1")
@@ -505,3 +507,44 @@ async def execute(
 ) -> Response:
     """Retry an approved action whose result is unknown. Safe: one approval runs at most once."""
     return await up.forward(request, f"/v1/approvals/{approval_id}/execute")
+
+
+_ALERT_BODY = {
+    "required": True,
+    "content": {"application/json": {"schema": {
+        "type": "object", "description": "Prometheus Alertmanager webhook payload, version 4",
+    }}},
+}  # fmt: skip
+
+
+@router.post(
+    "/alerts",
+    response_model=AlertsAccepted,
+    tags=["alerts"],
+    openapi_extra={"requestBody": _ALERT_BODY},
+    responses={
+        401: {"description": "missing, bad or stale signature"},
+        413: {"description": "body over 64 KB"},
+        503: {"description": "webhook not configured"},
+    },
+)
+async def receive_alerts(
+    request: Request,
+    up: Incidents,
+    x_aeoi_timestamp: Annotated[str | None, Header(description="unix seconds, +-300 s")] = None,
+    x_aeoi_signature: Annotated[
+        str | None, Header(description="sha256=<hex HMAC-SHA256(secret, ts + '.' + body)>")
+    ] = None,
+) -> Response:
+    """Phase 29b (ADR-044): an alert opens an incident. NO bearer token - the sender signs
+    timestamp + body with the shared secret. Checked HERE (rate limit per sender address,
+    then size, then signature) before anything is forwarded, and again in incident-service.
+    The RAW bytes are forwarded: re-serialising would break the signature."""
+    peer = request.client.host if request.client else "unknown"
+    wait = await request.app.state.limiter.acquire(f"webhook:{peer}")
+    if wait > 0:
+        raise RateLimitedError(f"Rate limit exceeded. Retry in {wait:.1f}s.")
+    secret = load_secret(request.app.state.settings.alert_secret_file)
+    raw = await read_capped(request.stream())
+    verify(secret, timestamp=x_aeoi_timestamp, signature=x_aeoi_signature, body=raw)
+    return await up.forward(request, "/v1/alerts", body=raw)

@@ -107,6 +107,12 @@ class BadRequestError(AEOIError):
     title = "Bad request"
 
 
+class PayloadTooLargeError(AEOIError):
+    status = 413
+    type_slug = "payload-too-large"
+    title = "Payload too large"
+
+
 # Phase 28a (ADR-040): driver/ORM classes that mean "could not talk to the database"
 # (refused, dropped, server shutting down - and their subclasses, e.g. psycopg's AdminShutdown).
 # Matched by module + name along the MRO, so this lib imports neither SQLAlchemy nor psycopg.

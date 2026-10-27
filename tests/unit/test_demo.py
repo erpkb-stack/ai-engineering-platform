@@ -86,3 +86,24 @@ def test_a_crashing_check_is_a_fail_and_the_runner_goes_on() -> None:
     assert st == d.PASS or st == d.FAIL  # never an exception
     st, why = d.safe(d.top_hypothesis, [{"no": "fields"}])
     assert st == d.FAIL and why.startswith("check crashed: KeyError")
+
+
+def _ans(outcome: str, key: str = "INC-10042") -> tuple[int, dict]:
+    return 200, {"received": 1, "results": [{"fingerprint": "demo1", "outcome": outcome,
+                 "incident_key": key, "severity": "SEV1",
+                 "reason": "label severity=error -> SEV2; tier 1 -> raised to SEV1"}]}  # fmt: skip
+
+
+def test_alert_intake_needs_one_incident_and_a_duplicate_for_the_resend() -> None:
+    step, key = d.alert_intake(_ans("created"), _ans("duplicate"))
+    assert step[0] == d.PASS and key == "INC-10042" and "tier 1" in step[1]
+    # the re-send opened a SECOND incident: the dedupe is broken
+    step, key = d.alert_intake(_ans("created"), _ans("created", "INC-10043"))
+    assert step[0] == d.FAIL and key == "INC-10042"  # the run can still go on
+    # unsigned / not configured / the api down: no incident, the run stops
+    for bad in ((401, None), (503, None), (0, "ConnectionRefusedError")):
+        step, key = d.alert_intake(bad, bad)
+        assert step[0] == d.FAIL and key is None
+    # a valid answer that created nothing (rejected) is a FAIL with the reason
+    step, key = d.alert_intake(_ans("rejected"), _ans("rejected"))
+    assert step[0] == d.FAIL and key is None

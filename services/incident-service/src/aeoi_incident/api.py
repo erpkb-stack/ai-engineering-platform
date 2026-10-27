@@ -11,15 +11,26 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from aeoi_common.errors import ConflictError, ForbiddenError, NotFoundError, ValidationFailedError
 from aeoi_incident import approvals, postmortem, service
+from aeoi_incident.alerts import (
+    ALERTS_PRINCIPAL,
+    DEDUPE_TTL,
+    AlertRejectedError,
+    dedupe_key,
+    service_of,
+    triage,
+)
+from aeoi_incident.catalog import CatalogClient, CatalogEntry
 from aeoi_incident.config import Settings
 from aeoi_incident.db import session_dep
 from aeoi_incident.domain import parse_if_match, parse_incident_ref
 from aeoi_incident.idempotency import Result, run_idempotent, validate_key
 from aeoi_models.api.agents import EvidenceBatch, EvidenceBatchResult
+from aeoi_models.api.alerts import AlertBatch, AlertIn, AlertResult, AlertsAccepted
 from aeoi_models.api.approvals import (
     ActionRequest,
     ApprovalOut,
@@ -45,6 +56,13 @@ from aeoi_models.api.incidents import (
 from aeoi_models.api.postmortem import PostmortemDoc, PostmortemIn, PostmortemStored, TimelineBatch
 from aeoi_security.auth import Principal
 from aeoi_security.rbac import EVIDENCE_KIND_PERMS, Perm, may_read_evidence
+from aeoi_security.webhook import (
+    SIGNATURE_HEADER,
+    TIMESTAMP_HEADER,
+    load_secret,
+    read_capped,
+    verify,
+)
 from aeoi_web.auth import require, require_acting_user, require_scope
 
 router = APIRouter(prefix="/v1", tags=["incidents"])
@@ -492,3 +510,94 @@ async def record_outcome(
     async with session.begin():
         a, inc = await approvals.record_outcome(session, approval_id, body, who)
         return approvals.to_out(a, inc.key)
+
+
+# ---------------------------------------------------------------- alerts (Phase 29b, ADR-044)
+
+
+@router.post("/alerts", response_model=AlertsAccepted, tags=["alerts"])
+async def receive_alerts(request: Request) -> AlertsAccepted:
+    """Alertmanager webhook. NO JWT: the sender proves itself with an HMAC over timestamp +
+    body (aeoi_security.webhook), checked here AND at the api edge. Order: configured (503)
+    -> size (413) -> signature + freshness (401) -> payload (422) -> per-alert triage."""
+    settings = _settings(request)
+    secret = load_secret(settings.alert_secret_file)
+    raw = await read_capped(request.stream())
+    verify(
+        secret,
+        timestamp=request.headers.get(TIMESTAMP_HEADER),
+        signature=request.headers.get(SIGNATURE_HEADER),
+        body=raw,
+    )
+    try:
+        batch = AlertBatch.model_validate_json(raw)
+    except ValidationError as exc:
+        errors = [
+            {"loc": [str(x) for x in e["loc"]], "msg": e["msg"], "type": e["type"]}
+            for e in exc.errors()[:20]
+        ]
+        raise ValidationFailedError(
+            "Not an Alertmanager webhook payload (v4).", errors=errors
+        ) from exc
+    lookups = _BatchCatalog(request.app.state.catalog)
+    results = [await _one_alert(request, lookups, a) for a in batch.alerts]
+    return AlertsAccepted(received=len(batch.alerts), results=results)
+
+
+class _BatchCatalog:
+    """One catalog call per service per batch, and none after the catalog failed once: 20
+    alerts x a 2 s timeout must not outlast the api's 5 s upstream timeout."""
+
+    def __init__(self, catalog: CatalogClient) -> None:
+        self._catalog = catalog
+        self._seen: dict[str, tuple[CatalogEntry | None, str]] = {}
+        self._down: str | None = None
+
+    async def lookup(self, svc: str) -> tuple[CatalogEntry | None, str]:
+        if svc in self._seen:
+            return self._seen[svc]
+        if self._down is not None:
+            return None, f"{self._down} (earlier in this batch)"
+        entry, note = await self._catalog.lookup(svc)
+        if entry is None and note not in ("service not in the catalog", "catalog not configured"):
+            self._down = note
+        self._seen[svc] = (entry, note)
+        return entry, note
+
+
+async def _one_alert(request: Request, catalog: _BatchCatalog, alert: AlertIn) -> AlertResult:
+    fp = alert.fingerprint
+    if alert.status == "resolved":
+        return AlertResult(fingerprint=fp, outcome="ignored_resolved",
+                           reason="a resolved alert never closes an incident: a human decides")  # fmt: skip
+    try:
+        svc = service_of(alert)
+    except AlertRejectedError as exc:
+        return AlertResult(fingerprint=fp, outcome="rejected", reason=str(exc))
+    entry, note = await catalog.lookup(svc)
+    t = triage(alert, entry, note)
+
+    async def work(session: AsyncSession) -> tuple[int, dict[str, object]]:
+        incident = await service.create_incident(
+            session, t.incident, ALERTS_PRINCIPAL, source="ALERT",
+            detail={"alertname": alert.labels.get("alertname", "")[:100], "fingerprint": fp,
+                    "rule": t.rule, "catalog": t.catalog, "blast_radius": t.blast_radius},
+        )  # fmt: skip
+        return 201, {"key": incident.key, "severity": incident.severity, "rule": t.rule}
+
+    result = await run_idempotent(
+        _sessions(request),
+        principal=ALERTS_PRINCIPAL.subject,
+        scope="POST /v1/alerts",
+        key=dedupe_key(alert),
+        body={"fingerprint": fp, "startsAt": alert.startsAt.isoformat()},
+        ttl=DEDUPE_TTL,
+        work=work,
+    )
+    return AlertResult(
+        fingerprint=fp,
+        outcome="duplicate" if result.replayed else "created",
+        incident_key=str(result.body["key"]),
+        severity=result.body["severity"],
+        reason=str(result.body["rule"]),
+    )

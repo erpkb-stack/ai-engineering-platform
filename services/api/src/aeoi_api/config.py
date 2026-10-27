@@ -45,6 +45,11 @@ class Settings(BaseServiceSettings):
 
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # Phase 29b (ADR-044): the alert webhook is the ONE route without a JWT. The api checks
+    # the HMAC before forwarding (unauthorised requests never reach a service) and the
+    # incident-service checks it again. No file = 503 "not configured".
+    alert_secret_file: Path = Field(default_factory=lambda: _secret("alert_webhook_secret.txt"))
+
     # ---- token exchange / delegation (ADR-019). The api owns `identity`, so it is the STS.
     db_user: str = "api_svc"
     db_password_file: Path = Field(default_factory=lambda: _secret("api_svc_password.txt"))
