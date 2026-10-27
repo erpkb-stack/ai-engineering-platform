@@ -1,6 +1,6 @@
 # Phase 29 - End-to-end demonstration (ADR-043)
 
-Status: **29a BUILT 2026-10-27** (sandbox rehearsal only). Owner (2026-10-27): "Phase 29";
+Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). Owner (2026-10-27): "Phase 29";
 clean = **fresh containers, keep data**; models = **fake to rehearse, real for the 3 passes**;
 the 4 missing steps = **build all four**.
 
@@ -36,12 +36,27 @@ Sandbox rehearsal (processes, fake models, no Java catalog): 9 PASS, 4 n/a, 1 FA
 (`services_ready`: no catalog in the sandbox); investigation PARTIAL in 38 s, the 4 agents
 overlapped 0.7 s, evidence COMMIT CONFIG DEPLOY DOC INCIDENT LOG METRIC RUNBOOK.
 
-## 3. Next
+## 3. Runs on the Mac (kind; branch phase-29a-demo)
+| run | models | verdict | investigation | evidence agents overlap | notes |
+|---|---|---|---|---|---|
+| 19:22 UTC | fake (rehearsal) | REHEARSAL-OK: 9 PASS, 4 n/a | PARTIAL, 47 s | 3.4 s | demo-clean removed 0 |
+| (first real try) | real | crashed | - | - | my bug: critic verdict read at the top level; it is in `detail` (fix1, tested on the API shape; a crashing check is now a FAIL) |
+| 21:24 UTC | **real** | **PASS: 13 of 13** | COMPLETE, 89 s | 8.1 s | critic "supported", VALIDATED; rollback proposed for the SRE; ENGINEER 403; IC approved -> EXECUTED, MITIGATED; demo-clean removed 1 |
+
+Not counted toward the gate: 29b-29e are not in the script yet.
+
+Pods during `make demo-fresh`: the FIRST fresh start (right after a deploy with the load
+routing, so two rollouts back to back) restarted every pod 2-3 times ("Completed" = a liveness
+kill shut them down cleanly); the SECOND (one rollout) restarted none. One of two - the liveness
+probes are NOT changed on it; `make k8s-status` after each `demo-fresh` keeps the count.
+
+## 4. Next
 29b webhook (signed, auto-triage, services from the catalog; security tests + threat-model row),
 29c removed-sentence diff, 29d evidence-graph screen, 29e MTTI. Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
 
-## 4. Verify
-- [ ] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removes 0 rows.
+## 5. Verify
+- [x] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removed 0 rows.
+- [x] One real-model run: PASS 13/13 (not counted: the script is not complete yet).
 - [ ] 29b-29e built and in the demo.
 - [ ] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`.
