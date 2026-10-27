@@ -99,6 +99,9 @@ def build_app(settings: Settings | None = None, transport: Transport | None = No
             static_users=settings.static_user_tokens,
         ),
         readiness={"database": db_ready, **({"consumer": consumer_ready} if consumer else {})},
+        # ADR-041: the consumer is THIS pod's state (review M4: readiness is audit's only lag
+        # signal) - it stays continuous; the database gates the start only, like everywhere
+        readiness_continuous=("consumer",) if consumer else (),
         lifespan=lifespan,
         log_level=settings.log_level,
         log_json=settings.log_json,

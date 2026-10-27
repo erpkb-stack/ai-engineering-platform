@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 import httpx
@@ -9,6 +10,7 @@ from aeoi_common.errors import NotFoundError
 from aeoi_security import Perm, Principal
 from aeoi_security.testing import KeyPair, generate_keypair, token_for
 from aeoi_web import Authenticator, create_app, require
+from aeoi_web.health import ReadinessCheck, health_router
 
 
 class Body(BaseModel):
@@ -158,6 +160,44 @@ async def test_live_ok_but_ready_degraded(client: httpx.AsyncClient) -> None:
     r = await client.get("/health/ready")
     assert r.status_code == 503
     assert r.json()["checks"]["db"].startswith("fail")
+
+
+async def test_a_dependency_gates_the_start_then_an_outage_keeps_the_pod_serving() -> None:
+    """ADR-041 (Phase 28a finding 1): readiness on a SHARED dependency removed the api from its
+    Service during a DB outage - 61 dropped connections. After the first pass a failure is
+    reported in the body, the status stays 200, and the pod answers 503s itself."""
+    state = {"db": False, "consumer": True}
+
+    def check(name: str) -> ReadinessCheck:
+        async def run() -> None:
+            if not state[name]:
+                raise ConnectionError(name)
+
+        return run
+
+    app = FastAPI()
+    app.include_router(health_router({"db": check("db"), "consumer": check("consumer")},
+                                     continuous=["consumer"]))  # fmt: skip
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+
+        async def ready() -> tuple[int, str, dict[str, str]]:
+            r = await c.get("/health/ready")
+            return r.status_code, r.json()["status"], r.json()["checks"]
+
+        assert (await ready())[0] == 503  # never connected: a bad deploy stops the rollout
+        state["db"] = True
+        assert await ready() == (200, "ok", {"db": "ok", "consumer": "ok"})
+        state["db"] = False  # the outage
+        assert await ready() == (200, "degraded", {"db": "fail: ConnectionError", "consumer": "ok"})
+        state["consumer"] = False  # this pod's own state: out of the Service while it fails
+        assert (await ready())[0] == 503
+        state["consumer"] = state["db"] = True
+        assert (await ready())[0:2] == (200, "ok")
+
+
+def test_a_continuous_check_must_be_registered() -> None:
+    with pytest.raises(ValueError, match="not registered"):
+        health_router({"db": lambda: asyncio.sleep(0)}, continuous=["consumer"])
 
 
 # ---------------------------------------------------------------- delegation (ADR-019)

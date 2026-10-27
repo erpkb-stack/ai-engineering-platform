@@ -32,9 +32,9 @@ def _delete(app: str) -> tuple[str, ...]:
 EXPERIMENTS = {
     "pg": Exp("pg", ("docker", "compose", "stop", "postgres"),
               ("docker", "compose", "start", "postgres"), 60,
-              "liveness has no dependency -> no restarts; readiness includes the DB, and the "
-              "api's readiness includes incident-service -> the api may leave its Service "
-              "(connection errors, not 503); back without restarts once the DB returns"),
+              "28c (ADR-041): readiness gates the start only -> every pod stays in its "
+              "Service; callers get 503 + Retry-After, never a dropped connection; no "
+              "restarts; back once the DB returns. (28a predicted - and measured - drops.)"),
     "kafka": Exp("kafka", ("docker", "compose", "stop", "kafka"),
                  ("docker", "compose", "start", "kafka"), 60,
                  "producers write the outbox, consumers WAIT (ADR-029): creating incidents "
@@ -70,6 +70,10 @@ def judge(
     first_ok = next((r[0] for r in after if ok(r[1])), None)
     tail = [r for r in rows if r[0] >= end_at - CLEAN_TAIL_S]
     rules: dict[str, dict[str, Any]] = {
+        # 28c (ADR-041), added before its run: every request gets an HTTP answer - a dropped
+        # or refused connection gives the caller nothing to act on (no status, no Retry-After)
+        "always_answers": {"pass": all(r[1].isdigit() for r in rows),
+                           "no_answer": sum(1 for r in rows if not r[1].isdigit())},
         "no_hang": {"pass": all(r[2] < REQUEST_TIMEOUT_S for r in rows),
                     "max_latency_s": round(max((r[2] for r in rows), default=0), 1)},
         "recovers": {"pass": first_ok is not None and first_ok - back_at <= RECOVER_WITHIN_S
