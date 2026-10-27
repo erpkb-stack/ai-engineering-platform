@@ -1,6 +1,6 @@
 # Phase 28 - Failure testing (ADR-040)
 
-Status: **28a RUN on the Mac 2026-10-27: 4 of 4 PASS** (3 defects found + fixed by the sandbox dry run first; 5 findings written down, section 4). Verify = PR checks. Owner: "go 28"; order **28a outages
+Status: **28a RUN on the Mac 2026-10-27: 4 of 4 PASS** (3 defects found + fixed by the sandbox dry run first; 5 findings written down, section 4). PR #43 merged (main 9a1a156). Owner: "go 28"; order **28a outages
 first**; Redis **moved out of the default start** (2026-10-26).
 
 ## 0. Gate
@@ -126,4 +126,23 @@ Read from the DB after the runs (owner's queries, `orchestrator.investigations` 
 - [x] The four experiments run on the Mac; result files committed (`data/chaos/results/`, 4 PASS);
       findings written down (section 4).
 - [x] Afterwards: `make k8s-status` all ready (0 restarts), `make smoke` 12/12.
+- [x] PR checks green; PR #43 merged (main 9a1a156).
+
+## 6. 28c-1 - readiness gates the start, not shared outages (ADR-041)
+Owner (2026-10-27): "28c shedding + readiness". Split, smallest first: **28c-1 readiness** (fixes
+28a finding 1) now; **28c-2 load shedding** next, with its own need check and `make load`.
+
+- `aeoi_web.health`: a dependency check LATCHES once passed; after that a failure is reported in
+  the body (`degraded`) with status 200. `readiness_continuous=` for pod-local state: audit's
+  consumer only (review M4 kept). The api keeps its incident-service check (latched) as the
+  rollout gate for token / address / network policy.
+- New chaos rule written BEFORE the 28c run: `always_answers` (no dropped / refused connection).
+  28a's pg run would FAIL it (61); the pg prediction now reads "503 + Retry-After, no drops".
+- Sandbox (processes, no kind): with Postgres stopped, `/health/ready` = 200 `degraded`
+  (incident-service, orchestrator); `make chaos EXP=pg`: 118 x 503, 0 no-answer, PASS. The
+  Service behaviour (the point) is only measurable on kind.
+
+### Verify 28c-1
+- [ ] `make chaos EXP=pg` on kind: `always_answers` PASS (callers get 503s, not drops), the
+      other rules still PASS.
 - [ ] PR checks green.

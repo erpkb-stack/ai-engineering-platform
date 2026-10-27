@@ -24,6 +24,7 @@ def create_app(
     routers: Sequence[APIRouter],
     authenticator: Authenticator | None,
     readiness: dict[str, ReadinessCheck] | None = None,
+    readiness_continuous: Sequence[str] = (),
     lifespan: Lifespan | None = None,
     log_level: str = "INFO",
     log_json: bool = True,
@@ -57,7 +58,7 @@ def create_app(
     app.state.service_name = service_name
     install_problem_handlers(app)
     app.add_middleware(CorrelationIdMiddleware)
-    app.include_router(health_router(readiness))
+    app.include_router(health_router(readiness, continuous=readiness_continuous))
     for router in routers:
         app.include_router(router)
     return app

@@ -494,7 +494,7 @@ Target: namespace `ai-engineering-platform`; kustomize overlays once there is mo
 - **Deployments** for every service; **StatefulSets only for local in-cluster infra** (Postgres/Kafka/Redis in kind). In [Prod] these are managed services (RDS, MSK, ElastiCache), not run in the cluster.
 - **Services** (ClusterIP); **Ingress** (ingress-nginx [P], AWS ALB [Prod]) → api + frontend only. Nothing else is exposed.
 - **ConfigMaps** for non-secret config; **Secrets** via External Secrets Operator [Prod] (plain Secrets in kind only).
-- **Probes:** liveness = process alive (no dependency checks, or a DB outage restarts every pod); readiness = can serve (DB/Kafka reachable).
+- **Probes:** liveness = process alive (no dependency checks, or a DB outage restarts every pod); readiness = may receive traffic: a dependency (DB, downstream service) must have answered ONCE since start, after that an outage is reported (`degraded`) but the pod stays in its Service and answers 503 + Retry-After (ADR-041, measured in Phase 28a); only pod-local state (audit's consumer) fails readiness continuously.
 - **Resources:** requests = typical usage, limits = memory only for Python (CPU limits cause throttling under bursts; there is an argument in the ADR).
 - **Scaling:** HPA on CPU for api/rag and agents (agent tasks are HTTP calls, ADR-030; scaling on a task queue's lag only if ADR-030's revisit triggers fire).
 - **PDB** for multi-replica services; **NetworkPolicies**: agents can reach only tool-gateway and llm-gateway (22a, generated from the URL graph).

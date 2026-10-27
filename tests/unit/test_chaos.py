@@ -35,7 +35,7 @@ def reads(*spans: tuple[float, float, str, float]) -> list[tuple[float, str, flo
 
 
 def healthy_run(**kw: object) -> dict:
-    rows = reads((0, FAULT, "200", 0.05), (FAULT, BACK + 10, "ConnectionRefusedError", 0.01),
+    rows = reads((0, FAULT, "200", 0.05), (FAULT, BACK + 10, "503", 0.01),
                  (BACK + 10, 200, "200", 0.05))  # fmt: skip
     args = {"investigation": "PARTIAL", "restarts": {"api": 0, "incident-service": 0}} | kw
     return judge(rows, FAULT, BACK, 200, **args)  # type: ignore[arg-type]
@@ -45,7 +45,15 @@ def test_a_clean_outage_and_recovery_passes() -> None:
     v = healthy_run()
     assert v["pass"]
     assert v["rules"]["recovers"]["seconds_to_first_ok"] == 10.0
-    assert v["during_fault"]["ConnectionRefusedError"] > 0  # what the caller SAW is recorded
+    assert v["during_fault"]["503"] > 0  # what the caller SAW is recorded
+
+
+def test_a_dropped_connection_fails_always_answers() -> None:
+    """28c (ADR-041): the 28a pg run had 61 RemoteDisconnected - under this rule, a FAIL."""
+    rows = reads((0, FAULT, "200", 0.05), (FAULT, BACK, "503", 0.01),
+                 (BACK, BACK + 1, "RemoteDisconnected", 0.01), (BACK + 1, 200, "200", 0.05))  # fmt: skip
+    v = judge(rows, FAULT, BACK, 200, "PARTIAL", {})
+    assert v["rules"]["always_answers"] == {"pass": False, "no_answer": 2} and not v["pass"]
 
 
 def test_a_request_that_waits_for_the_client_timeout_is_a_hang() -> None:
