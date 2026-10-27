@@ -1,6 +1,6 @@
 # ADR-041: Readiness gates a pod's START; a shared-dependency outage is answered, not hidden
 
-Status: Proposed (28c-1 built 2026-10-27; to be measured with `make chaos EXP=pg` on kind)
+Status: Proposed (measured on kind 2026-10-27: pg outage 61 dropped connections -> 0, 85 x 503 + Retry-After, recovery 9.4 s -> 4.3 s)
 Date: 2026-10-27
 Refines: architecture.md §22 (probes), ADR-034 (kind probes), ADR-040 (finding 1)
 

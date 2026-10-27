@@ -142,7 +142,70 @@ Owner (2026-10-27): "28c shedding + readiness". Split, smallest first: **28c-1 r
   (incident-service, orchestrator); `make chaos EXP=pg`: 118 x 503, 0 no-answer, PASS. The
   Service behaviour (the point) is only measurable on kind.
 
+### Run on kind (the owner, commit 7ec77ac, 2026-10-27 04:32 UTC; 3 min wait after the deploy)
+| pg (stop 60 s) | 28a (readiness on the DB) | 28c-1 (latched) |
+|---|---|---|
+| callers during the fault | 96 OK, **61 dropped**, 4 x 503 | 82 OK, **0 dropped**, 85 x 503 |
+| first OK after the DB returns | 9.4 s | 4.3 s |
+| restarts | 0 | 0 |
+| investigation in flight | PARTIAL (waited, resumed) | COMPLETE (waited, resumed: ~150 s) |
+`always_answers` PASS (0 no-answer): every caller got a status and `Retry-After`. Recovery is
+faster too - nothing waits for Kubernetes to add the pods back (2 readiness periods before).
+- Not explained: the investigation ended COMPLETE here and PARTIAL in all four 28a runs, on the
+  same fake routing and the same case. The rule only needs a named end; the difference is
+  written down, not explained - one run each.
+- Seen 3 s before the fault: audit readiness 503 (its consumer is continuous by design -
+  probably rejoining after the deploy; not checked).
+
 ### Verify 28c-1
-- [ ] `make chaos EXP=pg` on kind: `always_answers` PASS (callers get 503s, not drops), the
-      other rules still PASS.
-- [ ] PR checks green.
+- [x] `make chaos EXP=pg` on kind: `always_answers` PASS (0 dropped, 85 x 503), the other rules
+      PASS (`data/chaos/results/pg-2026-10-27T043625.json`).
+- [x] PR checks green; PR #44 merged (main 15d07da).
+
+## 7. 28c-2 - load shedding: NOT built (decided from a re-measurement)
+Phase 27's two capacity runs differed up to 7x, with up to 71 % errors, while the disk was 97-99 %
+full. Re-run 2026-10-27 (commit 15d07da, disk 90 %, Grafana up as in Phase 27, api limit 100000
+at deploy time - the result files say "120 (default)": the load tool records ITS OWN environment,
+not the deployed value; a known flaw of the label, the 0 % 429 fits 100000).
+
+| target rps | 27-10 run 1: delivered / p95 | 27-10 run 2: delivered / p95 | diff |
+|---|---|---|---|
+| 10 | 10.2 / 66 ms | 9.1 / 389 ms | -11 % |
+| 25 | 22.5 / 181 ms | 18.9 / 1408 ms | -16 % |
+| 50 | 31.6 / 1387 ms | 16.2 / 2963 ms | **-49 %** |
+| 75 | 32.7 / 1462 ms | 32.0 / 1618 ms | -2 % |
+| 100 | 41.6 / 1135 ms | 26.8 / 1976 ms | -36 % |
+| 150 | 34.7 / 1515 ms | 23.1 / 2307 ms | -33 % |
+Errors: at most 0.55 % in both runs (Phase 27's slow run: up to 71 %).
+
+Prediction written BEFORE the runs (in the chat, 2026-10-27): "within ~20 % of each other, knee
+>= 25 rps, errors < 1 %". **Half confirmed:** the errors were the disk (gone); the throughput
+still varies up to ~2x between identical runs - the laptop, not the code. **Decision:** no load
+shedding. A fixed limit cannot be chosen from runs that differ 2x, and under overload callers
+get slow ANSWERS, not errors (the closed team of 31 users caps the work in flight) - a fast 503
+would be worse for an SRE than a 1.5 s answer. Revisit with replicas or a stable machine.
+
+## 8. 28b - LLM failures (ADR-042), from stored data, no paid run
+Owner (2026-10-27): "28b". Read first (owner's queries):
+- The 11 `historical_incident` `StructuredOutputError` rows are all Haiku (6.4-7.5 s = answer +
+  repair), one row per request, no fallback row - yet the agent saw "504 llm-timeout: No answer
+  within 40.0s" on the same days. The fallback (llama3.2:3b, CPU) ran until the deadline and was
+  cancelled, and a cancelled attempt wrote NO row. Haiku fails this schema in 11 of 54 answered
+  calls; the cause (which field) was never stored.
+- The 3B fallback: 0 OK for `historical_incident` and `hypothesis`; 8 OK for `log_analysis`
+  (p50 78 s, max 113 s, inside its 115 s deadline); `rag-reranker` 17 ERROR at ~60.5 s (its own
+  60 s limit; 1 OK at 106 s) - a separate open item.
+- 2026-10-23: hosted AND local models timed out within 32 s (the machine, not a provider); the
+  breakers then refused for >= 4.5 min, and each refusal took 5-7 s (retried).
+Built: an open circuit is never retried; `model_usage.error_detail` (0029) records the failing
+schema paths + keyword (never model text); an attempt cancelled by the deadline now leaves a
+TIMEOUT row ("cancelled: tokens unknown"). Not decided: the 3B fallback for structured output
+on the `fast` route (owner); why breakers stayed open (state changes are not logged).
+Correction made before merge: my first write-up said "the fallback ran out of time" from the
+504 alone - the per-request rows were read before keeping it (one row per request = the
+fallback was cancelled unrecorded).
+
+### Verify 28b
+- [ ] PR checks green; migration 0029 applied on the Mac (`make db-upgrade`).
+- [x] The fallback query answered (above).
+- [ ] Owner decision on the 3B fallback for structured output on the `fast` route.

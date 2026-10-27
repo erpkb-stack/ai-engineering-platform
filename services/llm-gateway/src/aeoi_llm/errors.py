@@ -29,9 +29,13 @@ class StructuredOutputError(AEOIError):
     type_slug = "llm-structured-output-invalid"
     title = "Model output did not match the JSON Schema"
 
-    def __init__(self, detail: str, *, usage: Usage | None = None) -> None:
+    def __init__(
+        self, detail: str, *, usage: Usage | None = None, where: str | None = None
+    ) -> None:
         super().__init__(detail)
         self.usage = usage or Usage()  # tokens were still spent - they get recorded
+        # Phase 28b: failing SCHEMA paths (keyword last) or "cut_off:max_tokens" - safe to store
+        self.where = where
 
 
 class UpstreamRejectedError(AEOIError):

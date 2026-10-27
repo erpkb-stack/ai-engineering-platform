@@ -57,12 +57,16 @@ async def with_retries[T](
     rng: random.Random | None = None,
     on_retry: Callable[[int, BaseException], None] | None = None,
 ) -> T:
-    """Retry only TransientError; everything else is raised at once."""
+    """Retry only TransientError; everything else is raised at once. An OPEN circuit is not
+    retried either: it is the breaker's answer, and sleeping on it only spends the caller's
+    deadline before the fail-over (Phase 28b, measured: refusals took 5-7 s on 2026-10-23)."""
     rng = rng or random.Random()  # noqa: S311 - jitter, not crypto
     attempt = 0
     while True:
         try:
             return await call()
+        except CircuitOpenError:
+            raise
         except TransientError as exc:
             attempt += 1
             if attempt >= policy.max_attempts:

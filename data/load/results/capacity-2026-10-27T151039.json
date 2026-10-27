@@ -1,0 +1,406 @@
+{
+ "plan": "capacity",
+ "note": "api limit raised at deploy time: where does the SYSTEM bend?",
+ "started_at": "2026-10-27T15:10:39+00:00",
+ "environment": {
+  "git_commit": "15d07da",
+  "api": "http://localhost:8000",
+  "readers": 31,
+  "api_rate_limit_per_minute": "120 (default)",
+  "machine": {
+   "system": "Darwin",
+   "machine": "x86_64",
+   "cpus": 12,
+   "memory_gb": 16.0
+  },
+  "llm": {
+   "models": {
+    "fake-large": "hosted_fake",
+    "fake-small": "local_fake",
+    "fake-embed": "local_fake"
+   },
+   "simulated_latency_ms": {
+    "log_analysis": 2494,
+    "hypothesis": 5248,
+    "historical_incident": 5865,
+    "critic": 7593,
+    "postmortem": 14693,
+    "default": 612
+   },
+   "in_flight_at_end": {
+    "hosted_fake": {},
+    "local_fake": {
+     "fake-embed": 0
+    }
+   }
+  },
+  "investigations_running_at_start": 0,
+  "investigations_running_at_end": 0,
+  "warning": "client and system share ONE laptop; LLM delays are simulated p50s (no tail)"
+ },
+ "stages": [
+  {
+   "stage": 0,
+   "target_rps": 10,
+   "achieved_rps": 9.1,
+   "ok_rps": 9.1,
+   "requests": 548,
+   "p50_ms": 48.6,
+   "p95_ms": 388.6,
+   "p99_ms": 5712.9,
+   "rate_limited_share": 0.0,
+   "error_share": 0.0055,
+   "other_4xx": 0,
+   "per_endpoint": {
+    "GET /incidents": {
+     "n": 133,
+     "p50_ms": 42.3,
+     "p95_ms": 114.9
+    },
+    "GET /incidents/[key]": {
+     "n": 180,
+     "p50_ms": 37.3,
+     "p95_ms": 207.2
+    },
+    "GET /incidents/[key]/hypotheses": {
+     "n": 118,
+     "p50_ms": 55.7,
+     "p95_ms": 433.1
+    },
+    "GET /incidents/[key]/timeline": {
+     "n": 54,
+     "p50_ms": 45.8,
+     "p95_ms": 3467.8
+    },
+    "POST /search": {
+     "n": 60,
+     "p50_ms": 99.2,
+     "p95_ms": 3921.9
+    }
+   },
+   "machine": {
+    "load_client_cpu_percent": 1.7,
+    "containers": {
+     "aeoi-control-plane": {
+      "cpu": "182.01%",
+      "mem": "2.341GiB / 7.75GiB"
+     },
+     "aeoi-postgres-1": {
+      "cpu": "11.68%",
+      "mem": "137.3MiB / 1GiB"
+     }
+    },
+    "server_p95_ms": {
+     "incident-service": 71.5,
+     "llm-gateway": 176.5,
+     "api": 525.0,
+     "rag": 496.9
+    }
+   }
+  },
+  {
+   "stage": 1,
+   "target_rps": 25,
+   "achieved_rps": 18.9,
+   "ok_rps": 18.9,
+   "requests": 1132,
+   "p50_ms": 124.1,
+   "p95_ms": 1408.4,
+   "p99_ms": 2127.0,
+   "rate_limited_share": 0.0,
+   "error_share": 0.0,
+   "other_4xx": 0,
+   "per_endpoint": {
+    "GET /incidents": {
+     "n": 346,
+     "p50_ms": 112.9,
+     "p95_ms": 1340.2
+    },
+    "GET /incidents/[key]": {
+     "n": 340,
+     "p50_ms": 112.9,
+     "p95_ms": 1399.7
+    },
+    "GET /incidents/[key]/hypotheses": {
+     "n": 228,
+     "p50_ms": 111.9,
+     "p95_ms": 1419.9
+    },
+    "GET /incidents/[key]/timeline": {
+     "n": 106,
+     "p50_ms": 187.5,
+     "p95_ms": 1629.0
+    },
+    "POST /search": {
+     "n": 112,
+     "p50_ms": 174.2,
+     "p95_ms": 816.2
+    }
+   },
+   "machine": {
+    "load_client_cpu_percent": 3.3,
+    "containers": {
+     "aeoi-control-plane": {
+      "cpu": "325.95%",
+      "mem": "2.355GiB / 7.75GiB"
+     },
+     "aeoi-postgres-1": {
+      "cpu": "41.99%",
+      "mem": "152.9MiB / 1GiB"
+     }
+    },
+    "server_p95_ms": {
+     "incident-service": 468.4,
+     "llm-gateway": 115.0,
+     "api": 1340.5,
+     "rag": 395.5
+    }
+   }
+  },
+  {
+   "stage": 2,
+   "target_rps": 50,
+   "achieved_rps": 16.2,
+   "ok_rps": 16.2,
+   "requests": 975,
+   "p50_ms": 926.0,
+   "p95_ms": 2962.9,
+   "p99_ms": 5090.3,
+   "rate_limited_share": 0.0,
+   "error_share": 0.001,
+   "other_4xx": 0,
+   "per_endpoint": {
+    "GET /incidents": {
+     "n": 292,
+     "p50_ms": 881.4,
+     "p95_ms": 2781.4
+    },
+    "GET /incidents/[key]": {
+     "n": 281,
+     "p50_ms": 906.1,
+     "p95_ms": 2638.5
+    },
+    "GET /incidents/[key]/hypotheses": {
+     "n": 195,
+     "p50_ms": 1148.9,
+     "p95_ms": 3819.9
+    },
+    "GET /incidents/[key]/timeline": {
+     "n": 118,
+     "p50_ms": 1127.4,
+     "p95_ms": 3590.2
+    },
+    "POST /search": {
+     "n": 88,
+     "p50_ms": 573.3,
+     "p95_ms": 1479.2
+    }
+   },
+   "machine": {
+    "load_client_cpu_percent": 3.3,
+    "containers": {
+     "aeoi-control-plane": {
+      "cpu": "423.84%",
+      "mem": "2.355GiB / 7.75GiB"
+     },
+     "aeoi-postgres-1": {
+      "cpu": "33.43%",
+      "mem": "138MiB / 1GiB"
+     }
+    },
+    "server_p95_ms": {
+     "incident-service": 2173.6,
+     "llm-gateway": 194.2,
+     "api": 2458.5,
+     "rag": 494.1
+    }
+   }
+  },
+  {
+   "stage": 3,
+   "target_rps": 75,
+   "achieved_rps": 32.0,
+   "ok_rps": 32.0,
+   "requests": 1918,
+   "p50_ms": 431.6,
+   "p95_ms": 1617.7,
+   "p99_ms": 2218.4,
+   "rate_limited_share": 0.0,
+   "error_share": 0.0,
+   "other_4xx": 0,
+   "per_endpoint": {
+    "GET /incidents": {
+     "n": 602,
+     "p50_ms": 492.8,
+     "p95_ms": 1660.8
+    },
+    "GET /incidents/[key]": {
+     "n": 554,
+     "p50_ms": 420.0,
+     "p95_ms": 1617.7
+    },
+    "GET /incidents/[key]/hypotheses": {
+     "n": 369,
+     "p50_ms": 486.4,
+     "p95_ms": 1752.6
+    },
+    "GET /incidents/[key]/timeline": {
+     "n": 198,
+     "p50_ms": 467.4,
+     "p95_ms": 1607.4
+    },
+    "POST /search": {
+     "n": 195,
+     "p50_ms": 268.4,
+     "p95_ms": 802.2
+    }
+   },
+   "machine": {
+    "load_client_cpu_percent": 4.9,
+    "containers": {
+     "aeoi-control-plane": {
+      "cpu": "345.60%",
+      "mem": "2.356GiB / 7.75GiB"
+     },
+     "aeoi-postgres-1": {
+      "cpu": "15.82%",
+      "mem": "137.9MiB / 1GiB"
+     }
+    },
+    "server_p95_ms": {
+     "incident-service": 816.0,
+     "llm-gateway": 59.9,
+     "api": 1531.4,
+     "rag": 331.9
+    }
+   }
+  },
+  {
+   "stage": 4,
+   "target_rps": 100,
+   "achieved_rps": 26.8,
+   "ok_rps": 26.7,
+   "requests": 1605,
+   "p50_ms": 752.4,
+   "p95_ms": 1976.1,
+   "p99_ms": 3058.6,
+   "rate_limited_share": 0.0,
+   "error_share": 0.0006,
+   "other_4xx": 0,
+   "per_endpoint": {
+    "GET /incidents": {
+     "n": 488,
+     "p50_ms": 761.6,
+     "p95_ms": 1908.5
+    },
+    "GET /incidents/[key]": {
+     "n": 478,
+     "p50_ms": 783.0,
+     "p95_ms": 1876.1
+    },
+    "GET /incidents/[key]/hypotheses": {
+     "n": 304,
+     "p50_ms": 801.0,
+     "p95_ms": 2176.4
+    },
+    "GET /incidents/[key]/timeline": {
+     "n": 177,
+     "p50_ms": 867.1,
+     "p95_ms": 2129.7
+    },
+    "POST /search": {
+     "n": 157,
+     "p50_ms": 390.8,
+     "p95_ms": 1268.5
+    }
+   },
+   "machine": {
+    "load_client_cpu_percent": 4.4,
+    "containers": {
+     "aeoi-control-plane": {
+      "cpu": "395.59%",
+      "mem": "2.357GiB / 7.75GiB"
+     },
+     "aeoi-postgres-1": {
+      "cpu": "34.43%",
+      "mem": "155.1MiB / 1GiB"
+     }
+    },
+    "server_p95_ms": {
+     "rag": 793.7,
+     "incident-service": 932.2,
+     "llm-gateway": 96.2,
+     "api": 2347.3
+    }
+   }
+  },
+  {
+   "stage": 5,
+   "target_rps": 150,
+   "achieved_rps": 23.1,
+   "ok_rps": 23.1,
+   "requests": 1388,
+   "p50_ms": 1002.7,
+   "p95_ms": 2306.5,
+   "p99_ms": 3192.1,
+   "rate_limited_share": 0.0,
+   "error_share": 0.0,
+   "other_4xx": 0,
+   "per_endpoint": {
+    "GET /incidents": {
+     "n": 419,
+     "p50_ms": 1097.3,
+     "p95_ms": 2289.1
+    },
+    "GET /incidents/[key]": {
+     "n": 425,
+     "p50_ms": 1036.6,
+     "p95_ms": 2460.7
+    },
+    "GET /incidents/[key]/hypotheses": {
+     "n": 261,
+     "p50_ms": 1049.0,
+     "p95_ms": 2337.4
+    },
+    "GET /incidents/[key]/timeline": {
+     "n": 151,
+     "p50_ms": 1092.2,
+     "p95_ms": 2224.0
+    },
+    "POST /search": {
+     "n": 132,
+     "p50_ms": 461.5,
+     "p95_ms": 1044.7
+    }
+   },
+   "machine": {
+    "load_client_cpu_percent": 4.3,
+    "containers": {
+     "aeoi-control-plane": {
+      "cpu": "339.84%",
+      "mem": "2.357GiB / 7.75GiB"
+     },
+     "aeoi-postgres-1": {
+      "cpu": "24.48%",
+      "mem": "138.5MiB / 1GiB"
+     }
+    },
+    "server_p95_ms": {
+     "incident-service": 946.1,
+     "llm-gateway": 74.3,
+     "api": 2429.3,
+     "rag": 350.0
+    }
+   }
+  }
+ ],
+ "knee": {
+  "stage": 1,
+  "target_rps": 25,
+  "why": [
+   "delivered 18.9 of 25 rps",
+   "p95 1408.4 ms > 2x 388.6 ms"
+  ]
+ },
+ "investigations": null
+}

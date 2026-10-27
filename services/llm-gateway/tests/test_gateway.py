@@ -130,6 +130,25 @@ async def test_deadline_covers_retries_and_fallback(gateway: Gateway, hosted: Fa
         await gateway.generate("reasoning", req(), META)
 
 
+async def test_an_attempt_cut_by_the_deadline_still_leaves_a_row(
+    gateway: Gateway, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    """Phase 28b: 11 historical_incident requests showed only the primary's failure; the
+    fallback that ran until the 40 s deadline left no trace in llm.model_usage."""
+    hosted.structured.extend([{"severity": "nope"}] * 2)  # primary: invalid twice
+
+    async def slow(_: ChatRequest) -> None:
+        await asyncio.sleep(10)
+
+    local.generate_structured = slow  # type: ignore[method-assign,assignment]
+    gateway.request_timeout_s = 0.2
+    with pytest.raises(GatewayTimeoutError):
+        await gateway.generate_structured("reasoning", req(json_schema=SCHEMA), META)
+    assert [(r.status, r.error_type) for r in sink.rows] == [
+        ("ERROR", "StructuredOutputError"), ("TIMEOUT", "Cancelled")]  # fmt: skip
+    assert sink.rows[1].error_detail == "cancelled: tokens unknown"
+
+
 # ----------------------------------------------------------------------------- redaction
 
 
@@ -215,6 +234,27 @@ async def test_structured_still_invalid_raises_after_whole_chain(
         await gateway.generate_structured("reasoning", req(json_schema=SCHEMA), META)
     assert [r.error_type for r in sink.rows] == ["StructuredOutputError"] * 2
     assert sink.rows[0].usage.input_tokens > 0  # failed attempts still cost tokens
+
+
+async def test_a_structured_failure_records_where_it_failed_but_no_model_text(
+    gateway: Gateway, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    """Phase 28b: 11 historical_incident failures were undiagnosable (only the class stored).
+    The row now says WHERE - from the SCHEMA side, because jsonschema's message (and the
+    instance path) quote what the model wrote."""
+    leaked = "SECRET-MODEL-TEXT"
+    bad = {"severity": leaked}  # enum violated; 'reason' missing
+    hosted.structured.extend([bad, bad])
+    local.structured.append({"severity": "SEV2"})
+    local.stop_reasons.append("max_tokens")
+    with pytest.raises(StructuredOutputError):
+        await gateway.generate_structured("reasoning", req(json_schema=SCHEMA), META)
+    first, last = (r.error_detail or "" for r in sink.rows)
+    assert (
+        first == "first=properties/severity/enum,required repair=properties/severity/enum,required"
+    )
+    assert last == "cut_off:max_tokens required"
+    assert all(leaked not in (r.error_detail or "") for r in sink.rows)
 
 
 async def test_invalid_schema_is_a_400(gateway: Gateway) -> None:
