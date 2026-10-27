@@ -3,7 +3,8 @@
 Phase 28b (ADR-042): 11 historical_incident StructuredOutputError rows could not be diagnosed,
 because only the error CLASS was stored, and the agent saw a 40 s timeout instead (the fallback
 model ran out of time). This column holds the failing SCHEMA paths with their keyword (e.g.
-`properties/matches/items/required`) or `cut_off:max_tokens` - never a message, never a value
+`properties/matches/items/required`), `cut_off:max_tokens`, or "cancelled: tokens unknown"
+for an attempt the deadline cut - never a message, never a value
 from the model's output (jsonschema messages quote the instance). Additive and nullable.
 obs_reader gets no grant on it (0026 grants columns by name).
 

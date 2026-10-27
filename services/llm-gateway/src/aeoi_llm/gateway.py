@@ -408,6 +408,18 @@ class Gateway:
                 else:
                     result = await self._guarded(rt, model, partial(rt.provider.generate, call_req))
                     repaired, extra_usage = False, Usage()
+            except asyncio.CancelledError:
+                # Phase 28b: the request deadline (or the caller leaving) cancelled this attempt.
+                # It used to leave NO row: 11 historical_incident requests showed only Haiku's
+                # failure, while the 3B fallback ran until the 40 s deadline invisibly. Tokens
+                # of a cancelled hosted call are unknown - recorded as 0, the row says so.
+                await asyncio.shield(
+                    self._record(
+                        self._row(request_id, n, rt, model, op, "TIMEOUT", _ms(t0), Usage(),
+                                  Decimal(0), meta, "Cancelled", "cancelled: tokens unknown")
+                    )
+                )  # fmt: skip
+                raise
             except StructuredOutputError as exc:
                 latency = _ms(t0)
                 attempts.append(Attempt(model, rt.name, "invalid_output", exc.detail, latency))

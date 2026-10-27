@@ -130,6 +130,25 @@ async def test_deadline_covers_retries_and_fallback(gateway: Gateway, hosted: Fa
         await gateway.generate("reasoning", req(), META)
 
 
+async def test_an_attempt_cut_by_the_deadline_still_leaves_a_row(
+    gateway: Gateway, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    """Phase 28b: 11 historical_incident requests showed only the primary's failure; the
+    fallback that ran until the 40 s deadline left no trace in llm.model_usage."""
+    hosted.structured.extend([{"severity": "nope"}] * 2)  # primary: invalid twice
+
+    async def slow(_: ChatRequest) -> None:
+        await asyncio.sleep(10)
+
+    local.generate_structured = slow  # type: ignore[method-assign,assignment]
+    gateway.request_timeout_s = 0.2
+    with pytest.raises(GatewayTimeoutError):
+        await gateway.generate_structured("reasoning", req(json_schema=SCHEMA), META)
+    assert [(r.status, r.error_type) for r in sink.rows] == [
+        ("ERROR", "StructuredOutputError"), ("TIMEOUT", "Cancelled")]  # fmt: skip
+    assert sink.rows[1].error_detail == "cancelled: tokens unknown"
+
+
 # ----------------------------------------------------------------------------- redaction
 
 

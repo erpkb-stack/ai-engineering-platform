@@ -8,8 +8,12 @@ Refines: ADR-014 (gateway resilience), ADR-040 (Phase 28)
 - `historical_incident` showed 11 `StructuredOutputError` rows (2026-10-14..23) that could not be
   diagnosed: `llm.model_usage` stores only the class. The agent's traces show what the CALLER
   saw instead: 10 x "504 llm-timeout: No answer within 40.0s (retries and fallbacks included)".
-  Haiku's output failed the schema (after one repair), the gateway fell back to `llama3.2:3b` on
-  the Intel CPU, and the agent's 40 s deadline ran out - the real cause was hidden twice.
+  Per request (`request_id` prefix): each of the 11 has ONE row - Haiku, StructuredOutputError,
+  6.4-7.5 s (answer + one repair) - and no row for the fallback, yet the agent got its 504 at
+  40 s. The fallback (`llama3.2:3b` on the Intel CPU) ran for the remaining ~33 s and was
+  CANCELLED by the deadline - and a cancelled attempt wrote no row. The cause was hidden twice:
+  the schema path was never stored, and the fallback's time was invisible. Haiku's schema
+  failure rate for this agent: 11 of 54 answered calls (43 OK).
 - 2026-10-23 03:03:10-03:03:42: hosted Haiku and Sonnet AND the local Ollama models (chat and
   embeddings) all timed out within 32 s. Both a hosted and a local provider at once is not a
   provider outage - it is this machine (the same days the disk was 97-99 % full, phase-28.md
@@ -27,9 +31,16 @@ Refines: ADR-014 (gateway resilience), ADR-040 (Phase 28)
   Never the jsonschema message and never the instance path: both can quote the model's text
   (test: a planted value never reaches the row). obs_reader gets no grant on it.
 
+- **A cancelled attempt leaves a row:** status TIMEOUT, `error_type` `Cancelled`,
+  `error_detail` "cancelled: tokens unknown" (test). For a hosted model the tokens of a
+  cancelled call are unknown, so the per-investigation budget can still undercount by that
+  call - now visible, not fixed.
+
 ## Not decided here (needs data first)
-- Whether a `fast` route should fall back to a 3B model on the Intel CPU at all, when the
-  caller's deadline is 40 s: a query of the fallback's OK rate decides it (phase-28.md).
+- Whether a `fast` route should fall back to the 3B CPU model for STRUCTURED output: it never
+  answered OK for `historical_incident` or `hypothesis` (0 rows OK; the misses were deadline
+  cancellations or 2026-10-23 refusals), but it does for `log_analysis` (8 OK, p50 78 s inside
+  its 115 s deadline). An owner decision (phase-28.md section 8).
 - Why the breakers refused for >= 4.5 min after a ~30 s stall with no trial call recorded: a
   trial cancelled by the caller's deadline leaves no row. Breaker state changes are not logged,
   so 2026-10-23 cannot be reconstructed - logged transitions are the next step if it recurs.

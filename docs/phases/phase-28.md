@@ -187,15 +187,25 @@ would be worse for an SRE than a 1.5 s answer. Revisit with replicas or a stable
 
 ## 8. 28b - LLM failures (ADR-042), from stored data, no paid run
 Owner (2026-10-27): "28b". Read first (owner's queries):
-- The 11 `historical_incident` `StructuredOutputError` rows: the agent saw "504 llm-timeout: No
-  answer within 40.0s" 10 times - Haiku failed the schema, the fallback (llama3.2:3b on the CPU)
-  ran out of the 40 s. The schema cause itself was never stored.
+- The 11 `historical_incident` `StructuredOutputError` rows are all Haiku (6.4-7.5 s = answer +
+  repair), one row per request, no fallback row - yet the agent saw "504 llm-timeout: No answer
+  within 40.0s" on the same days. The fallback (llama3.2:3b, CPU) ran until the deadline and was
+  cancelled, and a cancelled attempt wrote NO row. Haiku fails this schema in 11 of 54 answered
+  calls; the cause (which field) was never stored.
+- The 3B fallback: 0 OK for `historical_incident` and `hypothesis`; 8 OK for `log_analysis`
+  (p50 78 s, max 113 s, inside its 115 s deadline); `rag-reranker` 17 ERROR at ~60.5 s (its own
+  60 s limit; 1 OK at 106 s) - a separate open item.
 - 2026-10-23: hosted AND local models timed out within 32 s (the machine, not a provider); the
   breakers then refused for >= 4.5 min, and each refusal took 5-7 s (retried).
 Built: an open circuit is never retried; `model_usage.error_detail` (0029) records the failing
-schema paths + keyword (never model text). Not decided: the CPU fallback on a 40 s route (data
-below), why breakers stayed open (state changes are not logged).
+schema paths + keyword (never model text); an attempt cancelled by the deadline now leaves a
+TIMEOUT row ("cancelled: tokens unknown"). Not decided: the 3B fallback for structured output
+on the `fast` route (owner); why breakers stayed open (state changes are not logged).
+Correction made before merge: my first write-up said "the fallback ran out of time" from the
+504 alone - the per-request rows were read before keeping it (one row per request = the
+fallback was cancelled unrecorded).
 
 ### Verify 28b
 - [ ] PR checks green; migration 0029 applied on the Mac (`make db-upgrade`).
-- [ ] The fallback query (chat) answered -> decision on the `fast` route's fallback.
+- [x] The fallback query answered (above).
+- [ ] Owner decision on the 3B fallback for structured output on the `fast` route.
