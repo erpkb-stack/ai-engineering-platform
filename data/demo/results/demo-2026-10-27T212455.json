@@ -1,0 +1,63 @@
+{
+ "started_at": "2026-10-27T21:24:55+00:00",
+ "models": "real",
+ "verdict": "PASS",
+ "seconds": 149,
+ "incident": "INC-10272",
+ "investigation": "01a17f3f-05c2-7183-944d-31acc2a1ea1c",
+ "investigation_status": "COMPLETE",
+ "steps": {
+  "services_ready": {
+   "status": "PASS",
+   "detail": "9 ready"
+  },
+  "incident_created": {
+   "status": "PASS",
+   "detail": "INC-10272"
+  },
+  "investigation": {
+   "status": "PASS",
+   "detail": "COMPLETE in 89 s"
+  },
+  "parallel_agents": {
+   "status": "PASS",
+   "detail": "all 4 overlap for 8.1 s"
+  },
+  "evidence": {
+   "status": "PASS",
+   "detail": "COMMIT CONFIG DEPLOY DOC INCIDENT LOG METRIC RUNBOOK"
+  },
+  "top_hypothesis": {
+   "status": "PASS",
+   "detail": "#1 [HIGH] Deploy DEPLOY-4821 on checkout-api may have caused the regression: it started 7 min before the first symptom (p95_latenc"
+  },
+  "decoy_rejected": {
+   "status": "PASS",
+   "detail": "the decoy never became a candidate cause (code saw no support for it)"
+  },
+  "critic_challenge": {
+   "status": "PASS",
+   "detail": "#1 VALIDATED, critic supported"
+  },
+  "report": {
+   "status": "PASS",
+   "detail": "root cause cites DEPLOY-4821; sections ok=True"
+  },
+  "proposal": {
+   "status": "PASS",
+   "detail": "PENDING rollback of DEPLOY-4821 for user:019907b9-2c00-7ef1-9431-1f66a04a3b01"
+  },
+  "approval": {
+   "status": "PASS",
+   "detail": "ENGINEER 403; IC approved -> EXECUTED; incident MITIGATED"
+  },
+  "decision_record": {
+   "status": "PASS",
+   "detail": "by INCIDENT_COMMANDER, args 7063621f6885"
+  },
+  "injection_ignored": {
+   "status": "PASS",
+   "detail": "0 quarantined documents returned"
+  }
+ }
+}

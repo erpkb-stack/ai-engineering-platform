@@ -22,7 +22,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
 .PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
 .PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
 .PHONY: kind-up kind-down k8s-manifests k8s-apply k8s-status k8s-netpol-test k8s-rollout-demo
-.PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency chaos
+.PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency chaos demo demo-clean demo-fresh
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -464,6 +464,21 @@ load: ## Phase 27: load the DEPLOYED api as the seeded team: make load PLAN=smok
 	@set -eu; test -n "$(PLAN)" || { echo "usage: make load PLAN=smoke|policy|capacity|investigations"; exit 2; }; \
 	AEOI_LOAD_PLAN=$(PLAN) uv run --group load locust -f tests/load/locustfile.py --headless \
 	  --host $(or $(API),http://localhost:8000) --only-summary --loglevel WARNING --exit-code-on-error 0
+
+demo: ## Phase 29: the demo script end to end on the DEPLOYED system, every step checked (fake models = rehearsal, real = a counted pass); then: make demo-clean
+	uv run python tests/demo/run.py
+
+demo-fresh: ## Phase 29: the "clean make up" before a counted pass: fresh infra containers + fresh app pods, DATA KEPT (no db-seed: it truncates rag + history). [LLM_ROUTING=routing.load.yaml to rehearse]
+	@set -eu -o pipefail; $(MAKE) --no-print-directory down; $(MAKE) --no-print-directory up PROFILE=kafka; \
+	$(MAKE) --no-print-directory k8s-apply; \
+	kubectl --context kind-aeoi -n ai-engineering-platform rollout restart deployment; \
+	for d in $$(kubectl --context kind-aeoi -n ai-engineering-platform get deploy -o name); do \
+	  kubectl --context kind-aeoi -n ai-engineering-platform rollout status $$d --timeout=300s; done; \
+	echo "waiting 180 s: a rollout stalls this node (Phase 28a finding 2) - the demo starts on a quiet one"; \
+	sleep 180; $(MAKE) --no-print-directory k8s-status
+
+demo-clean: ## Phase 29: remove the demo's rollback deploy row (DEPLOY-4821 running again); incidents + audit stay
+	uv run python tests/demo/run.py clean
 
 chaos: ## Phase 28a: ONE failure experiment on the deployed system: make chaos EXP=pg|kafka|orchestrator|agents (stops a container / deletes a pod; fake LLM only)
 	@set -eu; test -n "$(EXP)" || { echo "usage: make chaos EXP=pg|kafka|orchestrator|agents"; exit 2; }; \
