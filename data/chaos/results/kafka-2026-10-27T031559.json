@@ -1,0 +1,59 @@
+{
+ "experiment": "kafka",
+ "expect": "producers write the outbox, consumers WAIT (ADR-029): creating incidents keeps working; the outboxes drain after Kafka returns; nothing to the DLQ",
+ "started_at": "2026-10-27T03:15:58+00:00",
+ "git_commit": "f00127c",
+ "fault": "docker compose stop kafka",
+ "times_s": {
+  "fault": 31.8,
+  "back": 98.1,
+  "end": 134.6
+ },
+ "investigation": {
+  "id": "01a17b58-e7d1-7ef4-a838-823e6371bfaf",
+  "status": "PARTIAL"
+ },
+ "pass": true,
+ "rules": {
+  "no_hang": {
+   "pass": true,
+   "max_latency_s": 3.5
+  },
+  "recovers": {
+   "pass": true,
+   "seconds_to_first_ok": 0.2,
+   "clean_tail": true
+  },
+  "no_restarts": {
+   "pass": true,
+   "restarts": {
+    "agents": 0,
+    "api": 0,
+    "audit": 0,
+    "incident-service": 0,
+    "llm-gateway": 0,
+    "orchestrator": 0,
+    "rag": 0,
+    "service-catalog": 0,
+    "tool-gateway": 0
+   }
+  },
+  "investigation_named": {
+   "pass": true,
+   "status": "PARTIAL"
+  },
+  "writes_survive": {
+   "pass": true,
+   "statuses": [
+    201
+   ]
+  },
+  "outbox_drained": {
+   "pass": true,
+   "undelivered": 0
+  }
+ },
+ "during_fault": {
+  "200": 186
+ }
+}

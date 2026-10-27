@@ -1,6 +1,6 @@
 # Phase 28 - Failure testing (ADR-040)
 
-Status: **28a BUILT 2026-10-26; the sandbox dry run found 3 defects (fixed); not run on the Mac yet.** Owner: "go 28"; order **28a outages
+Status: **28a RUN on the Mac 2026-10-27: 4 of 4 PASS** (3 defects found + fixed by the sandbox dry run first; 5 findings written down, section 4). Verify = PR checks. Owner: "go 28"; order **28a outages
 first**; Redis **moved out of the default start** (2026-10-26).
 
 ## 0. Gate
@@ -76,11 +76,54 @@ After the fixes the same dry run: reads 503 during the outage, first OK 0.5 s af
 the investigation waited 4 times and ended INCONCLUSIVE (fake models), verdict PASS.
 Not dry-run here: Kafka (no broker in the simulation), the pod deletes (no kind).
 
-## 4. Runs on the Mac
-(not run yet)
+## 4. Runs on the Mac (kind, the owner ran them; commit f00127c, 2026-10-27 ~03:12-03:23 UTC)
+Before the runs the Mac was NOT fit to measure: the disk was 99 % full (3.7 GB free), Kafka had
+been unhealthy for 5 h (offset loads waiting 7-13 s "in the scheduler"), every pod's probes timed
+out in the same 5 s, the kube-scheduler / controller-manager had restarted ~52 times in 6 days,
+and the orchestrator was SIGKILLed once (exit 137) by its liveness probe. The owner freed space
+(20+ GB), restarted Kafka, rebuilt and redeployed with `routing.load.yaml`. Probe timeouts were
+STILL seen on every pod ~40 s after that deploy (a rollout stalls the node) - the pg run started
+soon after them (Gate 3 skipped; noted, results kept).
+
+| experiment | verdict | what callers saw during the fault | first OK after undo | investigation | restarts |
+|---|---|---|---|---|---|
+| pg (stop 60 s) | PASS | 96 OK, **61 dropped connections**, 4 x 503 | 9.4 s | PARTIAL, 135 s | 0 |
+| kafka (stop 60 s) | PASS | 186 OK; incidents created during it: 201 | 0.2 s | PARTIAL, 20 s | 0 |
+| orchestrator (pod delete) | PASS | 110 OK | 0.0 s | PARTIAL, 39 s | 0 |
+| agents (pod delete) | PASS | 82 OK | 0.5 s | PARTIAL, 20 s | 0 |
+
+Read from the DB after the runs (owner's queries, `orchestrator.investigations` + `tasks`):
+- **All four ended PARTIAL for the same reason, and it is the fake models', not the fault's:**
+  "hypothesis: model skipped them; critic: gave no alternative; postmortem: narrative empty".
+  No run lists a missing SOURCE. (A fault-free baseline from Phase 27 was not found in the
+  queried window - the identical reason across four different faults stands in for it.)
+- **pg:** the run took 135 s (others 20 s): it WAITED for the DB and resumed - fix 3 working on
+  kind. `historical_incident` ran twice (attempt 2): the interrupted node re-ran, and it is
+  recorded, as ADR-019 requires.
+- **orchestrator:** `postmortem` attempt 2 - the kill landed inside postmortem; the new pod
+  resumed from the checkpoint and re-ran only that node (39 s vs 20 s).
+- **agents:** every task attempt 1. The delete did NOT interrupt work: a pod delete is graceful
+  (preStop + grace period), so the request in flight finished. This PASS proves graceful
+  shutdown, not failure handling - a mid-task CRASH is still untested.
+- **kafka:** both outboxes drained to 0; the DLQ holds 4 letters, all from 2026-10-15 (2 audit
+  poison events with `None` times, 2 with no metadata): nothing new went to the DLQ.
+- After the runs: default routing redeployed, all pods 0 restarts, `make smoke` 12/12.
+
+### Findings (written down, not fixed in 28a)
+1. **A DB outage is a full api outage, with dropped connections instead of 503s.** The api's
+   readiness includes incident-service, whose readiness includes the DB: Kubernetes removes the
+   api from its Service, so fix 1's 503 + Retry-After reached a caller only 4 times (61 drops).
+   Readiness that depends on downstream services is a known anti-pattern. -> 28c (with shedding).
+2. **The node itself stalls** during rollouts and under disk pressure: all probes time out at
+   once, and the liveness probe (3 s x 3, 10 s apart) killed a healthy orchestrator once. One
+   data point - probes NOT changed on it; freeing the disk did not remove the rollout stalls.
+3. **Crash (SIGKILL) mid-task is untested** (finding from the agents run). A forced delete
+   (`--grace-period=0 --force`) is the next experiment if the owner wants it.
+4. **My rules missed the DLQ** (the Kafka prediction says "nothing to the DLQ"); checked by hand.
+5. Old: 4 DLQ letters from 2026-10-15, two without metadata - not investigated.
 
 ## 5. Verify
-- [ ] The four experiments run on the Mac; result files committed; every FAIL written down as
-      a finding (fixed in 28a only if small, else its own slice).
-- [ ] Afterwards: `make k8s-status` all ready, `make smoke` passes, no RUNNING investigations.
+- [x] The four experiments run on the Mac; result files committed (`data/chaos/results/`, 4 PASS);
+      findings written down (section 4).
+- [x] Afterwards: `make k8s-status` all ready (0 restarts), `make smoke` 12/12.
 - [ ] PR checks green.

@@ -1,6 +1,6 @@
 # ADR-040: Failure experiments - one fault at a time, plain stop/delete, rules fixed before the run
 
-Status: Proposed (28a built 2026-10-26; dry run found 3 defects, fixed; not run on the Mac yet)
+Status: Proposed (28a run on the Mac 2026-10-27: 4/4 PASS; 3 defects found by the dry run and fixed)
 Date: 2026-10-26
 Refines: ADR-014 (resilience), ADR-019 (checkpoints + resume), ADR-029 (consumers wait), ADR-031 (Redis), ADR-034 (kind)
 
@@ -56,6 +56,13 @@ Refines: ADR-014 (resilience), ADR-019 (checkpoints + resume), ADR-029 (consumer
 - The checkpointer's psycopg pool served dead connections after a DB restart; now checked.
 - The run in flight died outside the graph's error handling and stayed RUNNING; now a lost DB
   waits and resumes from the checkpoint (bounded by the deadline), any other crash ends FAILED.
+
+## Results on the Mac (2026-10-27, phase-28.md section 4)
+- 4/4 PASS, no restarts. pg: the run waited for the DB and resumed (135 s); the interrupted node
+  re-ran as attempt 2 (recorded). orchestrator kill: only the interrupted node re-ran.
+- Not shown by a PASS: a DB outage removes the api from its Service (readiness depends on
+  downstream) - callers saw 61 dropped connections and 4 503s -> 28c. The agents delete
+  interrupted nothing (graceful): a crash mid-task is still untested.
 
 ## Tradeoffs
 - A pod delete is a GRACEFUL stop (SIGTERM, preStop, `shutdown()` leaves rows RUNNING to resume).

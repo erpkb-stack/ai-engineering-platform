@@ -1,0 +1,48 @@
+{
+ "experiment": "orchestrator",
+ "expect": "checkpoints + resume RUNNING on start (ADR-019): the investigation ends with a named status, the interrupted node re-runs",
+ "started_at": "2026-10-27T03:19:45+00:00",
+ "git_commit": "f00127c",
+ "fault": "kubectl --context kind-aeoi -n ai-engineering-platform delete pod -l app.kubernetes.io/name=orchestrator --wait=false",
+ "times_s": {
+  "fault": 31.8,
+  "back": 31.8,
+  "end": 100.9
+ },
+ "investigation": {
+  "id": "01a17b5d-c326-7aa4-89ea-19e66a0cb3e6",
+  "status": "PARTIAL"
+ },
+ "pass": true,
+ "rules": {
+  "no_hang": {
+   "pass": true,
+   "max_latency_s": 4.3
+  },
+  "recovers": {
+   "pass": true,
+   "seconds_to_first_ok": 0.0,
+   "clean_tail": true
+  },
+  "no_restarts": {
+   "pass": true,
+   "restarts": {
+    "agents": 0,
+    "api": 0,
+    "audit": 0,
+    "incident-service": 0,
+    "llm-gateway": 0,
+    "rag": 0,
+    "service-catalog": 0,
+    "tool-gateway": 0
+   }
+  },
+  "investigation_named": {
+   "pass": true,
+   "status": "PARTIAL"
+  }
+ },
+ "during_fault": {
+  "200": 110
+ }
+}
