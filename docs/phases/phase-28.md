@@ -142,7 +142,22 @@ Owner (2026-10-27): "28c shedding + readiness". Split, smallest first: **28c-1 r
   (incident-service, orchestrator); `make chaos EXP=pg`: 118 x 503, 0 no-answer, PASS. The
   Service behaviour (the point) is only measurable on kind.
 
+### Run on kind (the owner, commit 7ec77ac, 2026-10-27 04:32 UTC; 3 min wait after the deploy)
+| pg (stop 60 s) | 28a (readiness on the DB) | 28c-1 (latched) |
+|---|---|---|
+| callers during the fault | 96 OK, **61 dropped**, 4 x 503 | 82 OK, **0 dropped**, 85 x 503 |
+| first OK after the DB returns | 9.4 s | 4.3 s |
+| restarts | 0 | 0 |
+| investigation in flight | PARTIAL (waited, resumed) | COMPLETE (waited, resumed: ~150 s) |
+`always_answers` PASS (0 no-answer): every caller got a status and `Retry-After`. Recovery is
+faster too - nothing waits for Kubernetes to add the pods back (2 readiness periods before).
+- Not explained: the investigation ended COMPLETE here and PARTIAL in all four 28a runs, on the
+  same fake routing and the same case. The rule only needs a named end; the difference is
+  written down, not explained - one run each.
+- Seen 3 s before the fault: audit readiness 503 (its consumer is continuous by design -
+  probably rejoining after the deploy; not checked).
+
 ### Verify 28c-1
-- [ ] `make chaos EXP=pg` on kind: `always_answers` PASS (callers get 503s, not drops), the
-      other rules still PASS.
+- [x] `make chaos EXP=pg` on kind: `always_answers` PASS (0 dropped, 85 x 503), the other rules
+      PASS (`data/chaos/results/pg-2026-10-27T043625.json`).
 - [ ] PR checks green.

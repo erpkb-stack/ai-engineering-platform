@@ -1,0 +1,54 @@
+{
+ "experiment": "pg",
+ "expect": "28c (ADR-041): readiness gates the start only -> every pod stays in its Service; callers get 503 + Retry-After, never a dropped connection; no restarts; back once the DB returns. (28a predicted - and measured - drops.)",
+ "started_at": "2026-10-27T04:36:25+00:00",
+ "git_commit": "7ec77ac",
+ "fault": "docker compose stop postgres",
+ "times_s": {
+  "fault": 38.2,
+  "back": 108.5,
+  "end": 219.2
+ },
+ "investigation": {
+  "id": "01a17ba2-29a3-707b-9205-9f524bb975fd",
+  "status": "COMPLETE"
+ },
+ "pass": true,
+ "rules": {
+  "always_answers": {
+   "pass": true,
+   "no_answer": 0
+  },
+  "no_hang": {
+   "pass": true,
+   "max_latency_s": 5.4
+  },
+  "recovers": {
+   "pass": true,
+   "seconds_to_first_ok": 4.3,
+   "clean_tail": true
+  },
+  "no_restarts": {
+   "pass": true,
+   "restarts": {
+    "agents": 0,
+    "api": 0,
+    "audit": 0,
+    "incident-service": 0,
+    "llm-gateway": 0,
+    "orchestrator": 0,
+    "rag": 0,
+    "service-catalog": 0,
+    "tool-gateway": 0
+   }
+  },
+  "investigation_named": {
+   "pass": true,
+   "status": "COMPLETE"
+  }
+ },
+ "during_fault": {
+  "200": 82,
+  "503": 85
+ }
+}
