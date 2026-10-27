@@ -1,6 +1,6 @@
 # Phase 28 - Failure testing (ADR-040)
 
-Status: **28a RUN on the Mac 2026-10-27: 4 of 4 PASS** (3 defects found + fixed by the sandbox dry run first; 5 findings written down, section 4). PR #43 merged (main 9a1a156). Owner: "go 28"; order **28a outages
+Status: **CLOSED 2026-10-27** (28a 4/4 PASS, 28c-1 readiness, 28c-2 not built by measurement, 28b LLM failures; section 9). 28a: **4 of 4 PASS** (3 defects found + fixed by the sandbox dry run first; 5 findings written down, section 4). PR #43 merged (main 9a1a156). Owner: "go 28"; order **28a outages
 first**; Redis **moved out of the default start** (2026-10-26).
 
 ## 0. Gate
@@ -206,6 +206,18 @@ Correction made before merge: my first write-up said "the fallback ran out of ti
 fallback was cancelled unrecorded).
 
 ### Verify 28b
-- [ ] PR checks green; migration 0029 applied on the Mac (`make db-upgrade`).
+- [x] PR checks green (PR #45, both commits; head = local HEAD checked); merged (main 43c4d0b,
+      run green); migration 0029 applied on the Mac.
 - [x] The fallback query answered (above).
-- [ ] Owner decision on the 3B fallback for structured output on the `fast` route.
+- [x] Owner decision (2026-10-27): **leave the 3B fallback as it is** - the cancellations are now
+      recorded, so its cost is visible.
+
+## 9. Phase 28 closed (2026-10-27)
+Gate: main 43c4d0b green; the 0029 migration, ADR-042 and the restored 28c-1 result file are in
+git (`git ls-files` = 3). Open items, written down and NOT done:
+- a crash (SIGKILL / OOM) in the middle of a task - a pod delete is graceful (28a finding 3);
+- breaker state changes are not logged - 2026-10-23's >= 4.5 min of refusals cannot be explained;
+- `rag-reranker`: 17 ERROR at ~60.5 s (its own limit), 1 OK at 106 s;
+- 4 old DLQ letters (2026-10-15), two without metadata;
+- the node stalls during rollouts and liveness killed a healthy pod once (28a finding 2);
+- the load tool records its OWN rate-limit setting, not the deployed one.

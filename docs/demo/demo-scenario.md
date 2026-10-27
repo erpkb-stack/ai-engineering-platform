@@ -3,6 +3,8 @@
 Fictional company: Northwind Cloud Systems. Service: `checkout-api` → `orders-db` (Postgres) via `order-repository`.
 Planted ground truth (synthetic): deploy `2026.10.02.4` changed `OrderRepository.findOpenOrders()` to open a new connection per item, which exhausts the connection pool. A **decoy** signal: a `cart-cache` node restart at 09:52 UTC. All times are planted in seed v1 (`scripts/synth`): deploy 09:42, flag on 09:47, app p95 up 09:49, pool 100% 09:50, first `ERR_POOL_TIMEOUT` 09:50:10, HTTP 5xx +42% 09:51, thread pool 85% 09:52 (alternative hypothesis), DB latency +18% 09:53.
 
+Status per step: `docs/phases/phase-29.md` section 1 (Phase 29 need check). Every step that exists is CHECKED by `make demo` (ADR-043); the decoy line is corrected: the system never proposes the cache restart as a cause.
+
 | Min | Step | What the audience sees | Spec item |
 |---|---|---|---|
 | 0:00 | Problem framing | Before/after workflow slide; KPI definitions | business |
@@ -21,4 +23,4 @@ Planted ground truth (synthetic): deploy `2026.10.02.4` changed `OrderRepository
 | 12:00 | Business value | measured MTTI (manual vs AI on the 20-incident set), cost/investigation, eval dashboard | 18 |
 | 13:00 | Architecture + what's prototype vs production | one slide, honest limits | — |
 
-Rules: run it from a clean `make up` 3 times before any interview. Have a recorded video as a fallback (live LLM calls can fail; say so if they do and show the recording).
+Rules: `make demo-fresh && make demo && make demo-clean` 3 times in a row on real models before any interview (ADR-043). Have a recorded video as a fallback (live LLM calls can fail; say so if they do and show the recording).
