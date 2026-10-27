@@ -12,7 +12,7 @@ PROFILE ?= infra
 SEED ?= 42
 COMPOSE := docker compose
 ALEMBIC := uv run alembic -c libs/db/alembic.ini
-ALL_PROFILES := --profile infra --profile kafka --profile tools --profile apps --profile apps-catalog
+ALL_PROFILES := --profile infra --profile kafka --profile tools --profile apps --profile apps-catalog --profile redis
 SVC ?=
 
 ROLE ?= SRE
@@ -22,7 +22,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
 .PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
 .PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
 .PHONY: kind-up kind-down k8s-manifests k8s-apply k8s-status k8s-netpol-test k8s-rollout-demo
-.PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency
+.PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency chaos
 .PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -95,11 +95,11 @@ hooks: ## Run all pre-commit hooks on all files
 ports: ## Check host ports are free: make ports [PROFILE=infra|kafka] (default 5433/6380/9094)
 	@./scripts/check-ports.sh $(PROFILE)
 
-up: ## Start infra: make up [PROFILE=infra|kafka]
+up: ## Start infra: make up [PROFILE=infra|kafka] (PROFILE=redis ADDS redis only: no service uses it, ADR-031)
 	@[ -f secrets/postgres_password.txt ] || { echo "run 'make setup' first"; exit 1; }
 	@./scripts/check-ports.sh $(PROFILE)
 	$(COMPOSE) --profile $(PROFILE) up -d --wait --wait-timeout 180
-	@if [ "$(PROFILE)" != "infra" ]; then $(MAKE) --no-print-directory kafka-init; fi
+	@if [ "$(PROFILE)" != "infra" ] && [ "$(PROFILE)" != "redis" ]; then $(MAKE) --no-print-directory kafka-init; fi
 	@$(COMPOSE) $(ALL_PROFILES) ps
 
 kafka-init: ## Create Kafka topics (idempotent)
@@ -115,7 +115,7 @@ ps: ## Container status
 logs: ## Follow logs: make logs [SVC=postgres]
 	$(COMPOSE) $(ALL_PROFILES) logs -f --tail=100 $(SVC)
 
-verify-infra: ## Smoke-test running infra (pgvector, roles, redis, kafka topics)
+verify-infra: ## Smoke-test running infra (pgvector, roles, kafka topics; redis only if started: PROFILE=redis)
 	@./scripts/verify-infra.sh
 
 psql: ## psql shell into the aeoi database
@@ -464,6 +464,10 @@ load: ## Phase 27: load the DEPLOYED api as the seeded team: make load PLAN=smok
 	@set -eu; test -n "$(PLAN)" || { echo "usage: make load PLAN=smoke|policy|capacity|investigations"; exit 2; }; \
 	AEOI_LOAD_PLAN=$(PLAN) uv run --group load locust -f tests/load/locustfile.py --headless \
 	  --host $(or $(API),http://localhost:8000) --only-summary --loglevel WARNING --exit-code-on-error 0
+
+chaos: ## Phase 28a: ONE failure experiment on the deployed system: make chaos EXP=pg|kafka|orchestrator|agents (stops a container / deletes a pod; fake LLM only)
+	@set -eu; test -n "$(EXP)" || { echo "usage: make chaos EXP=pg|kafka|orchestrator|agents"; exit 2; }; \
+	uv run python tests/chaos/run.py $(EXP)
 
 history-eval: ## Phase 13: similar-incident eval, keyword vs vector vs hybrid (data/eval/results/history-*.json)
 	$(RAG) history-eval

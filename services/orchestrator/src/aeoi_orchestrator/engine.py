@@ -28,6 +28,7 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.graph.state import CompiledStateGraph
 from opentelemetry.trace import Span
 
+from aeoi_common.errors import database_unavailable
 from aeoi_observability.telemetry import continue_from, tracer
 from aeoi_orchestrator.clients import IncidentClient
 from aeoi_orchestrator.delegation import DelegationClient
@@ -35,6 +36,7 @@ from aeoi_orchestrator.salvage import post_recorded_evidence
 from aeoi_orchestrator.store import Store
 
 log = structlog.get_logger(__name__)
+DB_RETRY_FIRST_S, DB_RETRY_MAX_S = 2.0, 30.0
 
 
 class Engine:
@@ -121,6 +123,38 @@ class Engine:
         )
 
     async def _run(self, investigation_id: UUID, graph_input: dict[str, Any]) -> None:
+        """Phase 28a (ADR-040): a lost database WAITS and resumes from the checkpoint (nodes are
+        idempotent, ADR-019) - found by the Postgres-stop experiment: the run died outside the
+        graph's error handling and stayed RUNNING until a restart. The deadline still holds:
+        once the DB is back, `begin_run` ends an over-deadline run TIMED_OUT."""
+        delay = DB_RETRY_FIRST_S
+        while True:
+            try:
+                await self._run_once(investigation_id, graph_input)
+                return
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                db = database_unavailable(exc)
+                if db is None:  # a bug outside the graph: end it named, never leave it RUNNING
+                    log.exception("investigation_crashed", investigation_id=str(investigation_id))
+                    await self._fail_quietly(investigation_id, exc)
+                    return
+                log.warning("investigation_waiting_for_database", error=db,
+                            investigation_id=str(investigation_id), retry_in_s=delay)  # fmt: skip
+            await asyncio.sleep(delay)  # outside the slot: other runs are not blocked by it
+            delay = min(delay * 2, DB_RETRY_MAX_S)
+
+    async def _fail_quietly(self, investigation_id: UUID, exc: Exception) -> None:
+        try:
+            inv = await self.store.get(investigation_id)
+            grant = inv.delegation_grant_id if inv is not None else None
+            await self._fail(investigation_id, f"orchestrator error: {type(exc).__name__}", grant,
+                             task_status="FAILED")  # fmt: skip
+        except Exception:
+            log.exception("investigation_fail_record_failed")
+
+    async def _run_once(self, investigation_id: UUID, graph_input: dict[str, Any]) -> None:
         async with self._sem:
             inv = await self.store.get(investigation_id)
             if inv is None or inv.status != "RUNNING":
@@ -179,6 +213,8 @@ class Engine:
                 )
             raise
         except Exception as exc:
+            if database_unavailable(exc) is not None:
+                raise  # not a FAILED run: `_run` waits for the DB and resumes
             log.exception("investigation_crashed", investigation_id=str(investigation_id))
             try:
                 await self._fail(

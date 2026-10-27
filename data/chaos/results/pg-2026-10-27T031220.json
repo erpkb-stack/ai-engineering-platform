@@ -1,0 +1,51 @@
+{
+ "experiment": "pg",
+ "expect": "liveness has no dependency -> no restarts; readiness includes the DB, and the api's readiness includes incident-service -> the api may leave its Service (connection errors, not 503); back without restarts once the DB returns",
+ "started_at": "2026-10-27T03:12:19+00:00",
+ "git_commit": "f00127c",
+ "fault": "docker compose stop postgres",
+ "times_s": {
+  "fault": 34.6,
+  "back": 97.3,
+  "end": 195.8
+ },
+ "investigation": {
+  "id": "01a17b55-8c0c-70b8-bd3e-a2c8a1243a90",
+  "status": "PARTIAL"
+ },
+ "pass": true,
+ "rules": {
+  "no_hang": {
+   "pass": true,
+   "max_latency_s": 5.4
+  },
+  "recovers": {
+   "pass": true,
+   "seconds_to_first_ok": 9.4,
+   "clean_tail": true
+  },
+  "no_restarts": {
+   "pass": true,
+   "restarts": {
+    "agents": 0,
+    "api": 0,
+    "audit": 0,
+    "incident-service": 0,
+    "llm-gateway": 0,
+    "orchestrator": 0,
+    "rag": 0,
+    "service-catalog": 0,
+    "tool-gateway": 0
+   }
+  },
+  "investigation_named": {
+   "pass": true,
+   "status": "PARTIAL"
+  }
+ },
+ "during_fault": {
+  "200": 96,
+  "503": 4,
+  "RemoteDisconnected": 61
+ }
+}

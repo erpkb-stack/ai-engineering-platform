@@ -1,6 +1,6 @@
 # ADR-039: Load tests run AS the seeded team, against kind, with fake LLMs that wait the MEASURED delay
 
-Status: Proposed (measured 2026-10-26; bottleneck not proven)
+Status: Proposed (measured + verified 2026-10-26; bottleneck not proven)
 Date: 2026-10-26
 Refines: architecture.md §17 (10 rps prototype / 100 rps production), ADR-014, ADR-034
 

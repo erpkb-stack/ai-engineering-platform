@@ -639,8 +639,8 @@ def test_rendered_yaml_has_no_anchors(tmp_path: Path) -> None:
     ("apps",), ("apps", "apps-catalog"), ("apps", "kafka"), ("apps", "apps-catalog", "kafka"),
 ])  # fmt: skip
 def test_every_profile_set_k8s_apply_can_pass_builds(profiles: tuple[str, ...]) -> None:
-    """k8s_deploy adds apps-catalog and kafka from .env, exactly like make apps-up. The kafka
-    profile brings redis along: it is infra, not an error (found on the Mac, 22a fix1)."""
+    """k8s_deploy adds apps-catalog and kafka from .env, exactly like make apps-up. Infra a
+    profile brings along is not an error (found on the Mac, 22a fix1)."""
     cfg = resolved("switches on", profiles=profiles)
     km.build(cfg, FACTS)
     others = {n for n, s in cfg["services"].items() if s.get("pull_policy") != "never"}

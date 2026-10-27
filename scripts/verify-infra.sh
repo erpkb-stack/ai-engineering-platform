@@ -33,7 +33,7 @@ if running redis; then
   p="$($C exec -T redis redis-cli config get maxmemory-policy 2>&1 | tail -1)"
   [ "$p" = "allkeys-lru" ] && ok "redis eviction = allkeys-lru (cache, not a database)" || bad "redis policy: $p"
 else
-  bad "redis not running (make up)"
+  echo "  - redis not started: no service uses it until replicas (ADR-031); make up PROFILE=redis"
 fi
 
 echo "== kafka (only with PROFILE=kafka) =="

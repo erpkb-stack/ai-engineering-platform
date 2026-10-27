@@ -58,7 +58,7 @@ IMAGES: dict[str, dict[str, Any]] = {
     },
 }
 # compose services outside the cluster (ADR-034: infra stays in compose = "managed services")
-# (redis comes with the kafka profile; no app calls it until 22b, ADR-031, so it gets no rule)
+# (redis has its own profile since Phase 28; no app calls it until 22b, ADR-031: no rule)
 # otel-collector (Phase 23a, ADR-035): every app exports OTLP there when .env switches it on
 INFRA = {"postgres", "kafka", "keycloak", "redis", "otel-collector"}
 HOST_NAMES = {"host.docker.internal"}  # Docker Desktop's name for the Mac (native Ollama)
