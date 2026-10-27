@@ -21,8 +21,9 @@ def task(agent: str, a: str, b: str) -> dict:
 
 def hyp(rank: int, statement: str, status: str = "PROPOSED", conf: str = "HIGH",
         verdict: str = "not_reviewed") -> dict:  # fmt: skip
+    # the API's HypothesisRecord shape: the critic's verdict lives in `detail`
     return {"rank": rank, "statement": statement, "status": status, "confidence": conf,
-            "critic_verdict": verdict}  # fmt: skip
+            "detail": {"critic_verdict": verdict}}  # fmt: skip
 
 
 def test_parallel_needs_all_four_evidence_agents_overlapping() -> None:
@@ -76,3 +77,12 @@ def test_proposal_approval_and_record() -> None:
            "tool_call_id": "c", "decider_role": "INCIDENT_COMMANDER"}  # fmt: skip
     assert d.decision_record(rec)[0] == d.PASS
     assert d.decision_record({**rec, "args_sha256": ""})[0] == d.FAIL
+
+
+def test_a_crashing_check_is_a_fail_and_the_runner_goes_on() -> None:
+    """Mac, first real-model run: a check read a key the API does not have and the runner died
+    with a traceback after paying for the investigation."""
+    st, why = d.safe(d.critic_challenge, [{"rank": 1, "status": "VALIDATED"}], True)
+    assert st == d.PASS or st == d.FAIL  # never an exception
+    st, why = d.safe(d.top_hypothesis, [{"no": "fields"}])
+    assert st == d.FAIL and why.startswith("check crashed: KeyError")

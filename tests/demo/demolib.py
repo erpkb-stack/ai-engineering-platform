@@ -80,8 +80,24 @@ def critic_challenge(hyps: list[dict[str, Any]], real: bool) -> Step:
     if not live:
         return FAIL, "no live hypothesis"
     top = live[0]
-    ok = top["status"] == "VALIDATED" and top["critic_verdict"] == "supported"
-    return (PASS if ok else FAIL), f"#1 {top['status']}, critic {top['critic_verdict']}"
+    verdict = critic_of(top)
+    ok = top["status"] == "VALIDATED" and verdict == "supported"
+    return (PASS if ok else FAIL), f"#1 {top['status']}, critic {verdict}"
+
+
+def critic_of(h: dict[str, Any]) -> str:
+    """The API's HypothesisRecord keeps the critic's verdict in `detail` (found on the Mac's
+    first real-model run: the check read a top-level key and crashed the runner)."""
+    return str((h.get("detail") or {}).get("critic_verdict") or "not_reviewed")
+
+
+def safe(check: Any, *args: Any) -> Step:
+    """A check that crashes is a FAIL with its reason - the runner must finish every step."""
+    try:
+        result: Step = check(*args)
+        return result
+    except Exception as exc:
+        return FAIL, f"check crashed: {type(exc).__name__}: {exc}"[:200]
 
 
 def report(pm: dict[str, Any] | None, markdown: str) -> Step:
