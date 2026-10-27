@@ -117,3 +117,21 @@ async def test_bulkhead_rejects_instead_of_queueing_forever() -> None:
     bh.release()
     await bh.acquire()
     assert bh.in_flight == 1
+
+
+async def test_an_open_circuit_is_not_retried() -> None:
+    """Phase 28b (2026-10-23 data): every CircuitOpenError row took 5-7 s - the retry loop slept
+    on the breaker's own refusal before the gateway could fail over."""
+    calls, sleeps = 0, []
+
+    async def refused() -> None:
+        nonlocal calls
+        calls += 1
+        raise CircuitOpenError("circuit open")
+
+    async def sleep(s: float) -> None:
+        sleeps.append(s)
+
+    with pytest.raises(CircuitOpenError):
+        await with_retries(refused, RetryPolicy(max_attempts=3), sleep=sleep)
+    assert calls == 1 and sleeps == []

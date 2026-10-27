@@ -50,6 +50,8 @@ class ModelUsage(Base):
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6), nullable=False, server_default="0")
     status: Mapped[str] = mapped_column(String(14), nullable=False)
     error_type: Mapped[str | None] = mapped_column(Text)
+    # Phase 28b (0029): failing SCHEMA paths + keyword, or cut_off:max_tokens - never content
+    error_detail: Mapped[str | None] = mapped_column(String(300))
     created_at: Mapped[datetime] = created_at_col()
 
 

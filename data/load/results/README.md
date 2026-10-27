@@ -12,3 +12,5 @@ delays that were live, the machine, the backlog of running investigations at sta
 
 The load client and the system share ONE laptop: each stage records the client's own CPU.
 Sandbox runs (2 CPUs, no RAG service) checked the mechanics only and are not committed.
+
+2026-10-27 (Phase 28c-2): two capacity re-runs on a healthy disk - errors gone, throughput still varies up to 2x (phase-28.md section 7). Known flaw: `api_rate_limit_per_minute` in a result is the load tool's OWN environment, not the deployed value (both runs were deployed with 100000).

@@ -217,6 +217,27 @@ async def test_structured_still_invalid_raises_after_whole_chain(
     assert sink.rows[0].usage.input_tokens > 0  # failed attempts still cost tokens
 
 
+async def test_a_structured_failure_records_where_it_failed_but_no_model_text(
+    gateway: Gateway, hosted: FakeProvider, local: FakeProvider, sink: MemoryUsageSink
+) -> None:
+    """Phase 28b: 11 historical_incident failures were undiagnosable (only the class stored).
+    The row now says WHERE - from the SCHEMA side, because jsonschema's message (and the
+    instance path) quote what the model wrote."""
+    leaked = "SECRET-MODEL-TEXT"
+    bad = {"severity": leaked}  # enum violated; 'reason' missing
+    hosted.structured.extend([bad, bad])
+    local.structured.append({"severity": "SEV2"})
+    local.stop_reasons.append("max_tokens")
+    with pytest.raises(StructuredOutputError):
+        await gateway.generate_structured("reasoning", req(json_schema=SCHEMA), META)
+    first, last = (r.error_detail or "" for r in sink.rows)
+    assert (
+        first == "first=properties/severity/enum,required repair=properties/severity/enum,required"
+    )
+    assert last == "cut_off:max_tokens required"
+    assert all(leaked not in (r.error_detail or "") for r in sink.rows)
+
+
 async def test_invalid_schema_is_a_400(gateway: Gateway) -> None:
     with pytest.raises(BadRequestError):
         await gateway.generate_structured("reasoning", req(json_schema={"type": "wat"}), META)

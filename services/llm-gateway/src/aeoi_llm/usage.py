@@ -51,6 +51,7 @@ class UsageRow:
     agent_name: str | None = None
     investigation_id: uuid.UUID | None = None
     error_type: str | None = None
+    error_detail: str | None = None  # schema paths only (StructuredOutputError.where)
 
 
 class UsageSink(Protocol):
@@ -84,6 +85,7 @@ class DbUsageSink:
                         agent_name=row.agent_name,
                         investigation_id=row.investigation_id,
                         error_type=row.error_type,
+                        error_detail=row.error_detail,
                     )
                 )
         except Exception as exc:  # accounting must not take the answer away (ADR-014)

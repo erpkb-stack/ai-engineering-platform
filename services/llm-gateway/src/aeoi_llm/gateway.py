@@ -265,6 +265,7 @@ class Gateway:
         cost: Decimal,
         meta: CallMeta,
         error: str | None = None,
+        error_detail: str | None = None,
     ) -> UsageRow:
         return UsageRow(
             request_id=f"{request_id}:{n}",
@@ -280,6 +281,7 @@ class Gateway:
             agent_name=meta.agent_name,
             investigation_id=meta.investigation_id,
             error_type=error,
+            error_detail=error_detail,
         )
 
     # ------------------------------------------------------------------ chat
@@ -422,6 +424,7 @@ class Gateway:
                         cost_usd(mcfg, exc.usage),
                         meta,
                         "StructuredOutputError",
+                        exc.where,
                     )
                 )
                 if index == len(candidates) - 1:
@@ -530,6 +533,7 @@ class Gateway:
         errors = _schema_errors(validator, result.data)
         if not errors:
             return result, False, Usage()
+        first_where = _schema_where(validator, result.data)
         if result.stop_reason == "max_tokens":
             # Cut off, not wrong: a repair round-trip with the same limit is cut off again (Mac
             # run, Phase 13: the postmortem lost its LAST required field twice). Say so.
@@ -538,6 +542,7 @@ class Gateway:
                 f"({result.usage.output_tokens} tokens written) - the caller must allow more; "
                 f"not repaired: {'; '.join(errors[:3])}",
                 usage=result.usage,
+                where=_fit("cut_off:max_tokens " + first_where),
             )
 
         repair_req = replace(
@@ -559,9 +564,13 @@ class Gateway:
         errors = _schema_errors(validator, second.data)
         if errors:
             cut = " (repair cut off at max_tokens)" if second.stop_reason == "max_tokens" else ""
+            where = _schema_where(validator, second.data)
             raise StructuredOutputError(
                 f"Still invalid after one repair{cut}: {'; '.join(errors[:3])}",
                 usage=_add(result.usage, second.usage),
+                where=_fit(
+                    ("cut_off:max_tokens " if cut else "") + f"first={first_where} repair={where}"
+                ),
             )
         return second, True, result.usage
 
@@ -842,6 +851,22 @@ def _schema_errors(validator: Draft202012Validator, data: dict[str, Any] | None)
         return ["output is not a JSON object"]
     errs = sorted(validator.iter_errors(data), key=lambda e: list(e.absolute_path))
     return [f"{'/'.join(map(str, e.absolute_path)) or '(root)'}: {e.message}" for e in errs[:10]]
+
+
+def _schema_where(validator: Draft202012Validator, data: dict[str, Any] | None) -> str:
+    """WHERE the output failed, from the SCHEMA side only: `properties/x/items/required`.
+    The schema path names only what WE wrote (property names, keywords); the instance path or
+    the message could carry the model's text (jsonschema quotes the value)."""
+    if data is None:
+        return "not_an_object"
+    paths = sorted(
+        {"/".join(map(str, e.schema_path)) or "(root)" for e in validator.iter_errors(data)}
+    )
+    return ",".join(paths[:3]) + (f",+{len(paths) - 3}" if len(paths) > 3 else "")
+
+
+def _fit(s: str, n: int = 300) -> str:
+    return s if len(s) <= n else s[: n - 1] + "…"
 
 
 def dumps(event: dict[str, Any]) -> str:
