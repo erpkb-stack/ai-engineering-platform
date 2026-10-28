@@ -137,6 +137,7 @@ def run() -> int:
     _, hyps = call("GET", f"{API}/api/v1/incidents/{key}/hypotheses", sre)
     steps["top_hypothesis"] = d.safe(d.top_hypothesis, hyps or [])
     steps["decoy_rejected"] = d.safe(d.decoy, hyps or [])
+    steps["evidence_graph"] = d.safe(d.evidence_graph, hyps or [], ev or [])
     steps["critic_challenge"] = d.safe(d.critic_challenge, hyps or [], real)
     _, pm = call("GET", f"{API}/api/v1/incidents/{key}/postmortem", sre)
     _, md = call("GET", f"{API}/api/v1/incidents/{key}/postmortem?format=markdown", sre)

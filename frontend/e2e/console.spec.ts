@@ -33,9 +33,25 @@ test("an incident page shows findings with their evidence", async ({ page }) => 
   await signIn(page, "SRE");
   await page.locator("table.grid tbody tr a").first().click();
   await expect(page.getByRole("heading", { level: 1 })).toContainText("INC-");
-  for (const panel of ["Hypotheses", "Approvals", "Evidence", "Timeline", "Investigations"]) {
-    await expect(page.getByRole("region", { name: panel })).toBeVisible();
+  for (const panel of ["Hypotheses", "Evidence graph", "Approvals", "Evidence", "Timeline", "Investigations"]) {
+    await expect(page.getByRole("region", { name: panel, exact: true })).toBeVisible();
   }
+});
+
+test("the evidence graph links a hypothesis to its evidence (Phase 29d)", async ({ page }) => {
+  await signIn(page, "SRE");
+  // the newest investigated incident: its row links to the incident page
+  await page.locator("table.grid tbody tr a").first().click();
+  const graph = page.getByRole("region", { name: "Evidence graph", exact: true });
+  const picture = graph.getByRole("img", { name: /^Evidence graph: \d+ hypotheses/ });
+  test.skip(!(await picture.isVisible()), "the newest incident has no evidence links yet (run make demo first)");
+  await expect(graph.locator(".node-h").first()).toBeVisible();
+  // a readable evidence node jumps to the evidence card on the same page
+  const first = graph.locator("a.node-e").first();
+  const href = await first.getAttribute("href");
+  expect(href).toMatch(/^#ev-[A-Z]+-/);
+  await first.click();
+  await expect(page.locator(href!)).toBeInViewport();
 });
 
 test("a MANAGER is told release risk needs code:read - and the api refuses them too", async ({ page, request }) => {

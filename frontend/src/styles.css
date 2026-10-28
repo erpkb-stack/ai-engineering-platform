@@ -61,3 +61,23 @@ dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px;
 /* Phase 29c (ADR-045): model text code removed - shown apart, struck through, never as content */
 .removed del { color: var(--muted); }
 details.removed { margin-top: 0.75rem; }
+
+/* Phase 29d (ADR-046): evidence graph - plain SVG; stance = line style AND colour */
+.evidence-graph svg { display: block; max-width: 100%; }
+.evidence-graph .col-head { font-weight: 600; fill: var(--muted); font-size: 12px; }
+.evidence-graph .kind-head { font-weight: 600; fill: var(--ink); font-size: 11px; letter-spacing: .04em; }
+.evidence-graph .node rect { fill: var(--panel); stroke: var(--line); }
+.evidence-graph .node text { fill: var(--ink); font-size: 11px; }
+.evidence-graph .node-h.status-validated rect { stroke: var(--green); stroke-width: 1.5; }
+.evidence-graph .node-h.status-rejected rect { stroke-dasharray: 3 3; }
+.evidence-graph .node-h.status-rejected text { fill: var(--grey); }
+.evidence-graph .node-hidden rect { stroke-dasharray: 3 3; }
+.evidence-graph .node-hidden text { fill: var(--grey); }
+.evidence-graph .node:focus { outline: none; } .evidence-graph .node:focus rect { stroke: var(--accent); stroke-width: 2; }
+.evidence-graph .edge { fill: none; stroke-width: 1.4; }
+.evidence-graph .edge-support { stroke: var(--green); }
+.evidence-graph .edge-contra { stroke: var(--red); stroke-dasharray: 5 4; }
+.evidence-graph .dim { opacity: .15; }
+.evidence-graph .lg::before { content: ""; display: inline-block; width: 22px; vertical-align: middle; margin-right: 4px; border-top: 2px solid; }
+.evidence-graph .lg-support::before { border-color: var(--green); }
+.evidence-graph .lg-contra::before { border-color: var(--red); border-top-style: dashed; }

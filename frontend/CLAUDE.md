@@ -7,7 +7,7 @@ clone. Rules: `.claude/rules/frontend.md`. Node >= 20. `make ui-install` · `mak
 ## Code map
 - `openapi.json` GENERATED (`make openapi`) · `src/api/schema.d.ts` GENERATED (never edit) · `src/api/client.ts` typed client, ApiError (problem+json), auth middleware · `useAttemptKey.ts` one Idempotency-Key per attempt
 - `src/auth/` oidc (PKCE, aeoi-console, tokens in MEMORY), `RequireAuth` (sign-in gate; a 401 with a VALID token = refused account, never a re-sign-in loop), `oidcAuth.safeReturnTo` (no open redirect), `me.ts` (`can(me, perm)`: UI gating only)
-- `src/pages/` Incidents, IncidentPage + `incident/` (Hypotheses, Approvals, Panels), TracePage, ApprovalsInbox + `approvals.ts` (ONE polled query, 15 s), ReleaseRiskPage, SearchPage
+- `src/pages/` Incidents, IncidentPage + `incident/` (Hypotheses, Approvals, Panels, EvidenceGraph = plain SVG over GET /hypotheses, ADR-046 - no graph library), TracePage, ApprovalsInbox + `approvals.ts` (ONE polled query, 15 s), ReleaseRiskPage, SearchPage
 - `src/components/ui.tsx` Pill, Time, Problem, EvidenceChip (link only when the reader may see it), Excerpt · `ErrorBoundary.tsx`
 
 ## Must
