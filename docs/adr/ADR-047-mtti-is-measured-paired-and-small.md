@@ -30,6 +30,12 @@ Refines: ADR-043 (demo minute 12:00), ADR-037 (planted cases, exact scoring)
 - Demo step `mtti`: PASS only with a report of 6 scored manual cases and a real-model AI run;
   n/a on a rehearsal, FAIL on a real run without one.
 
+- fix1 (owner's first session: 4 cases abandoned before one was worked - a stray Return from a
+  paste opened cases, an open case looked like an idle prompt, and there was no practice round):
+  a case opens only on the typed word `start`; a resumed case says CLOCK RUNNING; an untimed
+  `make manual PRACTICE=1` on v1-S01 (never in the sample); an abandoned case is replaced from
+  its own pack, so the 4 + 2 mix holds.
+
 ## Tradeoffs
 - n = 6, one person, not blind: the comparison shows a direction and a size on THESE cases, not a
   population MTTI. The protocol says so, and so must the demo.

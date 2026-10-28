@@ -94,12 +94,38 @@ def test_commands_map_to_the_agents_tools_relative_to_detection() -> None:
         build("logs", [], DET)
 
 
-def test_an_abandoned_case_is_replaced_by_the_next_reserve_and_never_counted() -> None:
-    order = [f"c{i}" for i in range(9)]
-    state = {"order": order, "done": [{"case": "c0"}, {"case": "c1", "abandoned": "phone"}]}
-    assert next_case(state) == "c2"
-    state["done"] += [{"case": f"c{i}"} for i in range(2, 7)]
-    assert next_case(state) is None  # 6 counted (c1 abandoned): done
+def test_an_abandoned_case_is_replaced_from_its_own_pack_and_never_counted() -> None:
+    """fix1: four abandons in a row must not change the 4 v1 + 2 v2 mix."""
+    v1 = [f"investigations-v1-S{i:02d}" for i in range(2, 9)]
+    v2 = [f"investigations-v2-S{i}" for i in range(17, 21)]
+    order = [v1[0], v2[0], v1[1], v1[2], v2[1], v1[3], v1[4], v2[2], v1[5], v2[3], v1[6]]
+    state = {"order": order, "done": [{"case": v2[0], "abandoned": "phone"}]}
+    assert next_case(state) == v1[0]
+    state["done"].append({"case": v1[0], "answer": {}})
+    assert next_case(state) == v1[1]  # the fixed order goes on
+    state["done"] += [{"case": k, "answer": {}} for k in (v1[1], v1[2], v2[1], v1[3])]
+    # 4 v1 + 1 v2 counted: the abandoned v2 is replaced by a v2, skipping the v1 reserves
+    assert next_case(state) == v2[2]
+    state["done"].append({"case": v2[2], "answer": {}})
+    assert next_case(state) is None
+
+
+def test_only_the_typed_word_start_opens_a_case(monkeypatch: pytest.MonkeyPatch) -> None:
+    """fix1: a Return left over from a paste opened two timed cases on the Mac."""
+    import manual
+
+    answers = iter(["", "", "   ", "yes", "start"])
+    monkeypatch.setattr("builtins.input", lambda _p="": next(answers))
+    assert manual.wait_for_start("Case 1 of 6") is True
+    answers2 = iter(["", "quit"])
+    monkeypatch.setattr("builtins.input", lambda _p="": next(answers2))
+    assert manual.wait_for_start("Case 1 of 6") is False
+
+    def eof(_p: str = "") -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", eof)
+    assert manual.wait_for_start("Case 1 of 6") is False
 
 
 def _ai(case: str, s: float, ok: bool = True, status: str = "VALIDATED") -> dict:

@@ -11,12 +11,16 @@ read tools. The rules are fixed in `tests/mtti/mttilib.py` and do not change aft
    = incident created -> investigation finished.
 
 ## Your side (`make manual`, 6 cases, one at a time)
+- **First, practice (untimed):** `make manual PRACTICE=1` - one case that is never in your
+  sample, with the planted answer shown when you answer. Learn the commands there. Type each
+  command by hand; `<service>`, `<metric>` in the help are placeholders for real names.
+- **A case opens only when you type `start`.** Until then no clock runs (Ctrl+D or `quit` leaves).
 - **Before:** do not open `eval.eval_cases`, the scenario code (`scripts/synth`), old eval result
   files or the console's incidents for these services. You built this data with Claude: your
   times are an optimistic baseline anyway; do not make them more so.
 - **The sample is fixed:** 4 cases from v1 + 2 from v2, chosen by a seed. v1-S01 is left out (it
   is the demo's own pattern). You do not choose and you cannot skip.
-- **The clock** starts when you press Enter on a case (you see only the alert) and stops at
+- **The clock** starts when you type `start` (you see only the alert) and stops at
   `answer`. It does NOT pause: `quit` keeps it running. Do one case in one sitting.
 - **Tools:** only what `make manual` offers (logs, metrics, deploys, config diff, runbooks, past
   incidents, catalog, `tool ...`) - the read tools the agents use, as you (an SRE token). No
@@ -27,7 +31,7 @@ read tools. The rules are fixed in `tests/mtti/mttilib.py` and do not change aft
 - **Cap:** 30 minutes. A right answer after 30 minutes counts as not identified (the cap is never
   used as a time).
 - **Interrupted for real** (a call, a meeting): `abandon <reason>`. The case is listed as
-  abandoned, never scored, and a reserve case of the same mix comes next. Do not abandon a case
+  abandoned, never scored, and a reserve case of the SAME pack comes next. Do not abandon a case
   because it is hard: the report lists every abandon with its reason.
 
 ## The report (`make mtti FILES="<v1 file> <v2 file>"`)

@@ -476,8 +476,8 @@ load: ## Phase 27: load the DEPLOYED api as the seeded team: make load PLAN=smok
 demo: ## Phase 29: the demo script end to end on the DEPLOYED system, every step checked (fake models = rehearsal, real = a counted pass); then: make demo-clean
 	uv run python tests/demo/run.py
 
-manual: ## Phase 29e (ADR-047): time YOURSELF on 6 planted incidents with the agents' read tools (docs/demo/mtti-protocol.md); the clock never pauses
-	uv run python tests/mtti/manual.py
+manual: ## Phase 29e (ADR-047): time YOURSELF on 6 planted incidents with the agents' read tools (docs/demo/mtti-protocol.md); the clock never pauses. PRACTICE=1 = one untimed case first
+	uv run python tests/mtti/manual.py $(if $(PRACTICE),--practice,)
 
 mtti: ## Phase 29e: MTTI report - make mtti FILES="<v1 result> <v2 result>" (real-model eval runs of the CURRENT code); reveals the planted answers
 	@[ -n "$(FILES)" ] || { echo 'usage: make mtti FILES="data/eval/results/<v1>.json data/eval/results/<v2>.json"'; exit 1; }

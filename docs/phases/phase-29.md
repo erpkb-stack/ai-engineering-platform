@@ -175,6 +175,17 @@ statistics), `manual.py` (`make manual`), `report.py` (`make mtti`); demo step `
 4. Tool output reaches a terminal: control characters are removed (an ESC sequence in a log line
    could rewrite the screen).
 
+**29e fix1 (the owner's first manual session, 2026-10-28):** 4 timed cases were abandoned before
+one was worked, and every cause was the TOOL or the protocol, not the person: (1) an open case
+looked like an idle prompt, and its clock ran 10, then 87 minutes with 0 tool calls; (2) a Return
+left over from pasting an `abandon` line opened the next case at once (twice); (3) there was no
+practice round, so the first case would include learning the tool; (4) the help's `<service>`
+placeholders were pasted literally. Fixed: a case opens only on the typed word `start`; a resumed
+case says CLOCK RUNNING and shows the commands; `make manual PRACTICE=1` = one untimed case
+(v1-S01, never sampled) with the answer shown; placeholders are refused with an example; an
+abandoned case is replaced from ITS pack (the 4 + 2 mix holds). The 4 abandons stay in the record
+with their reasons.
+
 ## 8. Next
 29e on the Mac: the paid AI run, the 6 timed cases, `make mtti`. Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.

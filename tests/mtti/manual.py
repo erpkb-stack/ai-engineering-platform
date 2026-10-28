@@ -8,7 +8,13 @@ answers are revealed only by `make mtti` after all 6 cases. Rules: tests/mtti/mt
 
 State is saved after every command (data/mtti/manual-session.json): closing the program does
 NOT stop the clock (no pause). Interrupted for real? `abandon <reason>`: the case is listed as
-abandoned, never scored, and the next reserve case is offered. DEV ONLY.
+abandoned, never scored, and the next reserve case OF THE SAME PACK is offered. DEV ONLY.
+
+fix1 (owner's first session, 2026-10-28 - 4 cases abandoned before one was worked):
+- a case opens only when you TYPE `start` (a stray Return from a paste opened two cases);
+- an open case says so loudly: CLOCK RUNNING, how long, the commands;
+- `make manual PRACTICE=1`: one untimed case (v1-S01, never in the sample) to learn the tool,
+  with the answer shown at the end - the protocol had no practice round.
 """
 
 from __future__ import annotations
@@ -31,6 +37,8 @@ import mttilib as m  # noqa: E402
 
 API = os.environ.get("AEOI_MTTI_API", "http://localhost:8000")
 SESSION = ROOT / "data/mtti/manual-session.json"
+PRACTICE_SESSION = ROOT / "data/mtti/practice-session.json"  # never part of any result
+PRACTICE_CASE = "investigations-v1-S01"  # excluded from the timed sample (mttilib.NOT_MANUAL)
 HELP = """commands (times are minutes relative to detection; defaults from=-60 to=+10):
   alert                                   the alert again
   logs <service> [code=X] [contains=Y] [from=-60] [to=+10] [order=asc|desc] [limit=50]
@@ -64,11 +72,11 @@ def load_cases() -> list[dict[str, Any]]:
     return m.detectable([{"key": r[0], "input": r[1], "expected": r[2]} for r in rows])
 
 
-def save(state: dict[str, Any]) -> None:
-    SESSION.parent.mkdir(parents=True, exist_ok=True)
-    tmp = SESSION.with_suffix(".tmp")
+def save(state: dict[str, Any], path: Path = SESSION) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(state, indent=1) + "\n")
-    tmp.replace(SESSION)
+    tmp.replace(path)
 
 
 def invoke(token: str, tool: str, args: dict[str, Any]) -> tuple[int, Any]:
@@ -142,41 +150,83 @@ def build(cmd: str, words: list[str], detected: datetime) -> tuple[str, dict[str
     raise ValueError("wrong arguments: type help")
 
 
+def pack(key: str) -> str:
+    return key.split("-")[1]  # investigations-v1-S06 -> v1
+
+
 def next_case(state: dict[str, Any]) -> str | None:
+    """The next unused case of a pack that still needs one: an abandoned case is replaced from
+    ITS pack, so the 4 v1 + 2 v2 mix holds whatever is abandoned (fix1)."""
     used = {c["case"] for c in state["done"]}
     counted = [c for c in state["done"] if not c.get("abandoned")]
     if len(counted) >= m.SAMPLE:
         return None
-    return next((k for k in state["order"] if k not in used), None)
+    need = dict(m.PER_PACK)
+    for c in counted:
+        need[pack(c["case"])] = need.get(pack(c["case"]), 0) - 1
+    return next((k for k in state["order"] if k not in used and need.get(pack(k), 0) > 0), None)
 
 
-def main() -> int:
+def wait_for_start(label: str) -> bool:
+    """Only the typed word `start` opens a case: an empty line (a Return left over from a paste)
+    is ignored, anything else is refused. No case is open while this waits."""
+    print(f"\n{label}: NOT started - no clock is running.")
+    while True:
+        try:
+            s = input("Type  start  + Return to open it and START THE CLOCK (or quit): ").strip()
+        except EOFError:
+            return False
+        if s.lower() == "start":
+            return True
+        if s.lower() in ("quit", "exit"):
+            return False
+        if s:
+            print("  not started: type exactly  start  (nothing else opens a case)")
+
+
+def main(argv: list[str]) -> int:
     if os.environ.get("AEOI_ENV") == "production":
         raise SystemExit("dev only")
     from tokens import tokens
 
+    practice = "--practice" in argv
+    path = PRACTICE_SESSION if practice else SESSION
     cases = {c["key"]: c for c in load_cases()}
-    state = json.loads(SESSION.read_text()) if SESSION.exists() else {
-        "seed": m.SEED, "order": m.sample_order(list(cases)), "done": [], "current": None}  # fmt: skip
+    if practice:
+        state = {"order": [PRACTICE_CASE], "done": [], "current": None}
+        if path.exists():
+            state = json.loads(path.read_text())
+    else:
+        state = json.loads(path.read_text()) if path.exists() else {
+            "seed": m.SEED, "order": m.sample_order(list(cases)), "done": [], "current": None}  # fmt: skip
     token = tokens("SRE")[0]
+    resumed = state["current"] is not None
     while True:
         cur = state["current"]
         if cur is None:
-            key = next_case(state)
+            key = PRACTICE_CASE if practice and not state["done"] else (
+                None if practice else next_case(state))  # fmt: skip
             if key is None:
-                print(
-                    f"All {m.SAMPLE} cases done. Next: make mtti (reveals the answers and the report)."
-                )
+                print("Practice done: make manual PRACTICE=1 again to repeat it, make manual for "
+                      "the timed cases." if practice else
+                      f"All {m.SAMPLE} cases done. Next: make mtti (reveals the answers and the "
+                      "report).")  # fmt: skip
+                if practice and path.exists():
+                    path.unlink()
                 return 0
             n = len([c for c in state["done"] if not c.get("abandoned")]) + 1
-            try:
-                input(f"\nCase {n} of {m.SAMPLE}. The clock starts when you press Enter. ")
-            except EOFError:  # no terminal (piped input ran out): open nothing
+            label = "PRACTICE case (untimed, not scored)" if practice else f"Case {n} of {m.SAMPLE}"
+            if not wait_for_start(label):
                 return 0
             cur = state["current"] = {"case": key, "opened_at": datetime.now(UTC).isoformat(),
                                       "t0": time.time(), "calls": []}  # fmt: skip
-            save(state)
+            save(state, path)
             print(HELP)
+        elif resumed:
+            mins = int((time.time() - cur["t0"]) // 60)
+            print(f"\n*** A {'PRACTICE ' if practice else ''}CASE IS OPEN - CLOCK RUNNING for "
+                  f"{mins} min. Type a command below, or: abandon <reason> ***\n{HELP}")  # fmt: skip
+            resumed = False
         inp = cases[cur["case"]]["input"]
         detected = datetime.fromisoformat(inp["detected_at"])
         print(f"\nALERT  {inp['title']}\n  services: {', '.join(inp['affected_services'])}"
@@ -190,8 +240,17 @@ def main() -> int:
                 line = "quit"
             if not line:
                 continue
-            words = shlex.split(line)
+            try:
+                words = shlex.split(line)
+            except ValueError as exc:
+                print(" ", exc)
+                continue
             cmd, rest = words[0], words[1:]
+            if any(w.startswith("<") and w.endswith(">") for w in rest):
+                print(
+                    "  replace the <placeholders> with real names, e.g. metrics orders-api cpu_util"
+                )
+                continue
             if cmd == "quit":
                 print("Saved. The clock keeps running: run make manual to continue.")
                 return 0
@@ -214,8 +273,16 @@ def main() -> int:
                         continue
                 state["done"].append(rec)
                 state["current"] = None
-                save(state)
-                print(f"Recorded after {seconds:.0f} s. The answer is revealed only by make mtti.")
+                save(state, path)
+                if practice and "answer" in rec:
+                    truth = cases[cur["case"]]["expected"]["culprit"]
+                    ok = m.identified_manual(rec["answer"], truth, seconds)
+                    print(f"Practice answer {'RIGHT' if ok else 'not right'} after {seconds:.0f} s; "
+                          f"the planted cause was: {truth['kind']} {truth['subject']}")  # fmt: skip
+                else:
+                    print(
+                        f"Recorded after {seconds:.0f} s. The answer is revealed only by make mtti."
+                    )
                 break
             try:
                 tool, args = build(cmd, rest, detected)
@@ -225,7 +292,7 @@ def main() -> int:
             status, out = invoke(token, tool, args)
             cur["calls"].append({"at_s": round(time.time() - cur["t0"], 1), "tool": tool,
                                  "args": args, "status": status})  # fmt: skip
-            save(state)
+            save(state, path)
             if status == 200:
                 show(out.get("data"))
             else:
@@ -234,4 +301,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))
