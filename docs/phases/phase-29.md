@@ -1,6 +1,6 @@
 # Phase 29 - End-to-end demonstration (ADR-043)
 
-Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c BUILT 2026-10-28 (sandbox only; ADR-045)** - Mac run pending. Owner (2026-10-27): "Phase 29";
+Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d BUILT 2026-10-28 (sandbox only; ADR-046)** - Mac run pending. Owner (2026-10-27): "Phase 29";
 clean = **fresh containers, keep data**; models = **fake to rehearse, real for the 3 passes**;
 the 4 missing steps = **build all four**.
 
@@ -18,7 +18,7 @@ the 4 missing steps = **build all four**.
 | 6:00-6:30 | hypothesis + critic challenge | yes (real models) | #1 = DEPLOY-4821, VALIDATED, critic "supported" |
 | 6:30 | decoy rejected | **differs** | the system never proposes the cart-cache restart (no support in code) - checked as "never #1 / HIGH"; the script line is corrected |
 | 7:30 | removed sentence shown as a diff | **29c built** | `removed_shown`: listed == counted, shown apart, none in the report; "0 removed" is a PASS (owner) |
-| 8:00 | evidence graph | **no** (edges in the API only) | 29d |
+| 8:00 | evidence graph | **29d built** | `evidence_graph`: every node is readable evidence, top cause supported by >= 3 kinds incl. DEPLOY; screen = Vitest + browser test |
 | 9:00 | report | yes | postmortem root cause = DEPLOY-4821, similar-incident section |
 | 10:00 | approval -> controlled tool | yes (real models) | the investigation's proposal; ENGINEER 403; IC approves -> EXECUTED, MITIGATED |
 | 11:00 | audit trail | yes | decision record: who, when, why, args sha256, tool call |
@@ -114,14 +114,40 @@ markdown section (escaped, bare URLs broken) and a folded, struck-through list i
 3. The demo cannot promise a removal: fake models write no narrative (always 0), and a real
    Sonnet run may remove nothing. The check proves the mechanism instead.
 
-## 6. Next
-29d evidence-graph screen, 29e MTTI. Then the gate: `make
+**On the Mac (kind, fake models):** `removed_shown` PASS "0 removed" (fakes write no narrative),
+REHEARSAL-OK, 0 restarts (3 clean fresh starts of 4). Idle node CPU 79.55% (70% before).
+
+**Measured (owner's query over every stored real postmortem):** 70 written by
+claude-sonnet-5-5; **8 had a removal (11%; Wilson 95%: 6-21%)**, exactly one sentence each:
+**6 for a number not in the facts, 2 uncited**. So the number check does most of the work.
+For the 3 counted runs, P(at least one shows a removal) = 31% (17-51%): most likely all three
+say "0 removed", which the owner's rule counts as a PASS. These 70 span many eval incidents
+(planted scenarios: an upper bound), not only the demo.
+
+## 6. 29d - the evidence graph screen (ADR-046)
+**Built:** `frontend/src/pages/incident/EvidenceGraph.tsx`, a panel on the incident page: plain
+SVG, hypotheses by rank vs evidence by kind, one node per evidence key, stance by line style
+AND colour, focus dims the rest, the same links as a table. No graph library, no new endpoint:
+it draws GET /hypotheses as the server filtered it. Demo step `evidence_graph`. Vitest (9) +
+a browser test (needs an investigated incident; skips and says why otherwise).
+
+**Why a graph at all (challenged before building):** the hypothesis cards already list their
+own evidence. The graph earns its place only by showing SHARED evidence: the demo deploy
+supports one cause and contradicts another. If it did not show that, it would be decoration.
+
+**Sandbox render** (Chromium, demo-shaped data): two columns, the shared DEPLOY node with a solid
+and a dashed line; focus on the pool cause leaves its METRIC support and the DEPLOY/CONFIG
+contradictions bright. At phone width it scales down too small to read: desktop-first.
+
+## 7. Next
+29e MTTI. Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
 
-## 7. Verify
+## 8. Verify
 - [x] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removed 0 rows.
 - [x] One real-model run: PASS 13/13 (not counted: the script is not complete yet).
 - [x] 29b on the Mac: CI green (PR #47), `alert_intake` PASS with SEV1 + "tier 1", netpol 0 failed with incident-service -> service-catalog open, 0 restarts.
-- [ ] 29c on the Mac: CI green; `make demo` (fake) shows `removed_shown` PASS ("0 removed" on fakes); the console's postmortem panel shows the "Removed by code" line.
-- [ ] 29d-29e built and in the demo.
+- [x] 29c on the Mac: CI green (PR #48), `removed_shown` PASS ("0 removed" on fakes); real-postmortem rate measured (8/70).
+- [ ] 29d on the Mac: CI green; `make demo` (fake) shows `evidence_graph` PASS; `make ui-browser-test` passes the graph test (not skipped) after `make demo`.
+- [ ] 29e built and in the demo.
 - [ ] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`.

@@ -6,6 +6,7 @@ import { useAttemptKey } from "../api/useAttemptKey";
 import { can, useMe } from "../auth/me";
 import { Loading, Panel, Pill, Problem, Time } from "../components/ui";
 import { ApprovalCard } from "./incident/Approvals";
+import { EvidenceGraph } from "./incident/EvidenceGraph";
 import { HypothesesList } from "./incident/Hypotheses";
 import { EvidenceList, isActive, PostmortemView, TimelineList } from "./incident/Panels";
 
@@ -100,6 +101,10 @@ export function IncidentPage() {
       <Panel title="Hypotheses">
         <Problem error={hypotheses.error} />
         {hypotheses.isPending ? <Loading what="hypotheses" /> : <HypothesesList items={hypotheses.data ?? []} visible={visible} />}
+      </Panel>
+
+      <Panel title="Evidence graph" id="graph">
+        {hypotheses.data && <EvidenceGraph items={hypotheses.data} visible={visible} />}
       </Panel>
 
       <Panel title="Approvals" id="approvals">

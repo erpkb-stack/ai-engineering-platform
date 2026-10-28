@@ -15,7 +15,7 @@ Status per step: `docs/phases/phase-29.md` section 1 (Phase 29 need check). Ever
 | 6:00 | Initial hypothesis | "DB latency caused 500s" | 11 |
 | 6:30 | **Critic challenge** | shows app latency rose *before* DB latency; proposes pool exhaustion; rejects the cache-restart decoy with evidence | 12 |
 | 7:30 | Validation | citation checks pass; what code removed from the model's text is shown APART, struck through, with the reason (ADR-045) - on a run where nothing was removed, the page says "0 removed" (never planted) | 13 |
-| 8:00 | Evidence graph | hypothesis ↔ LOG/METRIC/DEPLOY/INCIDENT nodes | 14 |
+| 8:00 | Evidence graph | incident page panel (ADR-046): hypotheses ↔ evidence by kind; point at the DEPLOY node - solid line to the deploy cause, dashed line to the pool cause: the same evidence supports one and contradicts the other | 14 |
 | 9:00 | Report | Facts vs Hypotheses vs Recommendations; confidence band + rubric | 15 |
 | 10:00 | Human approval | IC approves "roll back 2026.10.02.4" with a reason → controlled tool (simulated) | 16 |
 | 11:00 | Audit trail | who/when/what/evidence/args hash; ENGINEER tries to approve → 403 | 17 |

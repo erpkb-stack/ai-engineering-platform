@@ -130,6 +130,29 @@ def report(pm: dict[str, Any] | None, markdown: str) -> Step:
     return (PASS if sections else FAIL), f"root cause cites {DEMO_DEPLOY}; sections ok={sections}"
 
 
+def evidence_graph(hyps: list[dict[str, Any]], evidence: list[dict[str, Any]]) -> Step:
+    """Phase 29d (ADR-046): the graph screen draws GET /hypotheses edges. Checked on that
+    data: the top cause has supporting links to >= 3 evidence kinds incl. DEPLOY, and every
+    node of the graph is evidence this reader can open (no dangling node)."""
+    live = _live(hyps)
+    if not live:
+        return FAIL, "no live hypothesis"
+    edges = [(h, e) for h in hyps for e in h.get("edges") or []]
+    stored = {e["evidence_key"] for e in evidence}
+    dangling = sorted({e["evidence_key"] for _, e in edges} - stored)
+    if dangling:
+        return FAIL, f"{len(dangling)} graph node(s) not in the evidence list: {dangling[0]}"
+    kinds = sorted({e["kind"] for e in live[0].get("edges") or [] if e["stance"] == "SUPPORTS"})
+    if "DEPLOY" not in kinds or len(kinds) < 3:
+        return FAIL, f"top cause supported by kinds {kinds}"
+    contra = sum(1 for _, e in edges if e["stance"] == "CONTRADICTS")
+    nodes = len({e["evidence_key"] for _, e in edges})
+    return PASS, (
+        f"{len(hyps)} hypotheses, {nodes} evidence nodes, {len(edges)} links "
+        f"({contra} contradicting); top supported by {' '.join(kinds)}"
+    )
+
+
 def removed_shown(pm: dict[str, Any] | None, markdown: str, hyps: list[dict[str, Any]]) -> Step:
     """Phase 29c (ADR-045): what code removed from the model's text is SHOWN, with a reason,
     and kept OUT of the report. Owner (2026-10-28): a run that removed nothing is a PASS that

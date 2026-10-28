@@ -1,0 +1,67 @@
+{
+ "started_at": "2026-10-28T01:35:18+00:00",
+ "models": "fake",
+ "verdict": "REHEARSAL-OK",
+ "seconds": 61,
+ "incident": "INC-10274",
+ "investigation": "01a18024-fb67-7379-87f8-38d4cba2fece",
+ "investigation_status": "PARTIAL",
+ "steps": {
+  "services_ready": {
+   "status": "PASS",
+   "detail": "9 ready"
+  },
+  "alert_intake": {
+   "status": "PASS",
+   "detail": "INC-10274 SEV1 by rule 'label severity=error -> SEV2; tier 1 -> raised to SEV1'; re-sent = duplicate"
+  },
+  "investigation": {
+   "status": "PASS",
+   "detail": "PARTIAL in 45 s"
+  },
+  "parallel_agents": {
+   "status": "PASS",
+   "detail": "all 4 overlap for 1.4 s"
+  },
+  "evidence": {
+   "status": "PASS",
+   "detail": "COMMIT CONFIG DEPLOY DOC INCIDENT LOG METRIC RUNBOOK"
+  },
+  "top_hypothesis": {
+   "status": "PASS",
+   "detail": "#1 [HIGH] Deploy DEPLOY-4821 on checkout-api may have caused the regression: it started 7 min before the first symptom (p95_latenc"
+  },
+  "decoy_rejected": {
+   "status": "PASS",
+   "detail": "the decoy never became a candidate cause (code saw no support for it)"
+  },
+  "critic_challenge": {
+   "status": "n/a",
+   "detail": "fake models never validate (ADR-037)"
+  },
+  "report": {
+   "status": "PASS",
+   "detail": "root cause cites DEPLOY-4821; sections ok=True"
+  },
+  "removed_shown": {
+   "status": "PASS",
+   "detail": "0 removed from the postmortem this run; 0 ranker explanation(s) removed"
+  },
+  "proposal": {
+   "status": "n/a",
+   "detail": "the propose rule needs a VALIDATED cause (real models)"
+  },
+  "approval": {
+   "status": "n/a",
+   "detail": "fake models: no proposal"
+  },
+  "decision_record": {
+   "status": "n/a",
+   "detail": "fake models: no proposal"
+  },
+  "injection_ignored": {
+   "status": "PASS",
+   "detail": "0 quarantined documents returned"
+  }
+ }
+}

@@ -138,3 +138,28 @@ def test_removed_shown_proves_the_mechanism_and_zero_is_an_honest_pass() -> None
         "no postmortem": d.removed_shown(None, "", []),
     }  # fmt: skip
     assert all(s[0] == d.FAIL for s in bad.values()), bad
+
+
+def _edge(key: str, kind: str, stance: str = "SUPPORTS") -> dict:
+    return {"evidence_key": key, "kind": kind, "stance": stance}
+
+
+def test_evidence_graph_needs_a_supported_top_cause_and_no_dangling_node() -> None:
+    top = {
+        **hyp(1, "Deploy DEPLOY-4821 may have caused it"),
+        "edges": [_edge("DEPLOY-1", "DEPLOY"), _edge("LOG-1", "LOG"), _edge("METRIC-1", "METRIC")],
+    }
+    pool = {
+        **hyp(2, "pool saturation", conf="MEDIUM"),
+        "edges": [_edge("METRIC-2", "METRIC"), _edge("DEPLOY-1", "DEPLOY", "CONTRADICTS")],
+    }
+    ev = [{"evidence_key": k} for k in ("DEPLOY-1", "LOG-1", "METRIC-1", "METRIC-2")]
+    assert d.evidence_graph([top, pool], ev) == (
+        d.PASS, "2 hypotheses, 4 evidence nodes, 5 links (1 contradicting); "
+                "top supported by DEPLOY LOG METRIC")  # fmt: skip
+    # a node the reader cannot open = a broken graph
+    assert d.evidence_graph([top, pool], ev[:3])[0] == d.FAIL
+    # the top cause without the deploy behind it, or with fewer than 3 kinds
+    thin = {**top, "edges": top["edges"][1:]}
+    assert d.evidence_graph([thin], ev)[0] == d.FAIL
+    assert d.evidence_graph([], ev)[0] == d.FAIL
