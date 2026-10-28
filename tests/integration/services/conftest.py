@@ -42,6 +42,14 @@ def pubfile(tmp_path_factory: pytest.TempPathFactory, keys: KeyPair) -> Path:
 
 
 @pytest.fixture(scope="session")
+def alert_secret(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Phase 29b: a throwaway webhook secret (never secrets/alert_webhook_secret.txt)."""
+    path = tmp_path_factory.mktemp("alerts") / "alert_webhook_secret.txt"
+    path.write_text(secrets.token_hex(32) + "\n")
+    return path
+
+
+@pytest.fixture(scope="session")
 def service_db_url(migrated_db: str) -> str:
     password = secrets.token_hex(16)
     with psycopg.connect(libpq_dsn(database=migrated_db), autocommit=True) as conn:
@@ -57,11 +65,13 @@ def publisher() -> InMemoryPublisher:
 
 @pytest.fixture
 async def incident_app(
-    service_db_url: str, pubfile: Path, publisher: InMemoryPublisher
+    service_db_url: str, pubfile: Path, publisher: InMemoryPublisher, alert_secret: Path
 ) -> AsyncIterator[FastAPI]:
     settings = Settings(
         db_url_override=SecretStr(service_db_url),
         jwt_public_key_file=pubfile,
+        alert_secret_file=alert_secret,
+        catalog_url=None,  # triage without the catalog here; the catalog path is unit-tested
         relay_enabled=False,
         environment="test",
         db_pool_size=5,
@@ -102,6 +112,23 @@ class FakeOrchestrator(httpx.AsyncBaseTransport):
         )
 
 
+class CountingTransport(httpx.ASGITransport):
+    """The real incident-service, plus a record of every path the api forwarded to it."""
+
+    def __init__(self, app: FastAPI, calls: list[str]) -> None:
+        super().__init__(app=app)
+        self.calls = calls
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        self.calls.append(request.url.path)
+        return await super().handle_async_request(request)
+
+
+@pytest.fixture
+def incident_calls() -> list[str]:
+    return []
+
+
 @pytest.fixture
 def fake_orchestrator() -> FakeOrchestrator:
     return FakeOrchestrator()
@@ -109,12 +136,18 @@ def fake_orchestrator() -> FakeOrchestrator:
 
 @pytest.fixture
 async def api_client(
-    incident_app: FastAPI, pubfile: Path, fake_orchestrator: FakeOrchestrator
+    incident_app: FastAPI,
+    pubfile: Path,
+    fake_orchestrator: FakeOrchestrator,
+    alert_secret: Path,
+    incident_calls: list[str],
 ) -> AsyncIterator[httpx.AsyncClient]:
     api = build_api(
-        ApiSettings(jwt_public_key_file=pubfile, environment="test"),  # type: ignore[arg-type]
+        ApiSettings(
+            jwt_public_key_file=pubfile, environment="test", alert_secret_file=alert_secret
+        ),  # type: ignore[arg-type]
         transports={
-            "incident-service": httpx.ASGITransport(app=incident_app),
+            "incident-service": CountingTransport(incident_app, incident_calls),
             "orchestrator": fake_orchestrator,
         },
         limiter=InMemoryTokenBucket(rate_per_s=100, burst=100),

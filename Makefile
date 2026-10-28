@@ -23,7 +23,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
 .PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
 .PHONY: kind-up kind-down k8s-manifests k8s-apply k8s-status k8s-netpol-test k8s-rollout-demo
 .PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency chaos demo demo-clean demo-fresh
-.PHONY: help doctor setup delegation-keys run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
+.PHONY: help doctor setup delegation-keys alert-secret run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
         service-token ollama-pull run-llm stop-llm llm-smoke \
@@ -54,6 +54,7 @@ setup: ## One-time: Python env, git hooks, .env, local secrets
 	  openssl rsa -in secrets/jwt_private.pem -pubout -out secrets/jwt_public.pem 2>/dev/null; \
 	  chmod 600 secrets/jwt_private.pem; chmod 644 secrets/jwt_public.pem; echo "created dev JWT keypair"; }
 	@$(MAKE) --no-print-directory delegation-keys
+	@$(MAKE) --no-print-directory alert-secret
 	@echo "setup done -> next: make check && make up"
 
 delegation-keys: ## Phase 9: separate key pair for delegated tokens (ADR-019); idempotent
@@ -64,6 +65,13 @@ delegation-keys: ## Phase 9: separate key pair for delegated tokens (ADR-019); i
 	  openssl rsa -in secrets/delegation_private.pem -pubout -out secrets/delegation_public.pem 2>/dev/null; \
 	  chmod 600 secrets/delegation_private.pem; chmod 644 secrets/delegation_public.pem; \
 	  echo "created delegation keypair (secrets/delegation_*.pem)"; }
+
+alert-secret: ## Phase 29b (ADR-044): the alert webhook's shared HMAC secret (32 bytes, hex); idempotent
+	@mkdir -p secrets && chmod 700 secrets
+	@# 644 like the other files the containers read (uid 10001); secrets/ itself stays 700.
+	@# The SENDER (Alertmanager, the demo) needs the same value: never commit, never paste it.
+	@[ -f secrets/alert_webhook_secret.txt ] || { umask 022; openssl rand -hex 32 > secrets/alert_webhook_secret.txt; \
+	  echo "created secrets/alert_webhook_secret.txt"; }
 
 # ---------- code quality ----------
 lint: ## Ruff lint + format check
@@ -513,7 +521,7 @@ AUDIT_PORT ?= 8008
 TOOLS_PIDS = { lsof -nP -t -iTCP:$(TOOLS_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 AUDIT_PIDS = { lsof -nP -t -iTCP:$(AUDIT_PORT) -sTCP:LISTEN 2>/dev/null || true; } | tr '\n' ',' | sed 's/,$$//'
 
-tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, -> rag: rag:obo, -> incident: approvals:consume, -> catalog: catalog:read), dev only, 30 days
+tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, -> rag: rag:obo, -> incident: approvals:consume, -> catalog: catalog:read) + incident-service -> catalog (29b), dev only, 30 days
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope audit:write \
 	  --ttl-minutes 43200 > secrets/tools_audit_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope rag:obo \
@@ -522,7 +530,9 @@ tools-tokens: ## Mint the tool-gateway service tokens (-> audit: audit:write, ->
 	  --ttl-minutes 43200 > secrets/tools_incident_token.txt
 	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service tool-gateway --scope catalog:read \
 	  --ttl-minutes 43200 > secrets/tools_catalog_token.txt
-	@echo "wrote secrets/tools_audit_token.txt (audit:write), secrets/tools_rag_token.txt (rag:obo), secrets/tools_incident_token.txt (approvals:consume), secrets/tools_catalog_token.txt (catalog:read), 30 days"
+	@umask 077; uv run --quiet python -m aeoi_api.devtoken --service incident-service --scope catalog:read \
+	  --ttl-minutes 43200 > secrets/incident_catalog_token.txt
+	@echo "wrote secrets/tools_audit_token.txt (audit:write), secrets/tools_rag_token.txt (rag:obo), secrets/tools_incident_token.txt (approvals:consume), secrets/tools_catalog_token.txt (catalog:read), secrets/incident_catalog_token.txt (incident-service catalog:read, Phase 29b), 30 days"
 
 stop-tools: ## Stop a running tool-gateway (only if it really is ours)
 	@pids=$$($(TOOLS_PIDS)); \

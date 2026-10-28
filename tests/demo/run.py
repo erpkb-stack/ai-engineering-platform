@@ -32,12 +32,39 @@ LLM = os.environ.get("AEOI_DEMO_LLM", "http://localhost:8005")
 PORTS = {"api": 8000, "incident-service": 8001, "orchestrator": 8002, "agents": 8003, "rag": 8004,
          "llm-gateway": 8005, "tool-gateway": 8006, "audit": 8008, "service-catalog": 8010}  # fmt: skip
 MAX_WAIT_S = 600
-INCIDENT = {  # what the on-call engineer types (docs/demo/demo-scenario.md; seed v1 planted times)
-    "title": "Checkout 5xx and DB pool timeouts after deploy",
-    "severity": "SEV2",
-    "affected_services": ["checkout-api"],
-    "detected_at": "2026-10-02T09:50:00Z",
-}
+SECRET = ROOT / "secrets/alert_webhook_secret.txt"  # make alert-secret (dev only)
+
+
+def alert(fingerprint: str) -> dict[str, Any]:
+    """What Alertmanager sends when checkout-api's 5xx rule fires (docs/demo/demo-scenario.md;
+    startsAt = the seed v1 planted time). A NEW fingerprint per run: the same one would be a
+    duplicate of the last run's (already mitigated) incident - which is the dedupe working."""
+    return {"version": "4", "status": "firing", "receiver": "aeoi", "alerts": [{
+        "status": "firing",
+        "labels": {"alertname": "CheckoutHigh5xx", "service": "checkout-api",
+                   "severity": "error"},
+        "annotations": {"summary": "Checkout 5xx and DB pool timeouts after deploy",
+                        "description": "5xx above 5% for 5 minutes; db pool wait p99 high"},
+        "startsAt": "2026-10-02T09:50:00Z",
+        "fingerprint": fingerprint,
+    }]}  # fmt: skip
+
+
+def send_alert(doc: dict[str, Any], secret: bytes) -> tuple[int, Any]:
+    from aeoi_security.webhook import sign
+
+    raw = json.dumps(doc).encode()
+    ts = int(time.time())
+    h = {"Content-Type": "application/json", "X-AEOI-Timestamp": str(ts),
+         "X-AEOI-Signature": sign(secret, ts, raw)}  # fmt: skip
+    req = urllib.request.Request(f"{API}/api/v1/alerts", data=raw, method="POST", headers=h)  # noqa: S310
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310
+            return r.status, json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        return e.code, None
+    except OSError as e:
+        return 0, type(e).__name__
 
 
 def call(method: str, url: str, token: str | None = None, body: Any = None,
@@ -80,11 +107,17 @@ def run() -> int:
     ic, mgr = tokens("INCIDENT_COMMANDER")[0], tokens("MANAGER")[0]
     tag = f"demo-{int(time.time())}"
 
-    st, inc = call("POST", f"{API}/api/v1/incidents", sre, INCIDENT, tag)
-    steps["incident_created"] = (d.PASS, inc["key"]) if st == 201 else (d.FAIL, f"{st}")
-    if st != 201:
+    if not SECRET.is_file():
+        steps["alert_intake"] = (
+            d.FAIL,
+            "no secrets/alert_webhook_secret.txt: run make alert-secret",
+        )
         return finish(steps, real, t0, {})
-    key = inc["key"]
+    secret, doc = SECRET.read_bytes().strip(), alert(f"demo{int(time.time())}")
+    first = send_alert(doc, secret)
+    steps["alert_intake"], key = d.alert_intake(first, send_alert(doc, secret))
+    if key is None:
+        return finish(steps, real, t0, {})
     st, acc = call("POST", f"{API}/api/v1/incidents/{key}/investigate", sre, None, f"{tag}-inv")
     if st != 202:
         steps["investigation"] = (d.FAIL, f"start {st}")

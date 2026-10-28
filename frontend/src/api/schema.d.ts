@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/api/v1/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receive Alerts
+         * @description Phase 29b (ADR-044): an alert opens an incident. NO bearer token - the sender signs
+         *     timestamp + body with the shared secret. Checked HERE (rate limit per sender address,
+         *     then size, then signature) before anything is forwarded, and again in incident-service.
+         *     The RAW bytes are forwarded: re-serialising would break the signature.
+         */
+        post: operations["receive_alerts_api_v1_alerts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/approvals": {
         parameters: {
             query?: never;
@@ -558,6 +581,35 @@ export interface components {
             recommendation?: {
                 [key: string]: unknown;
             };
+        };
+        /** AlertResult */
+        AlertResult: {
+            /** Fingerprint */
+            fingerprint: string;
+            /** Incident Key */
+            incident_key?: string | null;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "created" | "duplicate" | "ignored_resolved" | "rejected";
+            /**
+             * Reason
+             * @description the triage rule applied, or why nothing was created
+             */
+            reason: string;
+            severity?: components["schemas"]["Severity"] | null;
+        };
+        /**
+         * AlertsAccepted
+         * @description 200 for every valid, signed batch - per-alert outcomes inside (a 4xx/5xx would make
+         *     Alertmanager retry the WHOLE group, re-sending alerts that were already handled).
+         */
+        AlertsAccepted: {
+            /** Received */
+            received: number;
+            /** Results */
+            results: components["schemas"]["AlertResult"][];
         };
         /** ApprovalOut */
         ApprovalOut: {
@@ -1885,6 +1937,65 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    receive_alerts_api_v1_alerts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description unix seconds, +-300 s */
+                "x-aeoi-timestamp"?: string | null;
+                /** @description sha256=<hex HMAC-SHA256(secret, ts + '.' + body)> */
+                "x-aeoi-signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AlertsAccepted"];
+                };
+            };
+            /** @description missing, bad or stale signature */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description body over 64 KB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description webhook not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     list_pending_approvals_api_v1_approvals_get: {
         parameters: {
             query?: {

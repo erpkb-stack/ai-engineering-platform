@@ -228,6 +228,7 @@ services:
       - { source: jwt_public, target: /app/secrets/jwt_public.pem }
       - { source: api_svc_password, target: /app/secrets/api_svc_password.txt }
       - { source: delegation_private, target: /app/secrets/delegation_private.pem }
+      - { source: alert_webhook_secret, target: /app/secrets/alert_webhook_secret.txt }
 
   incident-service:
     <<: *app
@@ -239,10 +240,15 @@ services:
       AEOI_SERVICE_PORT: "8001"
       # Phase 18a switch, read from .env exactly like a host run (log | kafka)
       AEOI_INCIDENT_EVENT_TRANSPORT: ${AEOI_INCIDENT_EVENT_TRANSPORT:-log}
+      # Phase 29b (ADR-044): alert triage reads tier + dependents from the catalog - the SAME
+      # switch as the tool-gateway (empty = no catalog: triage uses the label severity only)
+      AEOI_INCIDENT_CATALOG_URL: ${AEOI_TOOLS_CATALOG_URL:+http://service-catalog:8010}
     secrets:
       - { source: jwt_public, target: /app/secrets/jwt_public.pem }
       - { source: incident_svc_password, target: /app/secrets/incident_svc_password.txt }
       - { source: delegation_public, target: /app/secrets/delegation_public.pem }
+      - { source: alert_webhook_secret, target: /app/secrets/alert_webhook_secret.txt }
+      - { source: incident_catalog_token, target: /app/secrets/incident_catalog_token.txt }
 
   orchestrator:
     <<: *app
@@ -556,6 +562,11 @@ secrets:
     file: ./secrets/tools_incident_token.txt
   tools_audit_token:
     file: ./secrets/tools_audit_token.txt
+  # Phase 29b (ADR-044): make alert-secret (shared with the sender) and make tools-tokens
+  alert_webhook_secret:
+    file: ./secrets/alert_webhook_secret.txt
+  incident_catalog_token:
+    file: ./secrets/incident_catalog_token.txt
   anthropic_api_key:
     file: ./secrets/anthropic_api_key.txt
   # Phase 23a: Grafana's admin login (make obs-up creates it) and its read-only DB login

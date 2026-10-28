@@ -265,3 +265,64 @@ async def test_the_approvals_inbox_forwards_its_filter_and_validates_it_first(
             await client.get(f"/api/v1/approvals?{qs}", headers=auth(keys, "SRE"))
         ).status_code == 422
     assert len(upstream.calls) == n
+
+
+# ------------------------------------------------------------------ Phase 29b (ADR-044)
+def test_the_alert_webhook_is_the_only_public_route_without_a_bearer() -> None:
+    """A new /api/v1 route that forgets its guard would be public. Only the signed alert
+    webhook may skip the bearer (it checks an HMAC instead)."""
+    from fastapi.dependencies.models import Dependant
+    from fastapi.routing import APIRoute
+
+    from aeoi_web.auth import current_principal
+
+    def needs_bearer(d: Dependant) -> bool:
+        return d.call is current_principal or any(needs_bearer(x) for x in d.dependencies)
+
+    from aeoi_api.routes import router  # FastAPI 0.14x wraps included routers: read the source
+
+    routes = [r for r in router.routes if isinstance(r, APIRoute)]
+    assert len(routes) >= 30  # the walk really saw the routes
+    public = sorted(r.path for r in routes if not needs_bearer(r.dependant))
+    assert public == ["/api/v1/alerts"]
+
+
+async def test_the_webhook_is_rate_limited_per_sender_before_anything_else(
+    pubfile: Path, upstream: FakeUpstream, tmp_path: Path
+) -> None:
+    secret = tmp_path / "alert_webhook_secret.txt"
+    secret.write_text("k" * 64)
+    settings = Settings(jwt_public_key_file=pubfile, environment="test",  # type: ignore[arg-type]
+                        alert_secret_file=secret)  # fmt: skip
+    app = build_app(settings, transports={"incident-service": httpx.MockTransport(upstream)},
+                    limiter=InMemoryTokenBucket(rate_per_s=0.001, burst=2))  # fmt: skip
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api")
+    codes = [(await client.post("/api/v1/alerts", content=b"{}")).status_code for _ in range(3)]
+    assert codes == [401, 401, 429]  # unsigned floods spend the SENDER's bucket, then stop
+    assert upstream.calls == []
+
+
+async def test_the_webhook_forwards_the_signature_headers_and_the_raw_bytes(
+    pubfile: Path, upstream: FakeUpstream, tmp_path: Path
+) -> None:
+    import time
+
+    from aeoi_security.webhook import sign
+
+    secret = tmp_path / "alert_webhook_secret.txt"
+    secret.write_text("k" * 64)
+    settings = Settings(jwt_public_key_file=pubfile, environment="test",  # type: ignore[arg-type]
+                        alert_secret_file=secret)  # fmt: skip
+    app = build_app(settings, transports={"incident-service": httpx.MockTransport(upstream)},
+                    limiter=InMemoryTokenBucket(rate_per_s=1, burst=5))  # fmt: skip
+    client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api")
+    raw = b'{"status":"firing",  "alerts":[]}'  # odd spacing: must arrive byte for byte
+    ts = int(time.time())
+    h = {"x-aeoi-timestamp": str(ts), "x-aeoi-signature": sign(b"k" * 64, ts, raw),
+         "content-type": "application/json", "x-forwarded-for": "1.2.3.4"}  # fmt: skip
+    r = await client.post("/api/v1/alerts", content=raw, headers=h)
+    assert r.status_code == 200
+    sent = upstream.calls[0]
+    assert sent.url.path == "/v1/alerts" and sent.content == raw
+    assert sent.headers["x-aeoi-signature"] == h["x-aeoi-signature"]
+    assert "x-forwarded-for" not in sent.headers

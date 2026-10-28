@@ -17,7 +17,8 @@ from fastapi import Request, Response
 from aeoi_common.correlation import CORRELATION_HEADER, get_correlation_id
 from aeoi_common.errors import UpstreamUnavailableError
 
-FORWARD_REQUEST_HEADERS = ("authorization", "idempotency-key", "if-match", "content-type")
+FORWARD_REQUEST_HEADERS = ("authorization", "idempotency-key", "if-match", "content-type",
+                           "x-aeoi-signature", "x-aeoi-timestamp")  # fmt: skip  # 29b webhook
 FORWARD_RESPONSE_HEADERS = (
     "content-type",
     "etag",
