@@ -139,6 +139,18 @@ supports one cause and contradicts another. If it did not show that, it would be
 and a dashed line; focus on the pool cause leaves its METRIC support and the DEPLOY/CONFIG
 contradictions bright. At phone width it scales down too small to read: desktop-first.
 
+**On the Mac (fake models, 2026-10-28):** `evidence_graph` PASS - "5 hypotheses, 11 evidence
+nodes, 22 links (9 contradicting); top supported by COMMIT CONFIG DEPLOY LOG METRIC".
+`make ui-browser-test`: 5 passed, 1 failed, 3 skipped - two findings in MY browser tests:
+1. The graph test SKIPPED: it read the panel with an instant `isVisible()` while the
+   hypotheses were still loading. A skip proves nothing. fix1 WAITS (15 s) for the picture or
+   the "no links" sentence, and skips only on the sentence. Checked here against a page that
+   renders the graph 2 s late: the old logic skips, the new one waits and passes.
+2. "an SRE signs in" failed: the redirect to Keycloak was in flight to the RIGHT URL when the
+   5 s default ran out (first test of the run: cold Vite, Keycloak just recreated - it took
+   436 s to become healthy). fix1 waits 20 s for that redirect; the URL rule is unchanged.
+   The 2 decide tests skip by design (opt-in: `AEOI_UI_DECIDE=1`).
+
 ## 7. Next
 29e MTTI. Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
