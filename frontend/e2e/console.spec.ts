@@ -4,7 +4,9 @@ import { login } from "./users";
 async function signIn(page: Page, role: string, path = "/") {
   await page.goto(path);
   // a real redirect to Keycloak (Authorization Code + PKCE), not a token pasted in
-  await expect(page).toHaveURL(/localhost:8090\/realms\/aeoi\/protocol\/openid-connect\/auth/);
+  // 20 s, not the 5 s default: the FIRST test of a run meets a cold Vite + a just-started
+  // Keycloak (Mac 2026-10-28: the redirect was in flight to the right URL when 5 s ran out)
+  await expect(page).toHaveURL(/localhost:8090\/realms\/aeoi\/protocol\/openid-connect\/auth/, { timeout: 20_000 });
   expect(new URL(page.url()).searchParams.get("code_challenge_method")).toBe("S256");
   const { email, password } = login(role);
   await page.locator("#username").fill(email);
@@ -44,7 +46,11 @@ test("the evidence graph links a hypothesis to its evidence (Phase 29d)", async 
   await page.locator("table.grid tbody tr a").first().click();
   const graph = page.getByRole("region", { name: "Evidence graph", exact: true });
   const picture = graph.getByRole("img", { name: /^Evidence graph: \d+ hypotheses/ });
-  test.skip(!(await picture.isVisible()), "the newest incident has no evidence links yet (run make demo first)");
+  const none = graph.getByText(/^No evidence links yet/);
+  // WAIT for the hypotheses to load: an instant isVisible() read the panel while it was still
+  // empty and skipped the test on the Mac (2026-10-28) - a skip that hid nothing but proved nothing
+  await expect(picture.or(none)).toBeVisible({ timeout: 15_000 });
+  test.skip(await none.isVisible(), "the newest incident has no evidence links yet (run make demo first)");
   await expect(graph.locator(".node-h").first()).toBeVisible();
   // a readable evidence node jumps to the evidence card on the same page
   const first = graph.locator("a.node-e").first();
