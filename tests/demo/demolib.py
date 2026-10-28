@@ -153,6 +153,26 @@ def evidence_graph(hyps: list[dict[str, Any]], evidence: list[dict[str, Any]]) -
     )
 
 
+def mtti(report: dict[str, Any] | None, real: bool) -> Step:
+    """Phase 29e (ADR-047): minute 12:00 quotes MEASURED numbers or nothing. Needs the latest
+    `make mtti` report: 6 manual cases scored and the AI side from a real-model run."""
+    if report is None:
+        return (FAIL if real else NA), "not measured yet: make manual (6 cases), then make mtti"
+    man, ai, pr = report["manual"], report["ai_all"], report["paired"]
+    if man["cases"] < 6:
+        return FAIL, f"only {man['cases']} manual cases scored (need 6)"
+    if not all(r.get("paid_models") for r in report.get("ai_runs", [])) or not report.get(
+        "ai_runs"
+    ):
+        return FAIL, "the AI side is not a real-model run"
+    return PASS, (
+        f"AI identified {ai['identified']}/{ai['cases']} (median "
+        f"{ai['seconds_when_identified']['median']} s); manual {man['identified']}/"
+        f"{man['cases']} (median {man['seconds_when_identified']['median']} s); paired: AI "
+        f"first {pr['ai_first']}, manual first {pr['manual_first']}"
+    )
+
+
 def removed_shown(pm: dict[str, Any] | None, markdown: str, hyps: list[dict[str, Any]]) -> Step:
     """Phase 29c (ADR-045): what code removed from the model's text is SHOWN, with a reason,
     and kept OUT of the report. Owner (2026-10-28): a run that removed nothing is a PASS that

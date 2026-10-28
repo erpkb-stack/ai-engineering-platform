@@ -22,7 +22,7 @@ UVICORN := uv run uvicorn --factory --log-level warning
 .PHONY: catalog-contract catalog-build catalog-import run-catalog stop-catalog catalog-smoke
 .PHONY: images apps-up apps-secrets-perms apps-down apps-stats apps-peaks
 .PHONY: kind-up kind-down k8s-manifests k8s-apply k8s-status k8s-netpol-test k8s-rollout-demo
-.PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency chaos demo demo-clean demo-fresh
+.PHONY: obs-up obs-down obs-clean obs-smoke obs-load-peaks catalog-latency chaos demo demo-clean demo-fresh manual mtti
 .PHONY: help doctor setup delegation-keys alert-secret run-orch stop-orch orch-smoke lint fmt typecheck test cov check hooks ports up down ps logs \
         verify-infra psql redis-cli kafka-topics kafka-init kafka-lag kafka-dlq kafka-replay consumer-smoke clean test-integration \
         db-users token run-incident run-api dev smoke \
@@ -475,6 +475,13 @@ load: ## Phase 27: load the DEPLOYED api as the seeded team: make load PLAN=smok
 
 demo: ## Phase 29: the demo script end to end on the DEPLOYED system, every step checked (fake models = rehearsal, real = a counted pass); then: make demo-clean
 	uv run python tests/demo/run.py
+
+manual: ## Phase 29e (ADR-047): time YOURSELF on 6 planted incidents with the agents' read tools (docs/demo/mtti-protocol.md); the clock never pauses
+	uv run python tests/mtti/manual.py
+
+mtti: ## Phase 29e: MTTI report - make mtti FILES="<v1 result> <v2 result>" (real-model eval runs of the CURRENT code); reveals the planted answers
+	@[ -n "$(FILES)" ] || { echo 'usage: make mtti FILES="data/eval/results/<v1>.json data/eval/results/<v2>.json"'; exit 1; }
+	uv run python tests/mtti/report.py $(FILES)
 
 demo-fresh: ## Phase 29: the "clean make up" before a counted pass: fresh infra containers + fresh app pods, DATA KEPT (no db-seed: it truncates rag + history). [LLM_ROUTING=routing.load.yaml to rehearse]
 	@set -eu -o pipefail; $(MAKE) --no-print-directory down; $(MAKE) --no-print-directory up PROFILE=kafka; \

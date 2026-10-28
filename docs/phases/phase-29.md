@@ -1,6 +1,6 @@
 # Phase 29 - End-to-end demonstration (ADR-043)
 
-Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d BUILT 2026-10-28 (sandbox only; ADR-046)** - Mac run pending. Owner (2026-10-27): "Phase 29";
+Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d VERIFIED on the Mac 2026-10-28 (ADR-046, PRs #49 + #50, main 86b26ba).** **29e BUILT 2026-10-28 (sandbox only; ADR-047)** - the owner's timed runs + the paid AI run pending. Owner (2026-10-27): "Phase 29";
 clean = **fresh containers, keep data**; models = **fake to rehearse, real for the 3 passes**;
 the 4 missing steps = **build all four**.
 
@@ -23,7 +23,7 @@ the 4 missing steps = **build all four**.
 | 10:00 | approval -> controlled tool | yes (real models) | the investigation's proposal; ENGINEER 403; IC approves -> EXECUTED, MITIGATED |
 | 11:00 | audit trail | yes | decision record: who, when, why, args sha256, tool call |
 | 11:30 | injection ignored | yes | the adversarial document is never returned |
-| 12:00 | MTTI manual vs AI | **no** | 29e - needs the owner's timed manual runs |
+| 12:00 | MTTI manual vs AI | **29e built** | `mtti`: a report with 6 scored manual cases + a real-model AI run; n/a on a rehearsal |
 
 Found: **the rollback changes the demo data** (a new deploy row on checkout-api) -> `make
 demo-clean` after every pass. **`make db-seed` truncates rag + history** -> never before a demo.
@@ -151,15 +151,39 @@ nodes, 22 links (9 contradicting); top supported by COMMIT CONFIG DEPLOY LOG MET
    436 s to become healthy). fix1 waits 20 s for that redirect; the URL rule is unchanged.
    The 2 decide tests skip by design (opt-in: `AEOI_UI_DECIDE=1`).
 
-## 7. Next
-29e MTTI. Then the gate: `make
+**29d on the Mac:** the evidence-graph browser test PASSED after fix1 (7 passed, 2 opt-in skips;
+first test 17.2 s, so the old 5 s wait would have failed). Before that, a run failed 7 of 7 with
+`ERR_EMPTY_RESPONSE` from Keycloak itself (an old container had stopped answering; a fresh
+`make keycloak-up` fixed it; the cause was not captured). Process finding: PR #49 was merged at
+ae76b5b BEFORE fix1 was pushed; the head check refused the second merge and fix1 went in as
+PR #50 (cherry-pick; main's code proved equal to the tested commit first).
+
+## 7. 29e - MTTI, measured (ADR-047)
+Owner (2026-10-28): manual = **a CLI over the same read tools**; **one fresh paid run** of all
+planted cases (~$1.30); **6 manual cases, 30-minute cap**. Protocol: `docs/demo/mtti-protocol.md`.
+
+**Built:** `tests/mtti/` - `mttilib.py` (the rules, fixed before timing: sample, identified, report
+statistics), `manual.py` (`make manual`), `report.py` (`make mtti`); demo step `mtti`.
+
+**Found before any timing (sandbox, a throwaway session against the ci-sim stack):**
+1. A plain seeded shuffle of the 17 detectable cases gave SIX v1 cases led by S01 - the demo's
+   own pattern. Now 4 from v1 + 2 from v2, S01 out of the manual sample, reserves alternate packs.
+2. The services answer times in the DB session's offset (-05:00 in the sandbox) while the alert
+   is UTC: the CLI shows every time in UTC.
+3. `deploys` with a 24 h look-back was refused (the tool allows 24 h at most, end included):
+   default -1430 min, and the CLI refuses a longer window itself.
+4. Tool output reaches a terminal: control characters are removed (an ESC sequence in a log line
+   could rewrite the screen).
+
+## 8. Next
+29e on the Mac: the paid AI run, the 6 timed cases, `make mtti`. Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
 
-## 8. Verify
+## 9. Verify
 - [x] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removed 0 rows.
 - [x] One real-model run: PASS 13/13 (not counted: the script is not complete yet).
 - [x] 29b on the Mac: CI green (PR #47), `alert_intake` PASS with SEV1 + "tier 1", netpol 0 failed with incident-service -> service-catalog open, 0 restarts.
 - [x] 29c on the Mac: CI green (PR #48), `removed_shown` PASS ("0 removed" on fakes); real-postmortem rate measured (8/70).
-- [ ] 29d on the Mac: CI green; `make demo` (fake) shows `evidence_graph` PASS; `make ui-browser-test` passes the graph test (not skipped) after `make demo`.
-- [ ] 29e built and in the demo.
+- [x] 29d on the Mac: CI green (PRs #49, #50), `evidence_graph` PASS, browser graph test passed (not skipped).
+- [ ] 29e on the Mac: the paid AI run (v1 + v2), 6 manual cases timed by the owner, `make mtti` report committed; `make demo` shows `mtti` PASS on real models.
 - [ ] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`.
