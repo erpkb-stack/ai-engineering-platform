@@ -101,11 +101,24 @@ def opts(words: list[str]) -> tuple[list[str], dict[str, str]]:
     return pos, kv
 
 
+METRICS = ("http_5xx_per_min", "p95_latency_ms", "requests_per_sec", "cpu_util",
+           "db_pool_utilization", "db_connections_active", "db_query_latency_ms",
+           "cache_hit_ratio", "thread_pool_utilization")  # fmt: skip  # = the tool's list
+_DEPLOY = re.compile(r"^DEPLOY-\d{1,24}$")
+
+
 def parse_answer(words: list[str]) -> dict[str, str]:
-    """`answer change DEPLOY-9100` or `answer saturation db_pool_utilization`."""
+    """`answer change DEPLOY-9100` or `answer saturation db_pool_utilization`. fix2: the
+    SUBJECT is checked too - `answer change code` (0 tool calls, Mac 2026-10-28) was accepted
+    and would have counted as a failed case. A refused answer does NOT stop the clock."""
     if len(words) != 2 or words[0] not in CAUSE_KINDS:
         raise ValueError(f"answer <kind> <subject>; kind one of {', '.join(CAUSE_KINDS)}")
-    return {"kind": words[0], "subject": words[1]}
+    kind, subject = words
+    if kind == "change" and not _DEPLOY.match(subject):
+        raise ValueError("a change is answered with its deploy key, e.g. answer change DEPLOY-9100")
+    if kind in ("saturation", "traffic") and subject not in METRICS:
+        raise ValueError(f"a {kind} is answered with a metric name: {', '.join(METRICS)}")
+    return {"kind": kind, "subject": subject}
 
 
 def identified_manual(

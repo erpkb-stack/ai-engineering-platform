@@ -26,8 +26,8 @@ read tools. The rules are fixed in `tests/mtti/mttilib.py` and do not change aft
   incidents, catalog, `tool ...`) - the read tools the agents use, as you (an SRE token). No
   console, no SQL, no Grafana, no notes from earlier cases.
 - **Answer** with `answer <kind> <subject>`: kind = change | saturation | traffic | alternative;
-  subject = the DEPLOY key (DEPLOY-9100) or the metric (db_pool_utilization). One answer per
-  case: it is final.
+  subject = the DEPLOY key (DEPLOY-9100) or the metric (db_pool_utilization). Any other subject
+  is refused and the clock keeps running. One accepted answer per case: it is final.
 - **Cap:** 30 minutes. A right answer after 30 minutes counts as not identified (the cap is never
   used as a time).
 - **Interrupted for real** (a call, a meeting): `abandon <reason>`. The case is listed as

@@ -60,6 +60,13 @@ def test_answers_parse_strictly() -> None:
     for bad in (["DEPLOY-9100"], ["cause", "DEPLOY-9100"], ["change", "a", "b"]):
         with pytest.raises(ValueError, match="answer <kind> <subject>"):
             m.parse_answer(bad)
+    # fix2: the subject must be a deploy key or a metric (`answer change code` was accepted)
+    with pytest.raises(ValueError, match="deploy key"):
+        m.parse_answer(["change", "code"])
+    with pytest.raises(ValueError, match="metric name"):
+        m.parse_answer(["saturation", "pool"])
+    assert m.parse_answer(["traffic", "requests_per_sec"])["subject"] == "requests_per_sec"
+    assert m.parse_answer(["alternative", "dns"]) == {"kind": "alternative", "subject": "dns"}
 
 
 def test_tool_output_cannot_drive_the_terminal() -> None:
@@ -166,3 +173,9 @@ def test_report_pairs_the_same_cases_and_never_uses_the_cap_as_a_time() -> None:
 def test_wilson_and_the_sign_test() -> None:
     assert m.wilson(8, 70) == (0.059, 0.21)  # the 29c postmortem measurement
     assert m.sign_test(6, 0) == 0.0312 and m.sign_test(3, 3) == 1.0 and m.sign_test(0, 0) == 1.0
+
+
+def test_the_answer_metrics_are_exactly_the_tools_metrics() -> None:
+    from aeoi_tools.schemas import METRICS
+
+    assert m.METRICS == METRICS
