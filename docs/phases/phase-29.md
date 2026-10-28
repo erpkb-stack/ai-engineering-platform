@@ -186,6 +186,13 @@ case says CLOCK RUNNING and shows the commands; `make manual PRACTICE=1` = one u
 abandoned case is replaced from ITS pack (the 4 + 2 mix holds). The 4 abandons stay in the record
 with their reasons.
 
+**29e fix2:** an answer's SUBJECT is checked (a change needs a `DEPLOY-n` key; a saturation or
+traffic answer needs a metric the tools know - a unit test pins that list to the tool's): `answer
+change code`, typed with 0 tool calls on an accidental case, had been accepted and would have
+counted as a failed case. The owner corrected that record openly (marked abandoned, the original
+answer kept in `corrected_from`). Practice judges the answer only (the right answer after an
+80-minute practice was shown as "not right" because the 30-minute cap was applied).
+
 ## 8. Next
 29e on the Mac: the paid AI run, the 6 timed cases, `make mtti`. Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.

@@ -276,9 +276,13 @@ def main(argv: list[str]) -> int:
                 save(state, path)
                 if practice and "answer" in rec:
                     truth = cases[cur["case"]]["expected"]["culprit"]
-                    ok = m.identified_manual(rec["answer"], truth, seconds)
-                    print(f"Practice answer {'RIGHT' if ok else 'not right'} after {seconds:.0f} s; "
-                          f"the planted cause was: {truth['kind']} {truth['subject']}")  # fmt: skip
+                    # fix2: practice judges the ANSWER only (an 80-min practice said "not right"
+                    # for the right answer: the 30-min cap is for timed cases)
+                    ok = rec["answer"] == {"kind": truth["kind"], "subject": truth["subject"]}
+                    late = " (over 30 min: in a timed case that counts as not identified)" \
+                        if ok and seconds > m.CAP_S else ""  # fmt: skip
+                    print(f"Practice answer {'RIGHT' if ok else 'not right'} after {seconds:.0f} s"
+                          f"{late}; the planted cause was: {truth['kind']} {truth['subject']}")  # fmt: skip
                 else:
                     print(
                         f"Recorded after {seconds:.0f} s. The answer is revealed only by make mtti."
