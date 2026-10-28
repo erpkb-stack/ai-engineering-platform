@@ -163,3 +163,15 @@ def test_evidence_graph_needs_a_supported_top_cause_and_no_dangling_node() -> No
     thin = {**top, "edges": top["edges"][1:]}
     assert d.evidence_graph([thin], ev)[0] == d.FAIL
     assert d.evidence_graph([], ev)[0] == d.FAIL
+
+
+def test_mtti_quotes_measured_numbers_or_nothing() -> None:
+    rep = {"manual": {"cases": 6, "identified": 5, "seconds_when_identified": {"median": 420.0}},
+           "ai_all": {"cases": 17, "identified": 13, "seconds_when_identified": {"median": 46.0}},
+           "paired": {"ai_first": 5, "manual_first": 0},
+           "ai_runs": [{"paid_models": ["claude-sonnet-5-5"]}]}  # fmt: skip
+    step = d.mtti(rep, True)
+    assert step[0] == d.PASS and "AI identified 13/17 (median 46.0 s)" in step[1]
+    assert d.mtti(None, False)[0] == d.NA and d.mtti(None, True)[0] == d.FAIL
+    assert d.mtti({**rep, "manual": {**rep["manual"], "cases": 5}}, True)[0] == d.FAIL
+    assert d.mtti({**rep, "ai_runs": [{"paid_models": []}]}, True)[0] == d.FAIL
