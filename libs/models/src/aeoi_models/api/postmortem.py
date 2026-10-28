@@ -35,6 +35,15 @@ SECTION_TITLES: dict[str, str] = {
     "went_poorly": "What went poorly",
 }
 ActionCategory = Literal["prevent", "detect", "mitigate", "process"]
+# Phase 29c (ADR-045): why code removed a model sentence - the first rule it broke, in this
+# order: markup (a renderer would make it a link/image/HTML), too_short, no_valid_ref (cites
+# no observation that exists), no_evidence (its refs map to no evidence), unknown_number (a
+# number or date that is not in the code-written facts it could rest on); bad_category: an
+# action item outside the enum (the gateway's schema check refuses it first: defensive)
+RemovalReason = Literal[
+    "markup", "too_short", "no_valid_ref", "no_evidence", "unknown_number", "bad_category"
+]
+MAX_REMOVED = 56  # 6 sections x 8 sentences + 8 action items: every possible removal fits
 EvidenceKey = str  # "LOG-...", "METRIC-..." (kind prefix enforced by EvidenceRef upstream)
 
 
@@ -80,6 +89,21 @@ class PmSentence(BaseModel):
     text: str = Field(min_length=3, max_length=400)
     refs: list[ObsRef] = Field(default_factory=list, max_length=4)
     evidence_keys: list[EvidenceKey] = Field(default_factory=list, max_length=16)
+
+
+class RemovedSentence(BaseModel):
+    """Phase 29c (ADR-045): a model sentence code REMOVED, kept with the reason so a reader
+    can see what was taken out and why (counts alone hid it). It is model text that FAILED a
+    check: shown only as plain text, and only to a reader who may read every evidence kind of
+    the incident (an uncited sentence can quote any of it); otherwise the text is redacted and
+    the section + reason stay."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    section: SectionName | Literal["action_items"]
+    text: str = Field(max_length=400)
+    reason: RemovalReason
+    detail: str = Field(default="", max_length=200, description="code-written: e.g. the numbers")
 
 
 class PmSection(BaseModel):
@@ -136,6 +160,7 @@ class PostmortemDraft(BaseModel):
     written_by: Literal["llm", "code"] = "code"
     sentences_dropped: int = 0  # uncited / unknown refs
     numbers_rejected: int = 0  # sentences dropped for a number not found in the input
+    removed: list[RemovedSentence] = Field(default_factory=list, max_length=MAX_REMOVED)
     model: str | None = None
     prompt_version: int | None = None
 
@@ -161,6 +186,8 @@ class PostmortemIn(BaseModel):
     action_items: list[ActionItem] = Field(default_factory=list, max_length=8)
     sentences_dropped: int = Field(default=0, ge=0)
     numbers_rejected: int = Field(default=0, ge=0)
+    # Phase 29c (ADR-045): the removed sentences themselves; posts from before 29c have none
+    removed: list[RemovedSentence] = Field(default_factory=list, max_length=MAX_REMOVED)
     # Phase 13 (ADR-023): similar past incidents (shared with every engineer), code-rendered
     similar: list[SimilarIncident] = Field(default_factory=list, max_length=10)
 
@@ -229,4 +256,9 @@ class PostmortemDoc(BaseModel):
     redacted_sentences: int = 0
     sentences_dropped: int = 0
     numbers_rejected: int = 0
+    # Phase 29c (ADR-045): what code removed and why; `removed_redacted` of them have their
+    # text hidden from this reader; `removed_kept` False = stored before 29c (counts only)
+    removed: list[RemovedSentence] = Field(default_factory=list)
+    removed_redacted: int = 0
+    removed_kept: bool = True
     similar: list[SimilarIncident] = Field(default_factory=list)  # Phase 13 (ADR-023)

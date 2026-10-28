@@ -1337,6 +1337,18 @@ export interface components {
              * @default 0
              */
             redacted_sentences: number;
+            /** Removed */
+            removed?: components["schemas"]["RemovedSentence"][];
+            /**
+             * Removed Kept
+             * @default true
+             */
+            removed_kept: boolean;
+            /**
+             * Removed Redacted
+             * @default 0
+             */
+            removed_redacted: number;
             /** Resolved At */
             resolved_at: string | null;
             root_cause?: components["schemas"]["RootCause"] | null;
@@ -1482,6 +1494,31 @@ export interface components {
             repository?: string | null;
             /** Service Key */
             service_key?: string | null;
+        };
+        /**
+         * RemovedSentence
+         * @description Phase 29c (ADR-045): a model sentence code REMOVED, kept with the reason so a reader
+         *     can see what was taken out and why (counts alone hid it). It is model text that FAILED a
+         *     check: shown only as plain text, and only to a reader who may read every evidence kind of
+         *     the incident (an uncited sentence can quote any of it); otherwise the text is redacted and
+         *     the section + reason stay.
+         */
+        RemovedSentence: {
+            /**
+             * Detail
+             * @description code-written: e.g. the numbers
+             * @default
+             */
+            detail: string;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "markup" | "too_short" | "no_valid_ref" | "no_evidence" | "unknown_number" | "bad_category";
+            /** Section */
+            section: ("summary" | "what_happened" | "why" | "detection" | "went_well" | "went_poorly") | "action_items";
+            /** Text */
+            text: string;
         };
         /** RerankInfo */
         RerankInfo: {

@@ -7,9 +7,10 @@
 3 write        (LLM, owner decision: Sonnet = `reasoning`, fallback OFF): prose sections and
                        proposed action items over the VALIDATED hypotheses it is given
 4 check        (code): a sentence must cite >= 1 existing observation ref, and every number
-                       in it must occur in the input it was shown; otherwise it is dropped
-                       and counted. The model never writes the root cause, a band, a status,
-                       a time-to-detect or any header number: incident-service computes those.
+                       in it must occur in the input it was shown; otherwise it is dropped,
+                       counted, and KEPT aside with the reason (Phase 29c, ADR-045). The
+                       model never writes the root cause, a band, a status, a time-to-detect
+                       or any header number: incident-service computes those.
 5 degrade:     LLM down -> timeline + negative evidence only, written_by="code", degraded
 """
 
@@ -36,6 +37,7 @@ from aeoi_models.api.postmortem import (
     PmSection,
     PmSentence,
     PostmortemDraft,
+    RemovedSentence,
     TimelinePoint,
 )
 from aeoi_models.api.reasoning import ReasoningTask
@@ -279,12 +281,12 @@ def numbers_in(text: str) -> tuple[set[str], set[str]]:
 WORD = re.compile(r"(?<![A-Za-z_.\d])\d[\w.:,]*")
 
 
-def unknown_number(text: str, known: tuple[set[str], set[str]], names: str = "") -> bool:
-    """True if `text` holds a date or number code did not give the model. A digit-led WORD that
-    occurs in the input as written ("5xx" from http_5xx_per_min) is a name, not a quantity."""
+def unknown_numbers(text: str, known: tuple[set[str], set[str]], names: str = "") -> list[str]:
+    """The dates and numbers in `text` that code did not give the model (Phase 29c: WHICH ones,
+    for the reader). A digit-led WORD that occurs in the input as written ("5xx" from
+    http_5xx_per_min) is a name, not a quantity."""
     dates, _ = numbers_in(text)
-    if dates - known[0]:
-        return True
+    out = sorted(dates - known[0])
     plain = DATE.sub(" ", text)
     for word in WORD.findall(plain):
         if (
@@ -293,9 +295,14 @@ def unknown_number(text: str, known: tuple[set[str], set[str]], names: str = "")
             and re.search(rf"(?<![A-Za-z\d]){re.escape(word)}(?![A-Za-z\d])", DATE.sub(" ", names))
         ):
             continue
-        if any(not (_norm(n) & known[1]) for n in NUMBER.findall(word)):
-            return True
-    return False
+        if any(not (_norm(n) & known[1]) for n in NUMBER.findall(word)) and word not in out:
+            out.append(word)
+    return out
+
+
+def unknown_number(text: str, known: tuple[set[str], set[str]], names: str = "") -> bool:
+    """True if `text` holds a date or number code did not give the model."""
+    return bool(unknown_numbers(text, known, names))
 
 
 def known_numbers(
@@ -316,42 +323,68 @@ def check(
 ) -> PostmortemDraft:
     """CODE: keep a model sentence only if it cites >= 1 existing observation that has
     evidence, holds no link/markup, and every number in it occurs in code-written facts it
-    could rest on (its cited observations, the computed numbers, the validated hypotheses)."""
+    could rest on (its cited observations, the computed numbers, the validated hypotheses).
+    Phase 29c: every sentence it does NOT keep is returned in `removed` with the reason; the
+    two counts are derived from that list, so they cannot disagree with it."""
     by_ref = {o.ref: o for o in obs}
     hs = hypotheses or []
     names = "\n".join(f"{o.subject} {o.statement}" for o in obs)  # vocabulary, not quantities
-    dropped = numbers = 0
+    removed: list[RemovedSentence] = []
 
-    def keep(raw: dict[str, Any]) -> tuple[str, list[str], list[str]] | None:
-        nonlocal dropped, numbers
+    def keep(
+        raw: dict[str, Any], section: str, min_len: int = 3
+    ) -> tuple[str, list[str], list[str]] | None:
         text = clip(raw.get("text", ""), 400)
-        refs = list(dict.fromkeys(r for r in raw.get("refs", []) if r in by_ref))[:4]
+        claimed = [str(r) for r in raw.get("refs", [])][:4]
+        refs = list(dict.fromkeys(r for r in claimed if r in by_ref))[:4]
         keys = list(dict.fromkeys(e.evidence_id for r in refs for e in by_ref[r].evidence))
-        if len(text) < 3 or not refs or not keys or MARKUP.search(text):
-            dropped += 1
-            return None
-        if unknown_number(text, known_numbers(obs, refs, facts, hs), names):
-            numbers += 1
-            return None
-        return text, refs, keys[:16]
+
+        def out(reason: str, detail: str) -> None:
+            removed.append(RemovedSentence(section=section, text=text, reason=reason,  # type: ignore[arg-type]
+                                           detail=detail[:200]))  # fmt: skip
+
+        if MARKUP.search(text):
+            out("markup", "link, image or HTML syntax")
+        elif len(text.strip()) < min_len:
+            out("too_short", f"under {min_len} characters")
+        elif not refs:
+            bad = [r for r in claimed if r not in by_ref]
+            out(
+                "no_valid_ref",
+                f"cites {', '.join(bad)}: not an observation" if bad else "cites nothing",
+            )
+        elif not keys:
+            out("no_evidence", f"{', '.join(refs)} map to no stored evidence")
+        elif unknown := unknown_numbers(text, known_numbers(obs, refs, facts, hs), names):
+            out("unknown_number", "not in the facts it cites: " + ", ".join(unknown[:8]))
+        else:
+            return text, refs, keys[:16]
+        return None
 
     sections = []
     for name in SECTIONS:
         kept = []
         for raw in data.get(name, [])[:MAX_SENTENCES]:
-            k = keep(raw)
+            k = keep(raw, name)
             if k:
                 kept.append(PmSentence(text=k[0], refs=k[1], evidence_keys=k[2]))
         sections.append(PmSection(name=name, sentences=kept))  # type: ignore[arg-type]
     actions = []
     for raw in data.get("action_items", [])[:8]:
-        k = keep(raw)
-        if k and raw.get("category") in ("prevent", "detect", "mitigate", "process") \
-                and len(k[0]) >= 5:  # fmt: skip
+        # the category is an enum in SCHEMA: the gateway refuses anything else first; a
+        # client that skips that check still cannot store one (counted, kept aside)
+        k = keep(raw, "action_items", min_len=5)
+        if k and raw.get("category") not in ("prevent", "detect", "mitigate", "process"):
+            removed.append(RemovedSentence(section="action_items", text=k[0], reason="bad_category",
+                                           detail=f"category {str(raw.get('category'))[:40]!r}"))  # fmt: skip
+            k = None
+        if k:
             actions.append(ActionItem(text=clip(k[0], 300), category=raw["category"], refs=k[1],
                                       evidence_keys=k[2]))  # fmt: skip
     written = any(s.sentences for s in sections) or bool(actions)
+    numbers = sum(1 for r in removed if r.reason == "unknown_number")
     return draft.model_copy(update={
         "sections": sections, "action_items": actions, "written_by": "llm" if written else "code",
-        "sentences_dropped": dropped, "numbers_rejected": numbers,
+        "sentences_dropped": len(removed) - numbers, "numbers_rejected": numbers,
+        "removed": removed,
     })  # fmt: skip

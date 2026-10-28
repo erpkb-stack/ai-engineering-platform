@@ -60,6 +60,39 @@ const SECTION_TITLES: Record<S["PmSection"]["name"], string> = {
   went_well: "What went well", went_poorly: "What went poorly",
 };
 
+// Phase 29c (ADR-045): why code removed a model sentence (the server's RemovedSentence.reason)
+const REMOVAL_REASON: Record<S["RemovedSentence"]["reason"], string> = {
+  markup: "link or markup syntax", too_short: "too short", no_valid_ref: "cites no observation",
+  no_evidence: "no evidence behind its refs", unknown_number: "a number not in the facts",
+  bad_category: "unknown action category",
+};
+
+/** What code took out of the model's draft, and why: model text that FAILED a check, so it is
+ *  shown struck through as plain text, apart from the report - never as part of it. */
+export function RemovedList({ doc }: { doc: S["PostmortemDoc"] }) {
+  const removed = doc.removed ?? [];
+  if (!doc.removed_kept) {
+    return <p className="muted small">Removed text was not kept for this postmortem (written before Phase 29c): counts only.</p>;
+  }
+  if (removed.length === 0) return <p className="muted small">Code removed nothing from the model&apos;s draft.</p>;
+  return (
+    <details className="removed">
+      <summary>Removed by code ({removed.length}) - not part of the report</summary>
+      {doc.removed_redacted > 0 && (
+        <p className="muted small">{doc.removed_redacted} removed text(s) hidden: they need read access to every evidence kind of this incident.</p>
+      )}
+      <ul>
+        {removed.map((r, i) => (
+          <li key={i}>
+            <span className="small">{r.section === "action_items" ? "Action items" : SECTION_TITLES[r.section]} · {REMOVAL_REASON[r.reason]}{r.detail ? ` (${r.detail})` : ""}: </span>
+            <del>{r.text}</del>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 export function PostmortemView({ doc, error, visible }: { doc: S["PostmortemDoc"] | undefined; error: unknown; visible: Set<string> }) {
   if (error instanceof ApiError && error.status === 404) return <p className="muted">No postmortem yet.</p>;
   if (error) return <Problem error={error} />;
@@ -93,6 +126,7 @@ export function PostmortemView({ doc, error, visible }: { doc: S["PostmortemDoc"
       <h3>Action items</h3>
       <ul>{(doc.action_items ?? []).map((a, i) => <li key={i}><Pill value={a.category} kind="category" /> {a.text} {chips(a.evidence_keys)}</li>)}</ul>
       {(doc.ruled_out ?? []).length > 0 && <><h3>Ruled out</h3><ul>{(doc.ruled_out ?? []).map((r) => <li key={r}>{r}</li>)}</ul></>}
+      <RemovedList doc={doc} />
     </div>
   );
 }

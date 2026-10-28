@@ -1863,6 +1863,23 @@
             "title": "Redacted Sentences",
             "type": "integer"
           },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/RemovedSentence"
+            },
+            "title": "Removed",
+            "type": "array"
+          },
+          "removed_kept": {
+            "default": true,
+            "title": "Removed Kept",
+            "type": "boolean"
+          },
+          "removed_redacted": {
+            "default": 0,
+            "title": "Removed Redacted",
+            "type": "integer"
+          },
           "resolved_at": {
             "anyOf": [
               {
@@ -2321,6 +2338,63 @@
           }
         },
         "title": "ReleaseRiskRequest",
+        "type": "object"
+      },
+      "RemovedSentence": {
+        "additionalProperties": false,
+        "description": "Phase 29c (ADR-045): a model sentence code REMOVED, kept with the reason so a reader\ncan see what was taken out and why (counts alone hid it). It is model text that FAILED a\ncheck: shown only as plain text, and only to a reader who may read every evidence kind of\nthe incident (an uncited sentence can quote any of it); otherwise the text is redacted and\nthe section + reason stay.",
+        "properties": {
+          "detail": {
+            "default": "",
+            "description": "code-written: e.g. the numbers",
+            "maxLength": 200,
+            "title": "Detail",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "markup",
+              "too_short",
+              "no_valid_ref",
+              "no_evidence",
+              "unknown_number",
+              "bad_category"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "enum": [
+                  "summary",
+                  "what_happened",
+                  "why",
+                  "detection",
+                  "went_well",
+                  "went_poorly"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "action_items",
+                "type": "string"
+              }
+            ],
+            "title": "Section"
+          },
+          "text": {
+            "maxLength": 400,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "section",
+          "text",
+          "reason"
+        ],
+        "title": "RemovedSentence",
         "type": "object"
       },
       "RerankInfo": {

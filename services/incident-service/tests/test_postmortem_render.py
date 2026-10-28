@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime, timedelta, timezone
 from uuid import uuid4
 
 from aeoi_incident.postmortem import render_markdown
-from aeoi_incident.service import REDACTED_TEXT
+from aeoi_incident.service import REDACTED_TEXT, REMOVED_REDACTED
 from aeoi_models.api.postmortem import (
     PmSection,
     PmSentence,
     PmTimelineRow,
     PostmortemDoc,
+    RemovedSentence,
     RootCause,
 )
 
@@ -116,3 +118,33 @@ def test_similar_claims_are_filtered_by_the_kind_their_value_comes_from() -> Non
     every = ["INCIDENT", "LOG", "METRIC", "DEPLOY"]
     assert len(_similar_for([x], every)[0].claims) == 4
     assert _similar_for([x], ["LOG", "METRIC"]) == []  # INCIDENT not readable: no section
+
+
+# ------------------------------------------------------------------ Phase 29c (ADR-045)
+def test_removed_sentences_are_listed_apart_with_the_reason_and_defanged() -> None:
+    removed = [
+        RemovedSentence(section="why", text="About 40% of checkouts failed.",
+                        reason="unknown_number", detail="not in the facts it cites: 40"),
+        RemovedSentence(section="summary", text="See ![x](https://evil.example/?d=1) or www.evil.example",
+                        reason="markup", detail="link, image or HTML syntax"),
+        RemovedSentence(section="action_items", text=REMOVED_REDACTED, reason="no_valid_ref"),
+    ]  # fmt: skip
+    md = render_markdown(doc(removed=removed, sentences_dropped=2, numbers_rejected=1))
+    tail = md.split("## Removed by code")[1]
+    assert "NOT part of this report" in tail
+    assert ('- Why it happened · number not in the facts (not in the facts it cites: 40): '
+            '"About 40% of checkouts failed."') in tail  # fmt: skip
+    # the refused link stays text: no "](", no "://", no bare www. a renderer would link
+    line = next(x for x in tail.splitlines() if "Summary · link/markup syntax" in x)
+    assert not re.search(r"(?<!\\)\]\(", line)  # only an ESCAPED "](" is left
+    assert "://" not in line and "www.evil" not in line
+    assert "!\\[x\\]" in line
+    assert f"- Action items · cites no observation: {REMOVED_REDACTED}" in tail
+    # the removed text is never inside a report section
+    assert "40% of checkouts" not in md.split("## Removed by code")[0]
+
+
+def test_counts_without_kept_text_say_it_was_written_before_29c() -> None:
+    md = render_markdown(doc(sentences_dropped=2, numbers_rejected=0, removed_kept=False))
+    assert "(the text was not kept: written before Phase 29c)." in md
+    assert "## Removed by code" not in md

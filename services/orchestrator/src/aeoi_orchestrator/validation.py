@@ -171,6 +171,9 @@ def to_batch(
                 "cause_kind": h.cause_kind, "origin": h.origin, "rubric": h.rubric,
                 "ranked_by": h.ranked_by, "explanation": h.explanation or None,
                 "explanation_refs": h.explanation_refs, "critic_verdict": h.critic_verdict,
+                # Phase 29c (ADR-045): the ranker's explanation code removed, and why
+                "explanation_removed": h.explanation_removed or None,
+                "explanation_removed_why": h.explanation_removed_why or None,
                 "critic_missing": h.critic_missing or None,
                 "critic_disputed": _named(h.critic_disputed, by_ref) or None,
                 "refinement": h.refinement or None,

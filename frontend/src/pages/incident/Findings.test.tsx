@@ -2,7 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Evidence, Hypothesis } from "../../api/client";
 import { HypothesesList, HypothesisCard } from "./Hypotheses";
-import { EvidenceList, safeHref } from "./Panels";
+import type { S } from "../../api/client";
+import { EvidenceList, RemovedList, safeHref } from "./Panels";
 
 const h = (over: Partial<Hypothesis> = {}): Hypothesis => ({
   id: "h1", investigation_id: "i1", key: "h1", rank: 1, statement: "Deploy DEPLOY-4821 caused the regression",
@@ -66,5 +67,53 @@ describe("evidence is untrusted", () => {
     expect(container.querySelector('a[href^="javascript"]')).toBeNull();
     expect(screen.getByText('<img src=x onerror="alert(1)">')).toBeInTheDocument();
     expect(container.querySelector("#ev-LOG-01a11e669d4170b19af65018367a8222-4")).not.toBeNull(); // chips jump here
+  });
+});
+
+
+describe("what code removed is shown apart, with the reason (Phase 29c, ADR-045)", () => {
+  const pm = (over: Partial<S["PostmortemDoc"]> = {}) => ({
+    removed_kept: true, removed_redacted: 0, removed: [], ...over,
+  }) as unknown as S["PostmortemDoc"];
+
+  it("lists each removal struck through, with its section and reason, folded away", () => {
+    render(<RemovedList doc={pm({ removed: [
+      { section: "why", reason: "unknown_number", detail: "not in the facts it cites: 40", text: "About 40% of checkouts failed." },
+      { section: "action_items", reason: "no_valid_ref", detail: "cites o99: not an observation", text: "Rewrite everything." },
+    ] })} />);
+    const box = screen.getByText(/Removed by code \(2\)/).closest("details")!;
+    expect(box).not.toHaveAttribute("open");
+    expect(within(box).getByText("About 40% of checkouts failed.").tagName).toBe("DEL");
+    expect(within(box).getByText(/Why · a number not in the facts \(not in the facts it cites: 40\)/)).toBeInTheDocument();
+    expect(within(box).getByText(/Action items · cites no observation/)).toBeInTheDocument();
+  });
+
+  it("a removed link or HTML is text, never a link, image or script", () => {
+    const { container } = render(<RemovedList doc={pm({ removed: [
+      { section: "summary", reason: "markup", detail: "link, image or HTML syntax",
+        text: '![x](https://evil.example/?d=1) <img src=x onerror="alert(1)"> <a href="https://evil.example">go</a>' },
+    ] })} />);
+    expect(container.querySelector("img, script, a")).toBeNull();
+    expect(screen.getByText(/onerror=/).tagName).toBe("DEL");
+  });
+
+  it("says nothing was removed, or that the text was not kept, instead of an empty box", () => {
+    const { rerender } = render(<RemovedList doc={pm()} />);
+    expect(screen.getByText(/Code removed nothing/)).toBeInTheDocument();
+    rerender(<RemovedList doc={pm({ removed_kept: false })} />);
+    expect(screen.getByText(/not kept for this postmortem \(written before Phase 29c\)/)).toBeInTheDocument();
+  });
+
+  it("says how many removed texts this reader may not see", () => {
+    render(<RemovedList doc={pm({ removed_redacted: 1, removed: [
+      { section: "summary", reason: "no_valid_ref", detail: "", text: "[redacted: removed text needs read access to every evidence kind of this incident]" },
+    ] })} />);
+    expect(screen.getByText(/1 removed text\(s\) hidden/)).toBeInTheDocument();
+  });
+
+  it("a hypothesis shows the ranker's removed explanation apart from the explanation", () => {
+    render(<HypothesisCard visible={new Set()} h={h({ detail: { rubric: "r", explanation_removed: "Pool saturation came late.", explanation_removed_why: "cites no observation" } })} />);
+    expect(screen.getByText("Pool saturation came late.").tagName).toBe("DEL");
+    expect(screen.getByText(/Removed by code \(cites no observation\)/)).toBeInTheDocument();
   });
 });

@@ -474,6 +474,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
         results = await reasoning_results(state)
         # independence: the critic gets code statements + refs, never the ranker's prose/rank
         blind = [h.model_copy(update={"explanation": "", "explanation_refs": [],
+                                      "explanation_removed": "", "explanation_removed_why": "",
                                       "rank": i + 1, "ranked_by": "rubric",
                                       "history_prior": "", "history_n": 0, "history_refs": []})
                  for i, h in enumerate(sorted(ranked, key=lambda h: h.key))]  # fmt: skip
@@ -593,6 +594,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
                     root_cause_state=root_state, points=pm.timeline, trigger_ref=pm.trigger_ref,
                     no_change=pm.no_change, sections=pm.sections, action_items=pm.action_items,
                     sentences_dropped=pm.sentences_dropped, numbers_rejected=pm.numbers_rejected,
+                    removed=pm.removed,  # Phase 29c (ADR-045): what code removed, and why
                     # pointers not stored -> nothing to point at (review): leave the section out
                     similar=hist.similar if hist and not hist_post_error(state) else [],
                 ))  # fmt: skip
@@ -604,6 +606,7 @@ def build_graph(deps: Deps) -> StateGraph:  # type: ignore[type-arg]
                 "action_items": len(pm.action_items),
                 "sentences_dropped": pm.sentences_dropped,
                 "numbers_rejected": pm.numbers_rejected,
+                "removed_kept": len(pm.removed),
                 "degraded": res.degraded if res else None,
                 "post_error": "; ".join(errors) or None,
                 "root_cause_state": root_state,

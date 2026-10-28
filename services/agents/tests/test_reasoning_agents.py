@@ -203,6 +203,10 @@ async def test_ranking_is_validated_and_uncited_prose_dropped() -> None:
     h2, h1 = r.hypotheses
     assert h2.explanation_refs == ["o3"] and h2.ranked_by == "llm"
     assert h1.explanation == "" and h1.ranked_by == "llm"  # uncited -> not shown
+    # Phase 29c (ADR-045): ... but kept aside with the reason, never lost
+    assert h1.explanation_removed == "No refs, so not shown."
+    assert h1.explanation_removed_why == "cites no observation"
+    assert h2.explanation_removed == ""  # one bad ref of two: the explanation stays
     assert any("1 unknown id(s), 1 invalid ref(s)" in n for n in r.notes)
     # bands are the rubric's, whatever the model said
     assert {h.key: h.confidence.value for h in r.hypotheses}["h1"] == "HIGH"
@@ -253,6 +257,24 @@ async def test_critic_never_sees_the_rankers_prose() -> None:
     await critic(llm).run(rtask(demo(), hypotheses=hs), "", None)
     sent = json.dumps([m.content for m in llm.calls[0]["messages"]])
     assert "SECRET-RANKER-PROSE" not in sent
+
+
+async def test_an_explanation_with_only_invalid_refs_is_kept_aside_with_them() -> None:
+    llm = scripted({"ranking": [{"id": "h1", "explanation": "Made up.", "refs": ["o98", "o99"]}]})
+    h1 = (await hyp(llm).run(rtask(demo()), "", None)).hypotheses[0]
+    assert (h1.explanation, h1.explanation_refs) == ("", [])
+    assert h1.explanation_removed == "Made up."
+    assert h1.explanation_removed_why == "cites o98, o99: not an observation"
+
+
+async def test_critic_never_sees_the_explanation_code_removed() -> None:
+    """Phase 29c: kept-aside ranker prose is still ranker prose - the critic stays blind."""
+    llm = scripted({"ranking": [{"id": "h1", "explanation": "REMOVED-RANKER-PROSE", "refs": []}]})
+    hs = (await hyp(llm).run(rtask(demo()), "", None)).hypotheses
+    assert hs[0].explanation_removed == "REMOVED-RANKER-PROSE"
+    c = scripted({"reviews": [], "alternatives": [], "no_alternative_reason": "nothing else fits"})
+    await critic(c).run(rtask(demo(), hypotheses=hs), "", None)
+    assert "REMOVED-RANKER-PROSE" not in json.dumps([m.content for m in c.calls[0]["messages"]])
 
 
 async def test_critic_contradictions_must_be_new_real_and_able_to_contradict() -> None:
@@ -598,7 +620,17 @@ async def test_sentences_must_cite_and_must_not_invent_numbers() -> None:
     s0 = summary.sentences[0]
     assert s0.refs == ["o1", "o2"]
     assert all(k.split("-")[0] in ("DEPLOY", "CONFIG", "METRIC") for k in s0.evidence_keys)
-    assert pm.sentences_dropped == 2 and pm.numbers_rejected == 1, pm
+    # Phase 29c (ADR-045): every removal is kept with its reason; the counts come from it
+    # (the bad category used to vanish uncounted)
+    assert pm.sentences_dropped == 3 and pm.numbers_rejected == 1, pm
+    assert [(r.section, r.reason) for r in pm.removed] == [
+        ("summary", "no_valid_ref"), ("summary", "no_valid_ref"),
+        ("summary", "unknown_number"), ("action_items", "bad_category"),
+    ]  # fmt: skip
+    assert pm.removed[0].detail == "cites nothing"
+    assert pm.removed[1].detail == "cites o99: not an observation"
+    assert pm.removed[2].text == "About 40% of checkouts failed."
+    assert pm.removed[2].detail == "not in the facts it cites: 40"
     assert [a.category for a in pm.action_items] == ["detect"]
     assert pm.written_by == "llm" and pm.timeline and pm.no_change
 
@@ -665,6 +697,32 @@ def test_links_and_markup_from_the_model_are_dropped() -> None:
     out = check(PostmortemDraft(), obs, data)
     assert [x.text for s in out.sections for x in s.sentences] == ["The deploy came first."]
     assert out.sentences_dropped == 3
+    # Phase 29c: kept aside as "markup" even though they cite a valid ref (markup checked first)
+    assert [r.reason for r in out.removed] == ["markup"] * 3
+    assert out.removed[0].text.startswith("See ![x](https://evil.example")  # stored as data
+
+
+def test_every_removal_reason_is_reachable_and_the_counts_come_from_the_list() -> None:
+    """Phase 29c (ADR-045): one sentence per reason; sentences_dropped + numbers_rejected ==
+    len(removed), whatever the mix."""
+    obs = build(demo())
+    no_ev = obs[0].model_copy(update={"ref": "o50", "evidence": []})
+    data = {**EMPTY, "why": [
+        {"text": "ok", "refs": ["o1"]},  # too short
+        {"text": "Cites a ref without evidence.", "refs": ["o50"]},
+        {"text": "It cost 12345 orders.", "refs": ["o1"]},
+    ], "action_items": [
+        {"text": "Fix", "category": "prevent", "refs": ["o1"]},  # an action item needs 5 chars
+    ]}  # fmt: skip
+    out = check(PostmortemDraft(), [*obs, no_ev], data)
+    assert [(r.section, r.reason) for r in out.removed] == [
+        ("why", "too_short"), ("why", "no_evidence"), ("why", "unknown_number"),
+        ("action_items", "too_short"),
+    ]  # fmt: skip
+    assert out.removed[1].detail == "o50 map to no stored evidence"
+    assert out.removed[2].detail == "not in the facts it cites: 12345"
+    assert out.sentences_dropped + out.numbers_rejected == len(out.removed) == 4
+    assert out.numbers_rejected == 1 and out.written_by == "code"
 
 
 def test_negative_evidence_keeps_its_evidence_for_redaction_and_trigger_is_code_chosen() -> None:

@@ -113,7 +113,11 @@ async def test_hypotheses_ranked_critiqued_validated_and_stored(
     assert any(e["stance"] == "CONTRADICTS" and e["kind"] in ("DEPLOY", "CONFIG")
                for e in h2["edges"])  # fmt: skip
     assert "Error logs began" in h1["detail"]["refinement"]
-    assert h2["detail"]["explanation"] is None  # uncited prose is not stored
+    assert h2["detail"]["explanation"] is None  # uncited prose is not stored AS an explanation
+    # Phase 29c (ADR-045): ... it is stored aside, with why it was removed
+    assert h2["detail"]["explanation_removed"] == "Pool saturation came late."
+    assert h2["detail"]["explanation_removed_why"] == "cites no observation"
+    assert h1["detail"]["explanation_removed"] is None
     assert h3["produced_by"] == "critic" and h3["detail"]["origin"] == "critic"
     assert h3["confidence"] in ("LOW", "MEDIUM")  # capped: never HIGH for a critic alternative
     # every edge points at evidence stored on THIS incident
@@ -125,6 +129,7 @@ async def test_hypotheses_ranked_critiqued_validated_and_stored(
     # the critic never saw the ranker's explanation (independence) - check what reached the model
     critic_req = fake.calls[-1]
     assert RANKER_MARKER not in critic_req.messages[0].content
+    assert "Pool saturation came late" not in critic_req.messages[0].content  # removed: too
     # the critic ran on a DIFFERENT model than the ranker (owner decision), fallback off
     models = {t["agent"]: t["model"] for t in out["tasks"]}
     assert models["critic"] == "fake-large" and models["hypothesis"] == "fake-small"
@@ -136,6 +141,8 @@ async def test_hypotheses_ranked_critiqued_validated_and_stored(
     assert mgr["h1"]["statement"] == h1["statement"]  # code-written conclusion
     assert all(x["edges"] == [] and x["hidden_edges"] > 0 for x in mgr.values())
     assert "redacted" in mgr["h1"]["detail"]["explanation"] and RANKER_MARKER not in str(mgr)
+    assert "removed text needs read access" in mgr["h2"]["detail"]["explanation_removed"]
+    assert "came late" not in str(mgr)
     assert "redacted" in mgr["h3"]["statement"]  # the critic's alternative is model text
     assert "redacted" in mgr["h1"]["detail"]["refinement"]  # so is a refinement
     # ... and the observations it named (Phase 14: a code observation names a call - review)

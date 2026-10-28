@@ -191,3 +191,20 @@ def test_a_log_only_anchor_drops_nothing_on_timing() -> None:
     kept, rep = validate([h("h1", ["o1", "o2"]), late], logs_only, STORED,
                          critic([], reason="x" * 12))  # fmt: skip
     assert rep.dropped == [] and [k.key for k in kept] == ["h1", "h3"]
+
+
+def test_the_removed_explanation_survives_the_merge_and_is_stored() -> None:
+    """Phase 29c (ADR-045): the critic's blind copy has no ranker prose; the merge keeps the
+    RANKER's kept-aside explanation, and the batch stores it with the reason."""
+    ranked = [h("h1", ["o1", "o2"]).model_copy(update={
+        "explanation_removed": "uncited story", "explanation_removed_why": "cites no observation"})]  # fmt: skip
+    blind = [
+        ranked[0].model_copy(update={"explanation_removed": "", "explanation_removed_why": ""})
+    ]
+    merged = merge(ranked, critic(blind))
+    assert merged[0].explanation_removed == "uncited story"
+    detail = to_batch(uuid4(), merged, []).items[0].detail  # type: ignore[union-attr]
+    assert detail["explanation_removed"] == "uncited story"
+    assert detail["explanation_removed_why"] == "cites no observation"
+    plain = to_batch(uuid4(), [h("h1", ["o1", "o2"])], []).items[0].detail  # type: ignore[union-attr]
+    assert plain["explanation_removed"] is None

@@ -23,6 +23,11 @@ export function HypothesisCard({ h, visible }: { h: Hypothesis; visible: Set<str
       <p className="statement">{h.statement}</p>
       {str(d.rubric) && <p className="small">Rubric (code): {str(d.rubric)}</p>}
       {str(d.explanation) && <p className="small">{str(d.explanation)}</p>}
+      {str(d.explanation_removed) && (
+        <p className="small removed">
+          Removed by code ({str(d.explanation_removed_why) ?? "failed a check"}): <del>{str(d.explanation_removed)}</del>
+        </p>
+      )}
       {str(d.critic_verdict) && (
         <p className="small">
           Critic: <Pill value={str(d.critic_verdict)} kind="critic" />

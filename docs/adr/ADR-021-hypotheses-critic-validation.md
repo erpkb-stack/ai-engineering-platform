@@ -1,6 +1,6 @@
 # ADR-021: Hypotheses by code, ranking by Haiku, critique by Sonnet, validation by code
 
-Status: Proposed
+Status: Proposed (refined by ADR-045, Phase 29c: an uncited explanation is kept aside as `explanation_removed`)
 Date: 2026-10-09
 Refines: ADR-018 (facts by code), ADR-020 (code-only evidence agents); architecture.md §9–10
 

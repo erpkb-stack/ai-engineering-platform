@@ -447,8 +447,26 @@ async def add_hypotheses(
 
 
 # refinement_refs: observation subjects the critic named (code names a call: review finding)
-MODEL_TEXT = ("explanation", "critic_missing", "critic_disputed", "refinement", "refinement_refs")
+MODEL_TEXT = ("explanation", "critic_missing", "critic_disputed", "refinement", "refinement_refs",
+              "explanation_removed")  # fmt: skip
 REDACTED_TEXT = "[redacted: needs read access to all of its evidence]"
+# Phase 29c (ADR-045): text code REMOVED cites nothing valid, so it could quote ANY evidence
+# the model was shown: it needs every evidence kind stored for the incident (fail closed)
+REMOVED_REDACTED = (
+    "[redacted: removed text needs read access to every evidence kind of this incident]"
+)
+
+
+async def incident_kinds(session: AsyncSession, incident_id: UUID) -> set[str]:
+    """Every evidence kind stored for the incident (a superset of what one model saw)."""
+    rows = await session.scalars(
+        select(Evidence.kind).where(Evidence.incident_id == incident_id).distinct()
+    )
+    return set(rows.all())
+
+
+def may_read_removed(kinds: set[str], readable: list[str]) -> bool:
+    return kinds <= set(readable)
 
 
 async def hypotheses(
@@ -490,6 +508,7 @@ async def hypotheses(
             .where(HypothesisEvidence.hypothesis_id.in_([h.id for h in rows]))
         )
     ).all()  # fmt: skip
+    see_removed = may_read_removed(await incident_kinds(session, incident.id), readable)
     out = []
     for h in rows:
         mine = [e for e in edges if e.hypothesis_id == h.id]
@@ -503,6 +522,8 @@ async def hypotheses(
                     detail[k] = REDACTED_TEXT
             if detail.get("origin") == "critic":
                 statement = f"Alternative cause proposed by the critic ({REDACTED_TEXT})"
+        if detail.get("explanation_removed") and not see_removed:
+            detail["explanation_removed"] = REMOVED_REDACTED
         out.append(
             HypothesisRecord(
                 id=h.id, investigation_id=h.investigation_id, key=h.hypothesis_key,
