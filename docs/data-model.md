@@ -84,7 +84,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `idempotency_keys` | Stored result of a POST with an Idempotency-Key, scoped by (principal, scope, key); same transaction as the result (Phase 4, migration 0013) | 8 |
 | `hypothesis_evidence` | Evidence graph edge: hypothesis --SUPPORTS/CONTRADICTS--> evidence. | 4 |
 | `incident_events` | Timeline entries (deploys, alerts, human actions, agent steps). Phase 12 (0021): agent-observed points (source = stored evidence kind) with `dedupe_key` (source\|service\|subject\|UTC instant, unique per incident) | 10 |
-| `postmortems` | Phase 12 (0021): generated parts of a postmortem per (incident, investigation): model sections + action items (each with evidence keys), negative evidence, that run's timeline points, trigger ref, root-cause state. Assembled at read time (ADR-022) | 1 per run |
+| `postmortems` | Phase 12 (0021): generated parts of a postmortem per (incident, investigation): model sections + action items (each with evidence keys), negative evidence, that run's timeline points, trigger ref, root-cause state. Assembled at read time (ADR-022); Phase 29c: `content.removed` = the model sentences code removed, with the reason (ADR-045) | 1 per run |
 | `incidents` | System of record for incidents; `number` gives the human key INC-n; optimistic locking via `version` | 13 |
 | `outbox` | Transactional outbox: written in the SAME transaction as the state change (ADR-003). | 10 |
 | `processed_events` | Consumer-side dedupe: insert in the same tx as the side effect; conflict = duplicate. | 3 |

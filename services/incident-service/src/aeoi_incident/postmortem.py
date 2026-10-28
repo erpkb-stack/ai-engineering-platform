@@ -25,7 +25,15 @@ from aeoi_common.errors import ValidationFailedError
 from aeoi_common.ids import uuid7
 from aeoi_db.models.incident import Evidence, Incident, IncidentEvent, Postmortem
 from aeoi_incident.events import stage_event
-from aeoi_incident.service import REDACTED_TEXT, _event, hypotheses, load
+from aeoi_incident.service import (
+    REDACTED_TEXT,
+    REMOVED_REDACTED,
+    _event,
+    hypotheses,
+    incident_kinds,
+    load,
+    may_read_removed,
+)
 from aeoi_models.api.history import Claim, SimilarIncident
 from aeoi_models.api.postmortem import (
     SECTION_TITLES,
@@ -37,6 +45,7 @@ from aeoi_models.api.postmortem import (
     PostmortemDoc,
     PostmortemGeneratedPayload,
     PostmortemIn,
+    RemovedSentence,
     RootCause,
     TimelineBatch,
     TimelinePoint,
@@ -187,7 +196,7 @@ async def add_postmortem(
     content = pm.model_dump(
         mode="json", include={"no_change", "sections", "action_items", "sentences_dropped",
                               "numbers_rejected", "root_cause_state", "points", "trigger_ref",
-                              "similar"},
+                              "similar", "removed"},
     )  # fmt: skip
     stmt = (
         insert(Postmortem)
@@ -290,6 +299,13 @@ async def postmortem_doc(
     redacted += n
     no_change, n = _redact(stored.no_change, kinds, readable)
     redacted += n
+    # Phase 29c (ADR-045): removed text cited nothing valid -> every evidence kind, or redacted
+    # (the detail too: it quotes the model's numbers / refs)
+    see_removed = may_read_removed(await incident_kinds(session, incident.id), readable)
+    removed = [r if see_removed else r.model_copy(update={"text": REMOVED_REDACTED, "detail": ""})
+               for r in stored.removed]  # fmt: skip
+    removed_kept = "removed" in row.content or not (stored.sentences_dropped
+                                                    or stored.numbers_rejected)  # fmt: skip
 
     hyps = await hypotheses(session, incident.id, row.investigation_id, readable)
     live = [h for h in hyps if h.status != "REJECTED"]
@@ -331,6 +347,8 @@ async def postmortem_doc(
         hidden_timeline_rows=hidden, sections=sections, action_items=actions,
         redacted_sentences=redacted, sentences_dropped=stored.sentences_dropped,
         numbers_rejected=stored.numbers_rejected,
+        removed=removed, removed_redacted=0 if see_removed else len(removed),
+        removed_kept=removed_kept,
         # past incidents shared with every engineer, as INCIDENT evidence pointers (ADR-023)
         similar=_similar_for(stored.similar, readable),
     )  # fmt: skip
@@ -358,6 +376,32 @@ def _md(text: str) -> str:
     """Model text is data: escaped so no renderer turns it into a link, image or HTML (the
     agent already drops such sentences; this is the second layer)."""
     return text.translate(MD_ESCAPE)
+
+
+def _defang(text: str) -> str:
+    """Removed text (Phase 29c) can be the very link a check refused: escaped as above, and
+    bare URLs broken, so even an auto-linking renderer shows text, never a link or image."""
+    return _md(text).replace("://", ": //").replace("www.", "www .").replace("WWW.", "WWW .")
+
+
+REASON_TEXT = {
+    "markup": "link/markup syntax",
+    "too_short": "too short",
+    "no_valid_ref": "cites no observation",
+    "no_evidence": "no evidence behind its refs",
+    "unknown_number": "number not in the facts",
+    "bad_category": "unknown action category",
+}
+
+
+def _removed(r: RemovedSentence) -> str:
+    where = SECTION_TITLES.get(r.section, "Action items")
+    text = r.text if r.text == REMOVED_REDACTED else f'"{_defang(r.text)}"'
+    return (
+        f"- {where} · {REASON_TEXT[r.reason]}"
+        + (f" ({_md(r.detail)})" if r.detail else "")
+        + f": {text}"
+    )
 
 
 def _sentence(s: PmSentence | ActionItem | NoChange) -> str:
@@ -466,5 +510,10 @@ def render_markdown(doc: PostmortemDoc) -> str:
         lines.append(f"{doc.redacted_sentences} model sentence(s) redacted for the same reason.")
     if doc.sentences_dropped or doc.numbers_rejected:
         lines.append(f"Code dropped {doc.sentences_dropped} uncited and {doc.numbers_rejected} "
-                     "unverifiable-number sentence(s) from the model's draft.")  # fmt: skip
+                     "unverifiable-number sentence(s) from the model's draft"
+                     + ("." if doc.removed_kept else
+                        " (the text was not kept: written before Phase 29c)."))  # fmt: skip
+    if doc.removed:
+        lines += ["", "## Removed by code (model text that failed a check - NOT part of this "
+                  "report)", ""] + [_removed(r) for r in doc.removed]  # fmt: skip
     return "\n".join(lines) + "\n"

@@ -74,6 +74,7 @@ async def test_postmortem_end_to_end_timeline_doc_and_redaction(
     pm = out["plan"]["postmortem"]
     assert pm["written_by"] == "llm" and pm["sentences"] == 2 and pm["action_items"] == 1
     assert pm["sentences_dropped"] == 1 and pm["numbers_rejected"] == 1
+    assert pm["removed_kept"] == 2  # Phase 29c (ADR-045): the two texts, not just the counts
     assert pm["timeline_inserted"] > 0 and pm["post_error"] is None
 
     iid = incident10["id"]
@@ -99,7 +100,20 @@ async def test_postmortem_end_to_end_timeline_doc_and_redaction(
                     tok.user("SRE"))  # fmt: skip
     assert md.headers["content-type"].startswith("text/markdown")
     assert "not yet confirmed by a human" in md.text and "## Timeline" in md.text
-    assert "40%" not in md.text and "fixed it fast" not in md.text
+    report, removed_md = md.text.split("## Removed by code")
+    assert "40%" not in report and "fixed it fast" not in report
+    # Phase 29c (ADR-045): what code took out is listed APART, with the reason
+    assert (
+        '· cites no observation (cites nothing): "Everyone stayed calm and fixed it fast."'
+        in removed_md
+    )
+    assert ('· number not in the facts (not in the facts it cites: 40): '
+            '"About 40% of checkouts failed."') in removed_md  # fmt: skip
+    assert [(x["section"], x["reason"]) for x in doc["removed"]] == [
+        ("summary", "no_valid_ref"),
+        ("summary", "unknown_number"),
+    ]
+    assert doc["removed_redacted"] == 0 and doc["removed_kept"] is True
 
     # MANAGER: code conclusions yes; evidence rows and model sentences that cite evidence no
     m = (await call(incident_app, "GET", f"/v1/incidents/{iid}/postmortem",
@@ -110,6 +124,11 @@ async def test_postmortem_end_to_end_timeline_doc_and_redaction(
     shown = [s for x in m["sections"] for s in x["sentences"]] + m["action_items"] + m["no_change"]
     assert all("redacted" in s["text"] and s.get("evidence_keys") == [] for s in shown)
     assert "LOG-" not in str(m) and "METRIC-" not in str(m)  # no evidence ids either
+    # removed text cites nothing valid: it could quote ANY evidence -> hidden, reasons stay
+    assert m["removed_redacted"] == 2 and "40" not in str(m["removed"])
+    assert [x["reason"] for x in m["removed"]] == ["no_valid_ref", "unknown_number"]
+    assert all("removed text needs read access" in x["text"] and x["detail"] == ""
+               for x in m["removed"])  # fmt: skip
     assert not {row["source"] for row in m["timeline"]} & {"DEPLOY", "METRIC", "LOG", "CONFIG"}
     assert m["hidden_timeline_rows"] > 0
     tr = await call(incident_app, "GET", f"/v1/incidents/{iid}/timeline", tok.user("MANAGER"))

@@ -1,6 +1,6 @@
 # ADR-022: Timeline by code, postmortem narrative by Sonnet, document assembled at read time
 
-Status: Proposed
+Status: Proposed (refined by ADR-045, Phase 29c: removed sentences are kept with the reason and shown apart)
 Date: 2026-10-10
 Refines: ADR-018 (facts by code), ADR-020 (evidence visibility by kind), ADR-021 (hypotheses); architecture.md §9 ('report', TimelineBuilder), FR-5, FR-13
 

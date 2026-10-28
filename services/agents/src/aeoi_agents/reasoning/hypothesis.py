@@ -4,7 +4,8 @@
   2 candidates  (code): causes that could explain the symptoms + ruled-out causes + rubric band
   3 rank        (LLM):  order the candidates and explain the mechanism, citing refs; validated:
                         unknown ids dropped, refs that do not exist dropped, an explanation with
-                        no valid ref is dropped (uncited prose is not shown)
+                        no valid ref is dropped (uncited prose is not shown; Phase 29c: it is
+                        kept aside in `explanation_removed` with the reason)
   4 degrade:            LLM down -> rubric order, `ranked_by=rubric`, result marked degraded
   Phase 13: a history prior (historical_incident agent) is attached per cause kind; it breaks
   ties inside a band in the rubric order and is never shown to the ranker (ADR-023).
@@ -154,12 +155,21 @@ class HypothesisAgent:
             if h is None:
                 unknown += 1
                 continue
-            refs = [r for r in entry.get("refs", []) if r in valid_refs]
-            dropped += len(entry.get("refs", [])) - len(refs)
+            claimed = [str(r) for r in entry.get("refs", [])]
+            refs = [r for r in claimed if r in valid_refs]
+            dropped += len(claimed) - len(refs)
             text = clip(entry.get("explanation", ""), 600)
+            # Phase 29c (ADR-045): an uncited explanation is not shown as an explanation, but
+            # it is KEPT aside with the reason (it used to vanish)
+            why = ""
+            if text and not refs:
+                bad = [r for r in claimed if r not in valid_refs][:4]
+                why = (f"cites {', '.join(bad)}: not an observation" if bad
+                       else "cites no observation")  # fmt: skip
             out.append(h.model_copy(update={
                 "rank": len(out) + 1, "ranked_by": "llm",
                 "explanation": text if refs else "", "explanation_refs": refs if text else [],
+                "explanation_removed": text if why else "", "explanation_removed_why": why[:200],
             }))  # fmt: skip
         rest = rubric_order(list(by_key.values()))
         out += [h.model_copy(update={"rank": len(out) + i + 1}) for i, h in enumerate(rest)]

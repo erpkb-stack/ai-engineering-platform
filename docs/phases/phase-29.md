@@ -1,6 +1,6 @@
 # Phase 29 - End-to-end demonstration (ADR-043)
 
-Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b BUILT 2026-10-27 (sandbox only; ADR-044)** - Mac run pending. Owner (2026-10-27): "Phase 29";
+Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c BUILT 2026-10-28 (sandbox only; ADR-045)** - Mac run pending. Owner (2026-10-27): "Phase 29";
 clean = **fresh containers, keep data**; models = **fake to rehearse, real for the 3 passes**;
 the 4 missing steps = **build all four**.
 
@@ -17,7 +17,7 @@ the 4 missing steps = **build all four**.
 | 5:00 | evidence | yes | kinds LOG METRIC DEPLOY CONFIG INCIDENT |
 | 6:00-6:30 | hypothesis + critic challenge | yes (real models) | #1 = DEPLOY-4821, VALIDATED, critic "supported" |
 | 6:30 | decoy rejected | **differs** | the system never proposes the cart-cache restart (no support in code) - checked as "never #1 / HIGH"; the script line is corrected |
-| 7:30 | removed sentence shown as a diff | **no** (counts only) | 29c |
+| 7:30 | removed sentence shown as a diff | **29c built** | `removed_shown`: listed == counted, shown apart, none in the report; "0 removed" is a PASS (owner) |
 | 8:00 | evidence graph | **no** (edges in the API only) | 29d |
 | 9:00 | report | yes | postmortem root cause = DEPLOY-4821, similar-incident section |
 | 10:00 | approval -> controlled tool | yes (real models) | the investigation's proposal; ENGINEER 403; IC approves -> EXECUTED, MITIGATED |
@@ -81,13 +81,47 @@ SEV1 (was SEV2 typed by hand); nothing in the investigation reads severity.
 tools-tokens` (mints `secrets/incident_catalog_token.txt`); both files must exist before
 `make k8s-apply` - compose and the k8s Secrets are built from them.
 
-## 5. Next
-29c removed-sentence diff, 29d evidence-graph screen, 29e MTTI. Then the gate: `make
+**On the Mac (kind, fake models, after `make demo-fresh`):** `alert_intake` PASS - "INC-10273
+SEV1 by rule 'label severity=error -> SEV2; tier 1 -> raised to SEV1'; re-sent = duplicate"
+(so triage reached the catalog from inside the pod with its own token); verdict REHEARSAL-OK
+(9 PASS, 4 n/a; investigation PARTIAL in 45 s, the 4 agents overlapped 2.8 s).
+`k8s-netpol-test` 122 passed, 16 skipped, 0 failed: incident-service -> service-catalog `open`,
+only it and tool-gateway reach the catalog, every other pod times out; the 16 skips = 8 calls
+to a pod's own Service + 8 to Keycloak (stopped). 0 restarts on all 9 pods after the fresh
+start (2 clean of 3 fresh starts so far). One port-5433 refusal on the first `demo-fresh`
+(the port not yet released after `down`): a retry passed. Idle node CPU 70% one minute after
+the netpol test - no earlier idle reading to compare; read again before each counted pass.
+
+## 5. 29c - removed model text, kept and shown (ADR-045)
+Owner (2026-10-28): **postmortem + ranker**; a run with **0 removed is a PASS** that says so.
+
+**Built:** the postmortem check keeps every sentence and action item it removes, with the first
+rule it broke and a code-written detail (`removed`); the counts are derived from that list. The
+ranker's uncited explanation is kept as `explanation_removed` + why. Removed text is shown only
+to a reader of every evidence kind of the incident; apart from the report: a "Removed by code"
+markdown section (escaped, bare URLs broken) and a folded, struck-through list in the console
+(postmortem panel and hypothesis card). The critic never sees a removed explanation.
+
+**Found while building:**
+1. A 3-4 character action item passed the sentence check and was then dropped by a second rule
+   WITHOUT being counted. Now `too_short`, counted. (An action item with a bad category, which I
+   first called a gap, cannot arrive: the gateway's schema check refuses it. The agent's own
+   filter is now defensive and counted.)
+2. My first edit of the hypotheses redaction moved the critic-alternative redaction under the
+   new branch: a MANAGER would have seen the critic's alternative statement. The existing
+   reasoning e2e test failed on it before anything shipped; fixed, and that test now also
+   checks the removed explanation.
+3. The demo cannot promise a removal: fake models write no narrative (always 0), and a real
+   Sonnet run may remove nothing. The check proves the mechanism instead.
+
+## 6. Next
+29d evidence-graph screen, 29e MTTI. Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
 
-## 6. Verify
+## 7. Verify
 - [x] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removed 0 rows.
 - [x] One real-model run: PASS 13/13 (not counted: the script is not complete yet).
-- [ ] 29b on the Mac: CI green; `make demo` (fake) shows `alert_intake` PASS with SEV1 and "tier 1" (catalog on); `make k8s-netpol-test` passes (new edge incident-service -> service-catalog).
-- [ ] 29c-29e built and in the demo.
+- [x] 29b on the Mac: CI green (PR #47), `alert_intake` PASS with SEV1 + "tier 1", netpol 0 failed with incident-service -> service-catalog open, 0 restarts.
+- [ ] 29c on the Mac: CI green; `make demo` (fake) shows `removed_shown` PASS ("0 removed" on fakes); the console's postmortem panel shows the "Removed by code" line.
+- [ ] 29d-29e built and in the demo.
 - [ ] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`.

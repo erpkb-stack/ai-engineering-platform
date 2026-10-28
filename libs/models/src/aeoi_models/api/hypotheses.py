@@ -50,6 +50,11 @@ class HypothesisOut(BaseModel):
         default="", max_length=600, description="LLM; cites `explanation_refs`"
     )
     explanation_refs: list[ObsRef] = Field(default_factory=list)
+    # Phase 29c (ADR-045): the ranker's explanation that code REMOVED (it cited no observation
+    # that exists) and why. Model text that failed a check: never shown to the critic or the
+    # postmortem writer; shown to a reader only as text, and only with every evidence kind.
+    explanation_removed: str = Field(default="", max_length=600)
+    explanation_removed_why: str = Field(default="", max_length=200)
     ranked_by: Literal["llm", "rubric"] = "rubric"
     critic_verdict: Literal["supported", "weakened", "refuted", "not_reviewed"] = "not_reviewed"
     critic_missing: str = Field(default="", max_length=300)

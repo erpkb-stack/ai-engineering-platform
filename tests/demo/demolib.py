@@ -130,6 +130,36 @@ def report(pm: dict[str, Any] | None, markdown: str) -> Step:
     return (PASS if sections else FAIL), f"root cause cites {DEMO_DEPLOY}; sections ok={sections}"
 
 
+def removed_shown(pm: dict[str, Any] | None, markdown: str, hyps: list[dict[str, Any]]) -> Step:
+    """Phase 29c (ADR-045): what code removed from the model's text is SHOWN, with a reason,
+    and kept OUT of the report. Owner (2026-10-28): a run that removed nothing is a PASS that
+    says "0 removed" - a bad sentence is never planted into real output to make one."""
+    if not pm:
+        return FAIL, "no postmortem"
+    if pm.get("removed_kept") is not True:
+        return FAIL, "removed text not kept (a postmortem from before 29c?)"
+    removed = pm.get("removed") or []
+    counted = int(pm.get("sentences_dropped") or 0) + int(pm.get("numbers_rejected") or 0)
+    if len(removed) != counted:
+        return FAIL, f"{len(removed)} removed listed, {counted} counted"
+    if pm.get("removed_redacted"):
+        return FAIL, f"{pm['removed_redacted']} removed text(s) hidden from the SRE"
+    expl = sum(1 for h in hyps if (h.get("detail") or {}).get("explanation_removed"))
+    if not removed:
+        return PASS, f"0 removed from the postmortem this run; {expl} ranker explanation(s) removed"
+    if "## Removed by code" not in markdown:
+        return FAIL, "removed sentences are not in the markdown"
+    report = markdown.split("## Removed by code")[0]
+    inside = [r["text"][:40] for r in removed if r["text"][:40] in report]
+    if inside:
+        return FAIL, f"removed text inside the report: {inside[0]!r}"
+    reasons = sorted({r["reason"] for r in removed})
+    return PASS, (
+        f"{len(removed)} removed ({', '.join(reasons)}), shown apart with reasons; "
+        f"{expl} ranker explanation(s) removed"
+    )
+
+
 def proposal(approvals: list[dict[str, Any]], real: bool) -> tuple[Step, str | None]:
     if not real:
         return (NA, "the propose rule needs a VALIDATED cause (real models)"), None

@@ -110,7 +110,15 @@ class CriticAgent:
         by_ref = {o.ref: o for o in obs}
         # what the critic attacks: code fields only (explanation/rank are dropped HERE too)
         hs = [
-            h.model_copy(update={"explanation": "", "explanation_refs": [], "ranked_by": "rubric"})
+            h.model_copy(
+                update={
+                    "explanation": "",
+                    "explanation_refs": [],
+                    "ranked_by": "rubric",
+                    "explanation_removed": "",
+                    "explanation_removed_why": "",
+                }
+            )
             for h in sorted(task.hypotheses, key=lambda h: h.key)
         ]
         if not hs:

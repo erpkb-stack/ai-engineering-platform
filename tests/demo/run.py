@@ -143,6 +143,10 @@ def run() -> int:
     steps["report"] = d.report(
         pm if isinstance(pm, dict) else None, md if isinstance(md, str) else ""
     )
+    steps["removed_shown"] = d.safe(
+        d.removed_shown, pm if isinstance(pm, dict) else None, md if isinstance(md, str) else "",
+        hyps or [],
+    )  # fmt: skip
     _, aps = call("GET", f"{API}/api/v1/incidents/{key}/approvals", sre)
     steps["proposal"], aid = d.proposal(aps or [], real)
     if aid:

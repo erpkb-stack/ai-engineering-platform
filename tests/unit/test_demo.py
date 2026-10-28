@@ -107,3 +107,34 @@ def test_alert_intake_needs_one_incident_and_a_duplicate_for_the_resend() -> Non
     # a valid answer that created nothing (rejected) is a FAIL with the reason
     step, key = d.alert_intake(_ans("rejected"), _ans("rejected"))
     assert step[0] == d.FAIL and key is None
+
+
+def _pm(removed: list[dict], dropped: int, numbers: int = 0, **over: object) -> dict:
+    return {"removed": removed, "sentences_dropped": dropped, "numbers_rejected": numbers,
+            "removed_kept": True, "removed_redacted": 0, **over}  # fmt: skip
+
+
+def test_removed_shown_proves_the_mechanism_and_zero_is_an_honest_pass() -> None:
+    gone = [
+        {"section": "why", "reason": "unknown_number", "text": "About 40% of checkouts failed."}
+    ]
+    md = '# Postmortem\n## Why\nok\n## Removed by code (model text)\n- Why: "About 40% ..."'
+    hyps = [{"detail": {"explanation_removed": "uncited"}}, {"detail": {}}]
+    step = d.removed_shown(_pm(gone, 0, 1), md, hyps)
+    assert step == (d.PASS, "1 removed (unknown_number), shown apart with reasons; "
+                            "1 ranker explanation(s) removed")  # fmt: skip
+    # owner decision: nothing removed is a PASS that says so (never planted)
+    assert d.removed_shown(_pm([], 0), "# Postmortem", []) == (
+        d.PASS,
+        "0 removed from the postmortem this run; 0 ranker explanation(s) removed",
+    )
+    bad = {
+        "counts disagree": d.removed_shown(_pm(gone, 2, 1), md, []),
+        "not kept": d.removed_shown(_pm([], 1, removed_kept=False), md, []),
+        "hidden from the SRE": d.removed_shown(_pm(gone, 0, 1, removed_redacted=1), md, []),
+        "not in markdown": d.removed_shown(_pm(gone, 0, 1), "# Postmortem", []),
+        "inside the report": d.removed_shown(
+            _pm(gone, 0, 1), "About 40% of checkouts failed.\n## Removed by code\n", []),
+        "no postmortem": d.removed_shown(None, "", []),
+    }  # fmt: skip
+    assert all(s[0] == d.FAIL for s in bad.values()), bad
