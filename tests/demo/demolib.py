@@ -159,6 +159,17 @@ def mtti(report: dict[str, Any] | None, real: bool) -> Step:
     if report is None:
         return (FAIL if real else NA), "not measured yet: make manual (6 cases), then make mtti"
     man, ai, pr = report["manual"], report["ai_all"], report["paired"]
+    real_ai = bool(report.get("ai_runs")) and all(r.get("paid_models") for r in report["ai_runs"])
+    if report.get("manual_valid") is False:
+        # owner decision 2026-10-29 (ADR-047 amendment): the manual side was declared invalid
+        # with a reason; minute 12:00 quotes the AI side ONLY and says no human baseline exists
+        if not real_ai:
+            return FAIL, "the AI side is not a real-model run"
+        return PASS, (
+            f"AI ONLY - identified {ai['identified']}/{ai['cases']} (median "
+            f"{ai['seconds_when_identified']['median']} s); NO valid human baseline: "
+            f"{str(report.get('manual_invalid_reason'))[:80]}"
+        )
     if man["cases"] < 6:
         return FAIL, f"only {man['cases']} manual cases scored (need 6)"
     if not all(r.get("paid_models") for r in report.get("ai_runs", [])) or not report.get(
