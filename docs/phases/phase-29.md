@@ -1,6 +1,6 @@
 # Phase 29 - End-to-end demonstration (ADR-043)
 
-Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d VERIFIED on the Mac 2026-10-28 (ADR-046, PRs #49 + #50, main 86b26ba).** **29e BUILT 2026-10-28 (sandbox only; ADR-047)** - the owner's timed runs + the paid AI run pending. Owner (2026-10-27): "Phase 29";
+Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d VERIFIED on the Mac 2026-10-28 (ADR-046, PRs #49 + #50, main 86b26ba).** **29e VERIFIED on the Mac 2026-10-29 (ADR-047 + amendment, PR #55, main f471ac2): AI-only, manual baseline declared invalid.** **Gate: 0 of 3** (2 PASS, 2 FAIL on a power-limited Mac; see section 8). Owner (2026-10-27): "Phase 29";
 clean = **fresh containers, keep data**; models = **fake to rehearse, real for the 3 passes**;
 the 4 missing steps = **build all four**.
 
@@ -212,9 +212,51 @@ baseline (owner decision 2026-10-29, ADR-047 amendment).**
   measurement, unless the person practises first and works in one sitting; and only a person who
   never saw the data gives a fair baseline.
 
-## 8. Next
-Results PR (session, both reports, both AI runs). Then the gate: `make
-demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
+## 8. The gate - runs so far (main f471ac2, real models)
+Rule: 3 real-model PASS **in a row**, each after `make demo-fresh`, `make demo-clean` after each.
+Every run is committed, the FAILs too.
+
+| file (`data/demo/results/`) | verdict | s | note |
+|---|---|---|---|
+| demo-2026-10-29T161620.json | PASS | 116 | SEV1 by the tier-1 rule; COMPLETE in 88 s |
+| demo-2026-10-29T163823.json | FAIL | 18 | `alert_intake`: webhook answered 503 (reason not kept) |
+| demo-2026-10-29T164933.json | PASS | 73 | SEV2: `tier unknown (catalog unreachable (ReadTimeout))` |
+| demo-2026-10-29T170406.json | FAIL | 30 | `alert_intake`: webhook answered 503 (reason not kept) |
+
+Count: **0 of 3**. (I first reported 164933 as "pass 2 of 3"; I had not seen 163823. Read the
+files, not the messages.)
+
+**Finding: the machine, not the code.** After 170406, read-only checks on the Mac showed:
+- a restart storm: 6 services failed their liveness probe in the same second, then startup
+  probes failed and the kubelet killed them again; kube-controller-manager 95 and kube-scheduler
+  96 restarts in 9 days, `etcdserver: request timed out` -> `stopped leading`;
+- node CPU pressure (PSI `some avg10`) 39%, load 47 on 12 vCPUs, memory/io pressure low;
+- `pmset -g therm`: `CPU_Speed_Limit = 39` with `CPU Power notify`, no thermal warning - the CPU
+  was power-limited. Power: AC, a **60 W** charger, battery "Service Recommended". After a
+  restart of the node (Docker/Mac): limit 70, 0 pod restarts, control plane quiet for 10 min. Mac swap 11.4 of 12 GB.
+- The VM's "idle %" hid it (a throttled host gives the VM less CPU than it shows); PSI did not.
+- Not done, on purpose: no probe or timeout was loosened. That would turn a starved machine into
+  green checks. A probe change may still be right later, as its own decision.
+- The two 503s are probably the api's 5 s upstream timeout or a restarting incident-service; the
+  run threw the reason away, so this is a hypothesis, not a fact.
+
+**fix4 (tests/demo only):** the webhook's refusal reason is printed and stored
+(`webhook answered 503: <detail>`); every result file records `machine.before/after` (pmset
+CPU_Speed_Limit, node CPU pressure + load, kube-system and app pod restarts, read-only:
+`pmset`, `docker exec ... cat /proc/...`, `kubectl get pods`) and `machine.warnings`; `MACHINE:`
+lines print before the VERDICT. The verdict is the steps' alone; whether it COUNTS is the gate rule below. `started_at` was the END time;
+it is the start now (+ `finished_at`).
+
+**The gate rule from now on (owner, 2026-10-29, fixed BEFORE the gate restarts):** a
+real-model PASS counts only if **no pod restarted or was replaced during the run** (kube-system
+or app; a restart changes the system under test mid-run). CPU speed limit and CPU pressure are
+recorded warnings, not disqualifying: a slow machine that still passes is a real pass. Pod
+restarts that cannot be read = not counted. Code: `demolib.counts`; every result file has
+`gate.counts` + `gate.why`, and the run prints `GATE: COUNTS` or `GATE: does NOT count - why`.
+3 in a row = 3 consecutive real-model runs that each print `GATE: COUNTS`.
+
+## 8b. Next
+Apply fix4, then 3 in a row by the rule above.
 
 ## 9. Verify
 - [x] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removed 0 rows.
@@ -222,5 +264,5 @@ demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
 - [x] 29b on the Mac: CI green (PR #47), `alert_intake` PASS with SEV1 + "tier 1", netpol 0 failed with incident-service -> service-catalog open, 0 restarts.
 - [x] 29c on the Mac: CI green (PR #48), `removed_shown` PASS ("0 removed" on fakes); real-postmortem rate measured (8/70).
 - [x] 29d on the Mac: CI green (PRs #49, #50), `evidence_graph` PASS, browser graph test passed (not skipped).
-- [ ] 29e on the Mac: the paid AI run (v1 + v2, 0 invalid); manual session recorded and declared invalid by the owner (ADR-047 amendment); `make mtti INVALID=...` report committed; `make demo` shows `mtti` PASS as AI-only on real models (checked in the gate runs).
+- [x] 29e on the Mac (PR #55, main f471ac2; `mtti` PASS AI-only in demo 161620 + 164933): the paid AI run (v1 + v2, 0 invalid); manual session recorded and declared invalid by the owner (ADR-047 amendment); `make mtti INVALID=...` report committed; `make demo` shows `mtti` PASS as AI-only on real models (checked in the gate runs).
 - [ ] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`.
