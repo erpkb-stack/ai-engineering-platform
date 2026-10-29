@@ -169,3 +169,27 @@ def test_no_catalog_or_no_token_is_said_plainly(tmp_path: Path) -> None:
     assert asyncio.run(no_token.lookup("checkout-api")) == (
         None, "catalog token missing (make tools-tokens)",
     )  # fmt: skip
+
+
+def test_a_slow_catalog_is_cut_at_the_total_deadline(tmp_path: Path, monkeypatch: Any) -> None:
+    """fix5: httpx's timeout limits each step, not the call - a "2 s" timeout waited 2.2-4.0 s on
+    the Mac and the api's 5 s timeout fired first (503 for incidents that were created). The
+    lookup is now bounded as a whole. The mock answers only after 30 s, in one slow step that no
+    per-step timeout sees (MockTransport does no socket IO)."""
+    import time
+
+    from aeoi_incident import catalog as cat
+
+    monkeypatch.setattr(cat, "DEADLINE_S", 0.2)
+
+    async def slow(req: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(30)
+        return httpx.Response(200, json={"items": []})
+
+    t0 = time.monotonic()
+    got = asyncio.run(_client(tmp_path, slow).lookup("checkout-api"))
+    assert got == (None, "catalog too slow (no answer in 0.2 s)")
+    assert time.monotonic() - t0 < 1.0
+    # the triage then says why the tier is unknown, and the alert is still kept
+    t = triage(alert(severity="error"), *got)
+    assert "tier unknown (catalog too slow (no answer in 0.2 s))" in t.rule

@@ -10,6 +10,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  mvc:
+    servlet:
+      # fix5 (Phase 29 gate): build the DispatcherServlet at start, not on the first request
+      load-on-startup: 1
   datasource:
     url: jdbc:postgresql://${AEOI_PG_HOST:localhost}:${AEOI_PG_PORT:5433}/${AEOI_PG_DATABASE:aeoi}
     # the running service is catalog_svc: SELECT on catalog.* only (granted by V1)

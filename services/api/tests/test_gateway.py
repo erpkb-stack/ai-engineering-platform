@@ -192,6 +192,24 @@ async def test_timeout_is_503(
     upstream.mode = "slow"
     r = await client.get("/api/v1/incidents", headers=auth(keys, "ENGINEER"))
     assert r.status_code == 503
+    assert r.json()["detail"] == "incident-service timed out."
+
+
+async def test_a_timed_out_post_says_it_may_have_been_applied(
+    client: httpx.AsyncClient, upstream: FakeUpstream, keys: KeyPair
+) -> None:
+    """Phase 29 gate fix5: 3 alerts got "incident-service timed out." while incident-service
+    went on and created INC-10332/34/36. A POST timeout must not read as "nothing happened"."""
+    upstream.mode = "slow"
+    r = await client.post(
+        "/api/v1/incidents",
+        json=BODY,
+        headers=auth(keys, "SRE") | {"Idempotency-Key": f"k-{uuid.uuid4()}"},
+    )
+    assert r.status_code == 503
+    assert "may have been applied" in r.json()["detail"]
+    assert "same Idempotency-Key" in r.json()["detail"]
+    assert len(upstream.calls) == 1  # still never retried here
 
 
 async def test_rate_limit(pubfile: Path, upstream: FakeUpstream, keys: KeyPair) -> None:

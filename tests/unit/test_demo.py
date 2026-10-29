@@ -104,6 +104,12 @@ def test_alert_intake_needs_one_incident_and_a_duplicate_for_the_resend() -> Non
     for bad in ((401, None), (503, None), (0, "ConnectionRefusedError")):
         step, key = d.alert_intake(bad, bad)
         assert step[0] == d.FAIL and key is None
+    # fix5: SEV2 because the catalog did not answer kept the alert, but it is not the demo
+    cold = _ans("created")
+    cold[1]["results"][0] |= {"severity": "SEV2",
+                              "reason": "label severity=error -> SEV2; tier unknown (catalog too slow (no answer in 1.5 s))"}  # fmt: skip
+    step, key = d.alert_intake(cold, _ans("duplicate"))
+    assert step[0] == d.FAIL and key == "INC-10042" and "needs SEV1 by the tier-1 rule" in step[1]
     # a valid answer that created nothing (rejected) is a FAIL with the reason
     step, key = d.alert_intake(_ans("rejected"), _ans("rejected"))
     assert step[0] == d.FAIL and key is None

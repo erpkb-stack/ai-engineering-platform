@@ -44,6 +44,12 @@ def alert_intake(first: tuple[int, Any], again: tuple[int, Any]) -> tuple[Step, 
     key = str(r1["incident_key"])
     if s2 != 200 or r2.get("outcome") != "duplicate" or r2.get("incident_key") != key:
         return (FAIL, f"re-sent alert: {s2} {str(r2)[:120]} (must be duplicate of {key})"), key
+    # fix5 (owner, 2026-10-29): the script says SEV1 by the tier-1 rule (minute 1:00). A SEV2
+    # "tier unknown" (the catalog's degraded path) kept the alert but is not the demo - it
+    # passed before, and hid a cold catalog behind a green step. The run goes on (key returned).
+    sev, why = r1.get("severity"), str(r1.get("reason") or "")
+    if sev != "SEV1" or "tier 1" not in why:
+        return (FAIL, f"{key} {sev} by rule '{why}': the script needs SEV1 by the tier-1 rule"), key
     return (
         PASS,
         f"{key} {r1.get('severity')} by rule '{r1.get('reason')}'; re-sent = duplicate",

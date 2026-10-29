@@ -1,6 +1,6 @@
 # Phase 29 - End-to-end demonstration (ADR-043)
 
-Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d VERIFIED on the Mac 2026-10-28 (ADR-046, PRs #49 + #50, main 86b26ba).** **29e VERIFIED on the Mac 2026-10-29 (ADR-047 + amendment, PR #55, main f471ac2): AI-only, manual baseline declared invalid.** **Gate: 0 of 3** (2 PASS, 2 FAIL on a power-limited Mac; see section 8). Owner (2026-10-27): "Phase 29";
+Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d VERIFIED on the Mac 2026-10-28 (ADR-046, PRs #49 + #50, main 86b26ba).** **29e VERIFIED on the Mac 2026-10-29 (ADR-047 + amendment, PR #55, main f471ac2): AI-only, manual baseline declared invalid.** **Gate: 0 of 3** (7 runs: 4 PASS, 3 FAIL; fix5 = new code, count restarts; see section 8). Owner (2026-10-27): "Phase 29";
 clean = **fresh containers, keep data**; models = **fake to rehearse, real for the 3 passes**;
 the 4 missing steps = **build all four**.
 
@@ -255,8 +255,31 @@ restarts that cannot be read = not counted. Code: `demolib.counts`; every result
 `gate.counts` + `gate.why`, and the run prints `GATE: COUNTS` or `GATE: does NOT count - why`.
 3 in a row = 3 consecutive real-model runs that each print `GATE: COUNTS`.
 
+### After fix4 (main f6c9b04)
+| file | verdict | gate | machine |
+|---|---|---|---|
+| demo-2026-10-29T184743.json | PASS | COUNTS | speed limit 58 |
+| demo-2026-10-29T190036.json | FAIL | - | `webhook answered 503: incident-service timed out.`; speed limit 31, CPU pressure 59% |
+| demo-2026-10-29T191257.json | PASS | COUNTS | speed limit 48 |
+
+Count: 1 (not in a row). fix4 gave the reason; it was ours, not only the machine's:
+- INC-10332, 10334, 10336 exist (OPEN, SEV2, `service:alerts`): **every FAIL created its
+  incident** - the api answered 503 for requests that were applied.
+- Tempo traces (4 slowest alert requests): the "2 s" catalog timeout waited 2.2-4.0 s (httpx
+  limits each step, not the call); the catalog answered its first request in 2.1-21.1 s while
+  ready; 1.3-1.5 s passed before incident-service started (starved node); DB work 0.3-0.7 s.
+  The 16:38 FAIL missed the api's 5 s by 0.02 s; the 16:48 PASS had 0.2 s left.
+- No lock: the "17 s after the incident" was the catalog finishing work no one waited for.
+
+**fix5 (ADR-044 amendment; owner chose A+B+C+D):** A. a total 1.5 s catalog deadline + a budget
+test; B. `CatalogWarmup` before ready + DispatcherServlet at start (Java: verified on the Mac and
+in CI only); C. a timed-out POST says it may have been applied; D. `alert_intake` requires SEV1
+by the tier-1 rule. New code: **the gate restarts at 0 of 3.**
+Open: the 3 OPEN SEV2 incidents on checkout-api from the FAILs stay as the record; the history
+agent may see them (the later runs passed with the same evidence picture - watched).
+
 ## 8b. Next
-Apply fix4, then 3 in a row by the rule above.
+Apply fix5, `make catalog-build` on the Mac, then 3 in a row by the rule above.
 
 ## 9. Verify
 - [x] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removed 0 rows.
