@@ -190,3 +190,119 @@ def test_mtti_with_the_manual_side_declared_invalid_quotes_the_ai_only() -> None
     assert "NO valid human baseline" in detail and "6" not in detail.split("baseline")[0][-10:]
     assert "first" not in detail  # no paired claim
     assert d.mtti({**rep, "ai_runs": [{"paid_models": []}]}, True)[0] == d.FAIL
+
+
+# ---- fix4 (2026-10-29): two gate runs failed with a bare "webhook answered 503" on a
+# power-limited Mac in a restart storm. The reason is kept, and the machine is recorded.
+
+
+def test_a_refused_alert_says_why() -> None:
+    raw = b'{"type":"about:blank","title":"Service Unavailable","status":503,"detail":"incident-service timed out."}'
+    why = d.problem_text(raw)
+    assert why == "incident-service timed out."
+    step, key = d.alert_intake((503, why), (503, why))
+    assert step == (d.FAIL, "webhook answered 503: incident-service timed out.") and key is None
+    # not JSON, control characters, too long: one safe, short line
+    assert d.problem_text(b"bad\x1b[2Jgateway") == "bad [2Jgateway"
+    assert len(d.problem_text(b"x" * 500)) == 200
+    assert d.problem_text(b'{"title":"Unauthorized"}') == "Unauthorized"
+
+
+def test_machine_parsers_read_the_real_formats() -> None:
+    therm = (
+        "Note: No thermal warning level has been recorded\n2026-10-29 12:30:10 -0500 CPU Power"
+        " notify\n\tCPU_Scheduler_Limit \t= 100\n\tCPU_Available_CPUs \t= 12\n\tCPU_Speed_Limit \t= 39\n"
+    )
+    assert d.speed_limit(therm) == 39
+    assert d.speed_limit("Note: No thermal warning level has been recorded") is None
+    psi = (
+        "some avg10=39.16 avg60=29.89 avg300=22.91 total=13102068616\n"
+        "full avg10=0.00 avg60=0.00 avg300=0.00 total=0\n"
+    )
+    assert d.cpu_pressure(psi) == 39.16
+    pods = {
+        "items": [
+            {
+                "metadata": {
+                    "name": "api-5bf5b759cf-dpq65",
+                    "labels": {"app.kubernetes.io/name": "api"},
+                },
+                "status": {"containerStatuses": [{"restartCount": 2}]},
+            },
+            {
+                "metadata": {"name": "kube-scheduler-aeoi-control-plane", "labels": {}},
+                "status": {"containerStatuses": [{"restartCount": 99}]},
+            },
+            {"metadata": {"name": "pending-0"}, "status": {}},
+        ]
+    }
+    import json
+
+    assert d.pod_restarts(json.dumps(pods)) == {
+        "api": ["api-5bf5b759cf-dpq65", 2],
+        "kube-scheduler-aeoi-control-plane": ["kube-scheduler-aeoi-control-plane", 99],
+        "pending-0": ["pending-0", 0],
+    }
+    assert d.pod_restarts("not json") is None
+
+
+def test_machine_warnings_are_facts_and_never_change_the_verdict() -> None:
+    calm = {
+        "cpu_speed_limit": 100,
+        "node_cpu_pressure": 3.0,
+        "restarts": {"kube-system": {"etcd": ["etcd-x", 0]}, "app": {"api": ["api-a", 0]}},
+    }
+    assert d.environment_warnings(calm, calm) == []
+    sick = {
+        "cpu_speed_limit": 39,
+        "node_cpu_pressure": 39.16,
+        "restarts": {
+            "kube-system": {"etcd": ["etcd-x", 1]},
+            "app": {"api": ["api-b", 0], "rag": ["rag-a", 0]},
+        },
+    }
+    w = d.environment_warnings(calm, sick)
+    assert any("CPU_Speed_Limit 39" in x for x in w)
+    assert any("pressure 39.16%" in x for x in w)
+    assert "kube-system pods restarted or replaced DURING the run: etcd" in w
+    # api replaced (new name) and rag new: both named; a restart count that only stayed is not
+    assert "app pods restarted or replaced DURING the run: api, rag" in w
+    # nothing readable (compose, not a Mac): no warning invented
+    assert d.environment_warnings({}, {"restarts": {"app": None}}) == []
+    # the verdict is the steps' alone
+    assert d.verdict({"a": (d.PASS, "")}, real=True) == "PASS"
+
+
+def test_the_demo_names_the_namespace_the_manifests_use() -> None:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+    import k8s_manifests
+
+    assert d.APP_NAMESPACE == k8s_manifests.NAMESPACE
+
+
+def test_the_gate_counts_a_pass_only_if_no_pod_restarted_during_it() -> None:
+    calm = {
+        "cpu_speed_limit": 70,
+        "node_cpu_pressure": 30.0,
+        "restarts": {"kube-system": {"etcd": ["etcd-x", 98]}, "app": {"api": ["api-a", 0]}},
+    }
+    ok, why = d.counts("PASS", calm, calm)
+    assert ok, why  # slow (speed limit 70, pressure 30%) but no restart: a real pass
+    restarted = {
+        **calm,
+        "restarts": {"kube-system": {"etcd": ["etcd-x", 99]}, "app": {"api": ["api-a", 0]}},
+    }
+    ok, why = d.counts("PASS", calm, restarted)
+    assert not ok and "kube-system: etcd" in why
+    replaced = {
+        **calm,
+        "restarts": {"kube-system": {"etcd": ["etcd-x", 98]}, "app": {"api": ["api-b", 0]}},
+    }
+    assert d.counts("PASS", calm, replaced)[0] is False
+    # cannot read the pods: the rule cannot be checked, so it does not count
+    blind = {**calm, "restarts": {"kube-system": None, "app": {"api": ["api-a", 0]}}}
+    ok, why = d.counts("PASS", calm, blind)
+    assert not ok and "unreadable (kube-system)" in why
+    # only a PASS can count
+    assert d.counts("FAIL", calm, calm) == (False, "verdict FAIL")
+    assert d.counts("REHEARSAL-OK", calm, calm)[0] is False

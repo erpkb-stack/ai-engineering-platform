@@ -1,0 +1,75 @@
+{
+ "started_at": "2026-10-29T16:49:33+00:00",
+ "models": "real",
+ "verdict": "PASS",
+ "seconds": 73,
+ "incident": "INC-10333",
+ "investigation": "01a18890-2c6f-7ee8-8d04-25fbdca5cbd1",
+ "investigation_status": "COMPLETE",
+ "steps": {
+  "services_ready": {
+   "status": "PASS",
+   "detail": "9 ready"
+  },
+  "alert_intake": {
+   "status": "PASS",
+   "detail": "INC-10333 SEV2 by rule 'label severity=error -> SEV2; tier unknown (catalog unreachable (ReadTimeout))'; re-sent = duplicate"
+  },
+  "investigation": {
+   "status": "PASS",
+   "detail": "COMPLETE in 54 s"
+  },
+  "parallel_agents": {
+   "status": "PASS",
+   "detail": "all 4 overlap for 1.3 s"
+  },
+  "evidence": {
+   "status": "PASS",
+   "detail": "COMMIT CONFIG DEPLOY DOC INCIDENT LOG METRIC RUNBOOK"
+  },
+  "top_hypothesis": {
+   "status": "PASS",
+   "detail": "#1 [HIGH] Deploy DEPLOY-4821 on checkout-api may have caused the regression: it started 7 min before the first symptom (p95_latenc"
+  },
+  "decoy_rejected": {
+   "status": "PASS",
+   "detail": "the decoy never became a candidate cause (code saw no support for it)"
+  },
+  "evidence_graph": {
+   "status": "PASS",
+   "detail": "5 hypotheses, 11 evidence nodes, 22 links (9 contradicting); top supported by COMMIT CONFIG DEPLOY LOG METRIC"
+  },
+  "critic_challenge": {
+   "status": "PASS",
+   "detail": "#1 VALIDATED, critic supported"
+  },
+  "report": {
+   "status": "PASS",
+   "detail": "root cause cites DEPLOY-4821; sections ok=True"
+  },
+  "removed_shown": {
+   "status": "PASS",
+   "detail": "0 removed from the postmortem this run; 0 ranker explanation(s) removed"
+  },
+  "proposal": {
+   "status": "PASS",
+   "detail": "PENDING rollback of DEPLOY-4821 for user:019907b9-2c00-7ef1-9431-1f66a04a3b01"
+  },
+  "approval": {
+   "status": "PASS",
+   "detail": "ENGINEER 403; IC approved -> EXECUTED; incident MITIGATED"
+  },
+  "decision_record": {
+   "status": "PASS",
+   "detail": "by INCIDENT_COMMANDER, args 69f7a793ac6f"
+  },
+  "mtti": {
+   "status": "PASS",
+   "detail": "AI ONLY - identified 14/17 (median 35.7 s); NO valid human baseline: 6 scored cases were not investigations: last 5 took 56-174 s with no metrics cal"
+  },
+  "injection_ignored": {
+   "status": "PASS",
+   "detail": "0 quarantined documents returned"
+  }
+ }
+}

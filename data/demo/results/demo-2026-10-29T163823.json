@@ -1,0 +1,16 @@
+{
+ "started_at": "2026-10-29T16:38:23+00:00",
+ "models": "real",
+ "verdict": "FAIL",
+ "seconds": 18,
+ "steps": {
+  "services_ready": {
+   "status": "PASS",
+   "detail": "9 ready"
+  },
+  "alert_intake": {
+   "status": "FAIL",
+   "detail": "webhook answered 503"
+  }
+ }
+}

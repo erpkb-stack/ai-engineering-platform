@@ -4,6 +4,8 @@ check here; a step that needs a real model is "n/a" on fake models, never a PASS
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime
 from typing import Any
 
@@ -13,6 +15,12 @@ DEMO_DECOY = "cart-cache"
 EVIDENCE_AGENTS = ("log_analysis", "metrics", "deployment", "knowledge")
 REQUIRED_KINDS = ("LOG", "METRIC", "DEPLOY", "CONFIG", "INCIDENT")
 REAL_ONLY = ("critic_challenge", "proposal", "approval", "decision_record")
+# the machine the demo ran on (fix4): recorded, never part of the verdict; restarts decide if a PASS counts (`counts`)
+K8S_CONTEXT = "kind-aeoi"
+K8S_NODE = "aeoi-control-plane"
+APP_NAMESPACE = "ai-engineering-platform"  # = scripts/k8s_manifests.NAMESPACE (pinned by a test)
+CPU_PRESSURE_WARN = 20.0  # % of the last 10 s that runnable tasks waited for a CPU
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
 
 Step = tuple[str, str]  # (status, detail)
 
@@ -27,7 +35,8 @@ def alert_intake(first: tuple[int, Any], again: tuple[int, Any]) -> tuple[Step, 
     key, and the triage rule is recorded. Returns (step, incident key)."""
     (s1, b1), (s2, b2) = first, again
     if s1 != 200 or not isinstance(b1, dict):
-        return (FAIL, f"webhook answered {s1}"), None
+        why = f": {b1}" if isinstance(b1, str) and b1 else ""  # fix4: the reason, not only 503
+        return (FAIL, f"webhook answered {s1}{why}"), None
     r1 = (b1.get("results") or [{}])[0]
     if r1.get("outcome") != "created" or not r1.get("incident_key"):
         return (FAIL, f"first alert: {str(r1)[:160]}"), None
@@ -267,3 +276,103 @@ def verdict(steps: dict[str, Step], real: bool) -> str:
     if not real:
         return "REHEARSAL-OK"
     return "PASS" if all(s == PASS for s, _ in steps.values()) else "FAIL"
+
+
+def problem_text(raw: bytes, limit: int = 200) -> str:
+    """fix4: an error answer as one short line (problem+json `detail`/`title`, else the text).
+    Two runs failed with a bare `webhook answered 503` - the reason was thrown away."""
+    text = raw.decode("utf-8", "replace")
+    try:
+        doc = json.loads(text)
+    except ValueError:
+        doc = None
+    if isinstance(doc, dict):
+        text = str(doc.get("detail") or doc.get("title") or text)
+    text = _CONTROL.sub(" ", text).strip()
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+# ---- the machine (fix4). Phase 29 gate, 2026-10-29: two 503s came from a restart storm on a
+# power-limited Mac (pmset CPU_Speed_Limit 39, node CPU pressure 39%, etcd timeouts), not from
+# the code. The result file now says what the machine was doing, so a FAIL caused by the
+# machine reads as one - and a PASS on a sick machine is not mistaken for a healthy one.
+
+
+def speed_limit(pmset_therm: str) -> int | None:
+    """`pmset -g therm` -> CPU_Speed_Limit (100 = not limited). None = not a Mac / unknown."""
+    m = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", pmset_therm)
+    return int(m.group(1)) if m else None
+
+
+def cpu_pressure(psi: str) -> float | None:
+    """/proc/pressure/cpu -> the `some avg10` share (% of time a runnable task waited)."""
+    m = re.search(r"^some\s.*?avg10=([\d.]+)", psi, re.M)
+    return float(m.group(1)) if m else None
+
+
+def pod_restarts(pods_json: str) -> dict[str, list[Any]] | None:
+    """`kubectl get pods -o json` -> {app: [pod name, restarts]}. None = not readable."""
+    try:
+        items = json.loads(pods_json)["items"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    out: dict[str, list[Any]] = {}
+    for p in items:
+        meta = p.get("metadata") or {}
+        app = (meta.get("labels") or {}).get("app.kubernetes.io/name") or meta.get("name", "?")
+        n = sum(
+            c.get("restartCount", 0) for c in (p.get("status") or {}).get("containerStatuses") or []
+        )
+        out[str(app)] = [meta.get("name", "?"), n]
+    return out
+
+
+def environment_warnings(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """What a reader must know before trusting this run. Facts only; the verdict is unchanged."""
+    w = []
+    limits = [
+        x for x in (before.get("cpu_speed_limit"), after.get("cpu_speed_limit")) if x is not None
+    ]
+    if limits and min(limits) < 100:
+        w.append(f"Mac CPU power-limited: CPU_Speed_Limit {min(limits)} (100 = full speed)")
+    psi = [
+        x
+        for x in (before.get("node_cpu_pressure"), after.get("node_cpu_pressure"))
+        if x is not None
+    ]
+    if psi and max(psi) >= CPU_PRESSURE_WARN:
+        w.append(f"node CPU pressure {max(psi)}% (tasks waiting for a CPU)")
+    for ns, moved in restarted(before, after).items():
+        if moved:
+            w.append(f"{ns} pods restarted or replaced DURING the run: {', '.join(moved)}")
+    return w
+
+
+def restarted(before: dict[str, Any], after: dict[str, Any]) -> dict[str, list[str] | None]:
+    """Per namespace: the pods that restarted or were replaced during the run; None = unreadable."""
+    out: dict[str, list[str] | None] = {}
+    for ns in ("kube-system", "app"):
+        b, a = (before.get("restarts") or {}).get(ns), (after.get("restarts") or {}).get(ns)
+        if b is None or a is None:
+            out[ns] = None
+            continue
+        out[ns] = sorted(k for k in a if k not in b or a[k][0] != b[k][0] or a[k][1] > b[k][1])
+    return out
+
+
+def counts(verdict_: str, before: dict[str, Any], after: dict[str, Any]) -> tuple[bool, str]:
+    """The GATE rule (owner, 2026-10-29, fixed before the gate restarted): a real-model PASS
+    counts only if no pod restarted or was replaced DURING the run - a restart changes the
+    system under test mid-run. CPU speed and pressure are warnings, not disqualifying: a slow
+    machine that still passes is a real pass. Restarts that cannot be read = not counted
+    (the rule cannot be checked)."""
+    if verdict_ != "PASS":
+        return False, f"verdict {verdict_}"
+    moved = restarted(before, after)
+    blind = [ns for ns, m in moved.items() if m is None]
+    if blind:
+        return False, f"pod restarts unreadable ({', '.join(blind)}): the rule cannot be checked"
+    hit = [f"{ns}: {', '.join(m)}" for ns, m in moved.items() if m]
+    if hit:
+        return False, "pods restarted or replaced during the run - " + "; ".join(hit)
+    return True, "real-model PASS, no pod restarted or replaced during the run"
