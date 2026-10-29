@@ -12,6 +12,7 @@ ADR-032). One endpoint: `GET /v1/services?service_key=|team=|name_contains=` (th
 ## Code map (`src/main/java/com/northwind/aeoi/catalog/`)
 - `api/` controller + records (`ServiceItem`, `ServiceList`) · `persistence/CatalogRepository` 3 SQL queries, `COLLATE "C"` ordering
 - `security/SecurityConfig` RS256 + iss/aud/exp/iat + service principal + scope; delegated = 401
+- `CatalogWarmup` (fix5, ADR-044 amendment): before ready, runs SQL + JSON + a self-call through the filter chain/RSA verify (zero-signature token, always 401); never fails the start
 - `importer/CatalogImporter` DEV ONLY: `--catalog.import-file=` loads catalog.json in ONE transaction, then exits
 
 ## Commands

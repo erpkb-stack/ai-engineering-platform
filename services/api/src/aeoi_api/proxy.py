@@ -7,6 +7,7 @@ Retries: only safe methods (GET) on CONNECT errors or a DROPPED connection, once
 never retried here - the client's Idempotency-Key makes the client's own retry safe instead.
 A dropped connection (ReadError: e.g. a pooled keep-alive to a pod that was just replaced) is a
 503 that says so - it was a 500 "unhandled_error" until the Mac run of Phase 23a (fix7).
+A timed-out non-GET says the same (Phase 29 gate fix5): the service may have finished the work.
 """
 
 from __future__ import annotations
@@ -61,7 +62,14 @@ class Upstream:
                 if attempt == attempts:
                     raise UpstreamUnavailableError(f"{self.name} is unavailable.") from exc
             except httpx.TimeoutException as exc:
-                raise UpstreamUnavailableError(f"{self.name} timed out.") from exc
+                if request.method == "GET":
+                    raise UpstreamUnavailableError(f"{self.name} timed out.") from exc
+                # fix5 (Phase 29 gate): a timed-out POST may have been APPLIED - the api said
+                # "timed out" for 3 alerts whose incidents incident-service had created
+                raise UpstreamUnavailableError(
+                    f"{self.name} timed out. The request may have been applied: retry the SAME"
+                    " request (same Idempotency-Key; a re-sent alert is recognised as a duplicate)."
+                ) from exc
             except httpx.TransportError as exc:  # dropped mid-request (ReadError, protocol)
                 if attempt == attempts:
                     raise UpstreamUnavailableError(

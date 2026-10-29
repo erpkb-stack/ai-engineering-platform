@@ -57,3 +57,34 @@ Refines: ADR-043 (the demo starts from an alert), docs/demo/demo-scenario.md min
   human merges. Correlating alerts is a product decision, not built.
 - Alert text is untrusted (like a typed title): stored as data; it reaches a model only via
   the existing wrapping and the LLM gateway's PII/secret scrubbing.
+
+## Amendment 2026-10-29 (Phase 29 gate, fix5): the time budget is a total, and "ready" is warm
+Measured, not assumed (Tempo traces of the 4 slowest alert requests on the Mac; 3 of 7 gate
+runs FAILED with `webhook answered 503: incident-service timed out.`):
+- The "2 s" catalog call was httpx `timeout=2.0`, which limits EACH step, not the call:
+  incident-service waited 2.2 / 2.7 / 3.7 / 4.0 s. With 1.3-1.5 s lost before the handler
+  started (a CPU-starved node) and 0.3-0.7 s of DB work, it answered after the api's 5 s.
+- The api then said 503 for incidents that WERE created (INC-10332, 10334, 10336 exist).
+- A fresh catalog answered its first request in 2.1 / 3.5 / 17.8 / 21.1 s while its readiness
+  probe was UP: each failed run's incident was SEV2 "tier unknown" instead of SEV1.
+
+Decisions (owner chose all four):
+1. The catalog lookup has a TOTAL deadline of 1.5 s (`asyncio.timeout`; note
+   `catalog too slow (no answer in 1.5 s)`). `tests/unit/test_alert_budget.py` keeps
+   measured start delay + deadline + DB work + 1 s margin <= the api's upstream timeout.
+2. The catalog warms its real path before Spring publishes ACCEPTING_TRAFFIC
+   (`CatalogWarmup`: SQL + JSON writer, and a self-call through the filter chain and the RSA
+   verify with a well-formed token whose signature is zero - always 401, tested), and builds
+   the DispatcherServlet at start. A warm-up error never stops the start.
+3. A timed-out non-GET at the api says the request may have been applied and to retry the
+   SAME request. Status stays 503 (Alertmanager retries 5xx); 504 would be more exact - not
+   changed here.
+4. The demo's `alert_intake` requires SEV1 by the tier-1 rule (the script, minute 1:00): the
+   degraded SEV2 keeps the alert, but it is not the demo and it hid the cold catalog.
+
+Tradeoffs: a slower start (the warm-up runs before ready; bounded by a 10 s HTTP timeout). A
+1.5 s deadline gives SEV2 "tier unknown" more often on a slow catalog - the alert is never lost
+and the reason is written. Not fixed: the 1.3-1.5 s lost on a starved node before any handler
+runs (the machine: a 60 W charger, CPU_Speed_Limit 31-58). [Prod]: per-route deadline
+propagation (the caller's remaining budget in a header), and the first-request latency after a
+rollout as a measured SLO.

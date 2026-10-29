@@ -6,11 +6,18 @@
   holds the full, extra-forbid contract and the drift test against openapi.yaml).
 - NEVER raises: an alert must not be lost because the catalog is down. Every failure is an
   answer (`None` + a note) and triage falls back to the label severity, saying so.
-- One short attempt (2 s): the webhook answers Alertmanager, which retries on its own.
+- One short attempt with a TOTAL deadline (fix5, 2026-10-29): the webhook answers
+  Alertmanager, which retries on its own. The first version passed `timeout=2.0` to httpx,
+  which limits EACH step (connect, write, read, pool), not the whole call: traces on the Mac
+  measured 2.2-4.0 s waits for a "2 s" timeout, so incident-service answered after the api's
+  5 s upstream timeout and the api said 503 for incidents that WERE created (INC-10332/34/36).
+  Budget (ADR-044 amendment): api upstream 5 s > catalog 1.5 s + DB (0.3-0.7 s measured)
+  + the CPU-starved slack measured on the Mac (1.3-1.5 s).
 """
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import httpx
@@ -18,7 +25,7 @@ import structlog
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 log = structlog.get_logger("aeoi.incident.catalog")
-TIMEOUT_S = 2.0
+DEADLINE_S = 1.5  # the WHOLE lookup (test_alert_budget keeps it well inside the api timeout)
 
 
 class CatalogEntry(BaseModel):
@@ -55,12 +62,16 @@ class CatalogClient:
         except OSError:
             return None, "catalog token missing (make tools-tokens)"
         try:
-            resp = await self._client.get(
-                f"{self._base}/v1/services",
-                params={"service_key": service_key},
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=TIMEOUT_S,
-            )
+            async with asyncio.timeout(DEADLINE_S):
+                resp = await self._client.get(
+                    f"{self._base}/v1/services",
+                    params={"service_key": service_key},
+                    headers={"Authorization": f"Bearer {token}"},
+                    timeout=DEADLINE_S,  # each step too; the block above bounds the total
+                )
+        except TimeoutError:
+            log.warning("catalog_too_slow", deadline_s=DEADLINE_S)
+            return None, f"catalog too slow (no answer in {DEADLINE_S} s)"
         except httpx.HTTPError as exc:
             log.warning("catalog_unreachable", error=type(exc).__name__)
             return None, f"catalog unreachable ({type(exc).__name__})"
