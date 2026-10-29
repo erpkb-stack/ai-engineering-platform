@@ -1,0 +1,853 @@
+{
+ "run_id": "01a18302-3b61-750c-b022-f265a0ed9013",
+ "started_at": "2026-10-28T14:55:24+00:00",
+ "config": {
+  "dataset": "investigations",
+  "version": 1,
+  "paid_models": [
+   "claude-haiku-4-5-20251001",
+   "claude-sonnet-5-5"
+  ],
+  "cases": "all",
+  "api": "http://localhost:8000"
+ },
+ "summary": {
+  "cases": 16,
+  "detectable": 11,
+  "top1": "11/11",
+  "in_top3": "11/11",
+  "confident_wrong": "1/16",
+  "undetectable_abstained": "4/5",
+  "decoy_above": "1/4",
+  "rule_out_ok": "6/6",
+  "passed": "15/16",
+  "outcomes": {
+   "COMPLETE": 12,
+   "INCONCLUSIVE": 4
+  },
+  "latency_s": {
+   "p50": 34.2,
+   "max": 45.8
+  },
+  "cost_usd": 0.984494,
+  "invalid": [],
+  "validated_wrong": "2/16",
+  "wrong_high": "1/16",
+  "proposals": {
+   "correct": 5,
+   "wrong": 0,
+   "missed": 2
+  }
+ },
+ "cases": [
+  {
+   "case": "investigations-v1-S01",
+   "incident": "INC-10277",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 39.7,
+   "cost_usd": 0.051946,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9100"
+    },
+    "category": "connection_pool_exhaustion",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "change",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "MEDIUM",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 0,
+    "validated_wrong": true,
+    "wrong_high": false,
+    "proposal": "DEPLOY-9100",
+    "proposal_correct": true,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9100 on orders-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S02",
+   "incident": "INC-10278",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 45.8,
+   "cost_usd": 0.084224,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9110"
+    },
+    "category": "bad_config_change",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "change",
+      "critic": "supported",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": "DEPLOY-9110",
+    "proposal_correct": true,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9110 on payments-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 1,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S03",
+   "incident": "INC-10279",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 41.0,
+   "cost_usd": 0.080716,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9120"
+    },
+    "category": "feature_flag_regression",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "change",
+      "critic": "supported",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": "DEPLOY-9120",
+    "proposal_correct": true,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9120 on inventory-api may have caused the regression: it started 4 min before the first symptom (p95_latency_ms).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 1,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S04",
+   "incident": "INC-10280",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 33.1,
+   "cost_usd": 0.057536,
+   "expected": {
+    "decoys": [
+     "DEPLOY-9131"
+    ],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9130"
+    },
+    "category": "connection_pool_exhaustion",
+    "rule_out": [
+     "DEPLOY-9131"
+    ],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "change",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "MEDIUM",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 0,
+    "validated_wrong": true,
+    "wrong_high": false,
+    "proposal": "DEPLOY-9130",
+    "proposal_correct": true,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9130 on cart-api may have caused the regression: it started 7 min before the first symptom (p95_latency_ms).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S05",
+   "incident": "INC-10281",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 38.4,
+   "cost_usd": 0.081089,
+   "expected": {
+    "decoys": [
+     "DEPLOY-9141"
+    ],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9140"
+    },
+    "category": "bad_config_change",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "MEDIUM",
+      "status": "VALIDATED",
+      "kind": "change",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "LOW",
+      "status": "PROPOSED",
+      "kind": "change",
+      "critic": "refuted",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": "DEPLOY-9140",
+    "proposal_correct": true,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9140 on catalog-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min); 1 other deploy(s) also started before it.",
+    "top_band": "MEDIUM",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S06",
+   "incident": "INC-10282",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 29.6,
+   "cost_usd": 0.048882,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "saturation",
+     "subject": "db_pool_utilization"
+    },
+    "category": "connection_pool_exhaustion",
+    "rule_out": [
+     "requests_per_sec"
+    ],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "DB connection pool saturation on search-api may have driven the symptoms: db_pool_utilization rose from 2026-10-11 13:42:00Z.",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S07",
+   "incident": "INC-10283",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 25.0,
+   "cost_usd": 0.041859,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "saturation",
+     "subject": "thread_pool_utilization"
+    },
+    "category": "thread_pool_saturation",
+    "rule_out": [
+     "requests_per_sec"
+    ],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "thread pool saturation on pricing-api may have driven the symptoms: thread_pool_utilization rose from 2026-10-12 13:42:00Z.",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S08",
+   "incident": "INC-10284",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 23.1,
+   "cost_usd": 0.036603,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "saturation",
+     "subject": "cpu_util"
+    },
+    "category": "cpu_saturation",
+    "rule_out": [
+     "requests_per_sec"
+    ],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "MEDIUM",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "CPU saturation on shipping-api may have driven the symptoms: cpu_util rose from 2026-10-13 13:42:00Z.",
+    "top_band": "MEDIUM",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S09",
+   "incident": "INC-10285",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 32.2,
+   "cost_usd": 0.049404,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "traffic",
+     "subject": "requests_per_sec"
+    },
+    "category": "traffic_surge",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "traffic",
+      "critic": "supported",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "A traffic change (requests_per_sec) on returns-api may have driven the symptoms.",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S10",
+   "incident": "INC-10286",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 44.5,
+   "cost_usd": 0.058245,
+   "expected": {
+    "decoys": [
+     "db_pool_utilization"
+    ],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9190"
+    },
+    "category": "connection_pool_exhaustion",
+    "rule_out": [
+     "db_pool_utilization"
+    ],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "PROPOSED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "PROPOSED",
+      "kind": "change",
+      "critic": "weakened",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": true,
+    "top": "Deploy DEPLOY-9190 on notifications-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S11",
+   "incident": "INC-10287",
+   "outcome": "INCONCLUSIVE",
+   "invalid": false,
+   "error": "no hypothesis is supported by the evidence",
+   "validation_passed": false,
+   "latency_s": 29.1,
+   "cost_usd": 0.055781,
+   "expected": {
+    "decoys": [],
+    "culprit": null,
+    "category": "certificate_expiry",
+    "rule_out": [
+     "requests_per_sec"
+    ],
+    "detectable": false
+   },
+   "score": {
+    "top_status": null,
+    "claims": [],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": null,
+    "top_band": null,
+    "ranked_by": null,
+    "culprit_rank": null,
+    "top1": null,
+    "in_top3": null,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 0,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S12",
+   "incident": "INC-10288",
+   "outcome": "INCONCLUSIVE",
+   "invalid": false,
+   "error": "no hypothesis is supported by the evidence",
+   "validation_passed": false,
+   "latency_s": 31.7,
+   "cost_usd": 0.057773,
+   "expected": {
+    "decoys": [],
+    "culprit": null,
+    "category": "dns_failure",
+    "rule_out": [],
+    "detectable": false
+   },
+   "score": {
+    "top_status": null,
+    "claims": [],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": null,
+    "top_band": null,
+    "ranked_by": null,
+    "culprit_rank": null,
+    "top1": null,
+    "in_top3": null,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 0,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S13",
+   "incident": "INC-10289",
+   "outcome": "INCONCLUSIVE",
+   "invalid": false,
+   "error": "no hypothesis is supported by the evidence",
+   "validation_passed": false,
+   "latency_s": 37.3,
+   "cost_usd": 0.060274,
+   "expected": {
+    "decoys": [],
+    "culprit": null,
+    "category": "disk_full",
+    "rule_out": [],
+    "detectable": false
+   },
+   "score": {
+    "top_status": null,
+    "claims": [],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": null,
+    "top_band": null,
+    "ranked_by": null,
+    "culprit_rank": null,
+    "top1": null,
+    "in_top3": null,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 0,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S14",
+   "incident": "INC-10290",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 45.6,
+   "cost_usd": 0.091223,
+   "expected": {
+    "decoys": [
+     "DEPLOY-9230"
+    ],
+    "culprit": null,
+    "category": "certificate_expiry",
+    "rule_out": [],
+    "detectable": false
+   },
+   "score": {
+    "top_status": "PROPOSED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "PROPOSED",
+      "kind": "change",
+      "critic": "weakened",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": true,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9230 on ledger-api may have caused the regression: it started 6 min before the first symptom (http_5xx_per_min).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": null,
+    "top1": null,
+    "in_top3": null,
+    "confident_wrong": true,
+    "decoy_above": true,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": false
+   }
+  },
+  {
+   "case": "investigations-v1-S15",
+   "incident": "INC-10291",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 35.2,
+   "cost_usd": 0.059962,
+   "expected": {
+    "decoys": [],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9240"
+    },
+    "category": "memory_leak",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "PROPOSED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "MEDIUM",
+      "status": "PROPOSED",
+      "kind": "change",
+      "critic": "weakened",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": true,
+    "top": "Deploy DEPLOY-9240 on fraud-api may have caused the regression: it started 159 min before the first symptom (p95_latency_ms).",
+    "top_band": "MEDIUM",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v1-S16",
+   "incident": "INC-10292",
+   "outcome": "INCONCLUSIVE",
+   "invalid": false,
+   "error": "no hypothesis is supported by the evidence",
+   "validation_passed": false,
+   "latency_s": 33.2,
+   "cost_usd": 0.068977,
+   "expected": {
+    "decoys": [],
+    "culprit": null,
+    "category": "dependency_timeout",
+    "rule_out": [],
+    "detectable": false
+   },
+   "score": {
+    "top_status": null,
+    "claims": [],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": null,
+    "top_band": null,
+    "ranked_by": null,
+    "culprit_rank": null,
+    "top1": null,
+    "in_top3": null,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 0,
+    "passed": true
+   }
+  }
+ ]
+}

@@ -1,0 +1,302 @@
+{
+ "written_at": "2026-10-29T15:25:16+00:00",
+ "ai_runs": [
+  {
+   "file": "investigations-2026-10-28T145524.json",
+   "run_id": "01a18302-3b61-750c-b022-f265a0ed9013",
+   "started_at": "2026-10-28T14:55:24+00:00",
+   "version": 1,
+   "paid_models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5-5"
+   ]
+  },
+  {
+   "file": "investigations-2026-10-28T150514.json",
+   "run_id": "01a1830b-3fd8-79f8-89d9-cac204ddaeae",
+   "started_at": "2026-10-28T15:05:14+00:00",
+   "version": 2,
+   "paid_models": [
+    "claude-haiku-4-5-20251001",
+    "claude-sonnet-5-5"
+   ]
+  }
+ ],
+ "manual_session": {
+  "seed": 2029,
+  "order": [
+   "investigations-v1-S06",
+   "investigations-v1-S02",
+   "investigations-v2-S19",
+   "investigations-v1-S10",
+   "investigations-v2-S17",
+   "investigations-v1-S08",
+   "investigations-v1-S05",
+   "investigations-v2-S18",
+   "investigations-v1-S03",
+   "investigations-v2-S20",
+   "investigations-v1-S07",
+   "investigations-v2-S21",
+   "investigations-v1-S04",
+   "investigations-v2-S22",
+   "investigations-v1-S15",
+   "investigations-v1-S09"
+  ]
+ },
+ "answers": [
+  {
+   "case": "investigations-v1-S06",
+   "answer": null,
+   "planted": {
+    "kind": "saturation",
+    "subject": "db_pool_utilization"
+   },
+   "abandoned": "clock ran 10 min idle - did not know the commands yet"
+  },
+  {
+   "case": "investigations-v1-S02",
+   "answer": null,
+   "planted": {
+    "kind": "change",
+    "subject": "DEPLOY-9110"
+   },
+   "abandoned": "clock ran while I was away - 0 tool calls"
+  },
+  {
+   "case": "investigations-v2-S19",
+   "answer": null,
+   "planted": {
+    "kind": "traffic",
+    "subject": "requests_per_sec"
+   },
+   "abandoned": "learning the tool - no practice round existed"
+  },
+  {
+   "case": "investigations-v1-S10",
+   "answer": null,
+   "planted": {
+    "kind": "change",
+    "subject": "DEPLOY-9190"
+   },
+   "abandoned": "accidental case opened by a pasted Return before fix1; answer typed with 0 tool calls - corrected by the owner"
+  },
+  {
+   "case": "investigations-v2-S17",
+   "answer": null,
+   "planted": {
+    "kind": "change",
+    "subject": "DEPLOY-9300"
+   },
+   "abandoned": "opened before practice by typing start - 0 tool calls"
+  },
+  {
+   "case": "investigations-v1-S08",
+   "answer": null,
+   "planted": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   },
+   "abandoned": "opened at 19:16, 1 tool call, then left - not worked"
+  },
+  {
+   "case": "investigations-v1-S05",
+   "answer": {
+    "kind": "traffic",
+    "subject": "requests_per_sec"
+   },
+   "planted": {
+    "kind": "change",
+    "subject": "DEPLOY-9140"
+   },
+   "abandoned": null
+  },
+  {
+   "case": "investigations-v2-S18",
+   "answer": {
+    "kind": "traffic",
+    "subject": "requests_per_sec"
+   },
+   "planted": {
+    "kind": "change",
+    "subject": "DEPLOY-9310"
+   },
+   "abandoned": null
+  },
+  {
+   "case": "investigations-v1-S03",
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   },
+   "planted": {
+    "kind": "change",
+    "subject": "DEPLOY-9120"
+   },
+   "abandoned": null
+  },
+  {
+   "case": "investigations-v2-S20",
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   },
+   "planted": {
+    "kind": "saturation",
+    "subject": "db_pool_utilization"
+   },
+   "abandoned": null
+  },
+  {
+   "case": "investigations-v1-S07",
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   },
+   "planted": {
+    "kind": "saturation",
+    "subject": "thread_pool_utilization"
+   },
+   "abandoned": null
+  },
+  {
+   "case": "investigations-v1-S04",
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   },
+   "planted": {
+    "kind": "change",
+    "subject": "DEPLOY-9130"
+   },
+   "abandoned": null
+  }
+ ],
+ "rules": {
+  "cap_s": 1800,
+  "seed": 2029,
+  "sample": 6,
+  "ai_identified": "top = planted cause AND VALIDATED",
+  "manual_identified": "answer = planted (kind, subject) within the cap"
+ },
+ "cases": [
+  {
+   "case": "investigations-v1-S06",
+   "abandoned": "clock ran 10 min idle - did not know the commands yet"
+  },
+  {
+   "case": "investigations-v1-S02",
+   "abandoned": "clock ran while I was away - 0 tool calls"
+  },
+  {
+   "case": "investigations-v2-S19",
+   "abandoned": "learning the tool - no practice round existed"
+  },
+  {
+   "case": "investigations-v1-S10",
+   "abandoned": "accidental case opened by a pasted Return before fix1; answer typed with 0 tool calls - corrected by the owner"
+  },
+  {
+   "case": "investigations-v2-S17",
+   "abandoned": "opened before practice by typing start - 0 tool calls"
+  },
+  {
+   "case": "investigations-v1-S08",
+   "abandoned": "opened at 19:16, 1 tool call, then left - not worked"
+  },
+  {
+   "case": "investigations-v1-S05",
+   "manual_s": 64272.4,
+   "manual_identified": false,
+   "tool_calls": 16,
+   "ai_s": 38.4,
+   "ai_identified": true,
+   "ai_correct_not_validated": false
+  },
+  {
+   "case": "investigations-v2-S18",
+   "manual_s": 56.5,
+   "manual_identified": false,
+   "tool_calls": 4,
+   "ai_s": 39.4,
+   "ai_identified": true,
+   "ai_correct_not_validated": false
+  },
+  {
+   "case": "investigations-v1-S03",
+   "manual_s": 173.9,
+   "manual_identified": false,
+   "tool_calls": 4,
+   "ai_s": 41.0,
+   "ai_identified": true,
+   "ai_correct_not_validated": false
+  },
+  {
+   "case": "investigations-v2-S20",
+   "manual_s": 153.4,
+   "manual_identified": false,
+   "tool_calls": 6,
+   "ai_s": 35.2,
+   "ai_identified": true,
+   "ai_correct_not_validated": false
+  },
+  {
+   "case": "investigations-v1-S07",
+   "manual_s": 142.0,
+   "manual_identified": false,
+   "tool_calls": 6,
+   "ai_s": 25.0,
+   "ai_identified": true,
+   "ai_correct_not_validated": false
+  },
+  {
+   "case": "investigations-v1-S04",
+   "manual_s": 123.6,
+   "manual_identified": false,
+   "tool_calls": 5,
+   "ai_s": 33.1,
+   "ai_identified": true,
+   "ai_correct_not_validated": false
+  }
+ ],
+ "ai_all": {
+  "cases": 17,
+  "identified": 14,
+  "identified_wilson95": [
+   0.59,
+   0.938
+  ],
+  "seconds_when_identified": {
+   "n": 14,
+   "median": 35.7,
+   "min": 23.1,
+   "max": 45.8
+  },
+  "correct_not_validated": 2
+ },
+ "manual": {
+  "cases": 6,
+  "identified": 0,
+  "identified_wilson95": [
+   0.0,
+   0.39
+  ],
+  "seconds_when_identified": {
+   "n": 0,
+   "median": null,
+   "min": null,
+   "max": null
+  }
+ },
+ "paired": {
+  "pairs": 6,
+  "ai_first": 6,
+  "manual_first": 0,
+  "sign_test_p": 0.0312,
+  "ratio_manual_over_ai_when_both": {
+   "n": 0,
+   "median": null,
+   "min": null,
+   "max": null
+  }
+ }
+}
