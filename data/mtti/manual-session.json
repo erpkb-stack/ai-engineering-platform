@@ -1,0 +1,644 @@
+{
+ "seed": 2029,
+ "order": [
+  "investigations-v1-S06",
+  "investigations-v1-S02",
+  "investigations-v2-S19",
+  "investigations-v1-S10",
+  "investigations-v2-S17",
+  "investigations-v1-S08",
+  "investigations-v1-S05",
+  "investigations-v2-S18",
+  "investigations-v1-S03",
+  "investigations-v2-S20",
+  "investigations-v1-S07",
+  "investigations-v2-S21",
+  "investigations-v1-S04",
+  "investigations-v2-S22",
+  "investigations-v1-S15",
+  "investigations-v1-S09"
+ ],
+ "done": [
+  {
+   "case": "investigations-v1-S06",
+   "opened_at": "2026-10-28T15:30:13.843882+00:00",
+   "seconds": 664.3,
+   "tool_calls": 0,
+   "calls": [],
+   "abandoned": "clock ran 10 min idle - did not know the commands yet"
+  },
+  {
+   "case": "investigations-v1-S02",
+   "opened_at": "2026-10-28T15:41:21.892770+00:00",
+   "seconds": 5247.0,
+   "tool_calls": 0,
+   "calls": [],
+   "abandoned": "clock ran while I was away - 0 tool calls"
+  },
+  {
+   "case": "investigations-v2-S19",
+   "opened_at": "2026-10-28T17:08:55.397080+00:00",
+   "seconds": 486.1,
+   "tool_calls": 7,
+   "calls": [
+    {
+     "at_s": 235.4,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "<service>",
+      "start": "2026-10-04T01:00:00+00:00",
+      "end": "2026-10-04T02:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 422
+    },
+    {
+     "at_s": 235.5,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "<service>",
+      "start": "2026-10-03T02:10:00+00:00",
+      "end": "2026-10-04T02:10:00+00:00"
+     },
+     "status": 422
+    },
+    {
+     "at_s": 235.6,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "<DEPLOY-n>"
+     },
+     "status": 422
+    },
+    {
+     "at_s": 245.5,
+     "tool": "search_runbooks",
+     "args": {
+      "query": "<words> incidents <words> catalog <service>"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 471.0,
+     "tool": "query_metrics",
+     "args": {
+      "service_key": "orders-api",
+      "metric": "cpu_util",
+      "start": "2026-10-04T00:00:00+00:00",
+      "end": "2026-10-04T02:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 471.4,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "orders-api",
+      "start": "2026-10-04T01:30:00+00:00",
+      "end": "2026-10-04T02:05:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 471.7,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "orders-api",
+      "start": "2026-10-03T02:10:00+00:00",
+      "end": "2026-10-04T02:10:00+00:00"
+     },
+     "status": 200
+    }
+   ],
+   "abandoned": "learning the tool - no practice round existed"
+  },
+  {
+   "case": "investigations-v1-S10",
+   "opened_at": "2026-10-28T17:17:03.884449+00:00",
+   "seconds": 1927.4,
+   "tool_calls": 0,
+   "calls": [],
+   "corrected_from": {
+    "answer": {
+     "kind": "change",
+     "subject": "code"
+    }
+   },
+   "abandoned": "accidental case opened by a pasted Return before fix1; answer typed with 0 tool calls - corrected by the owner"
+  },
+  {
+   "case": "investigations-v2-S17",
+   "opened_at": "2026-10-28T17:49:26.020747+00:00",
+   "seconds": 5222.1,
+   "tool_calls": 0,
+   "calls": [],
+   "abandoned": "opened before practice by typing start - 0 tool calls"
+  },
+  {
+   "case": "investigations-v1-S08",
+   "opened_at": "2026-10-28T19:16:46.728236+00:00",
+   "seconds": 7178.0,
+   "tool_calls": 1,
+   "calls": [
+    {
+     "at_s": 194.7,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-9100"
+     },
+     "status": 200
+    }
+   ],
+   "abandoned": "opened at 19:16, 1 tool call, then left - not worked"
+  },
+  {
+   "case": "investigations-v1-S05",
+   "opened_at": "2026-10-28T21:17:12.875650+00:00",
+   "seconds": 64272.4,
+   "tool_calls": 16,
+   "calls": [
+    {
+     "at_s": 173.2,
+     "tool": "query_metrics",
+     "args": {
+      "service_key": "orders-api",
+      "metric": "cpu_util",
+      "start": "2026-10-10T12:00:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 197.1,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "orders-api",
+      "start": "2026-10-10T13:00:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 215.0,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "orders-api",
+      "start": "2026-10-09T14:10:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 411.3,
+     "tool": "query_metrics",
+     "args": {
+      "service_key": "catalog-api",
+      "metric": "http_5xx_per_min",
+      "start": "2026-10-10T12:00:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 480.8,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-10T13:00:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 552.6,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-10"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 595.5,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-1400"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 823.4,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-09T14:10:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 1127.9,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "media-apideploys",
+      "start": "2026-10-09T14:10:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 1137.7,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-09T14:10:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 63628.2,
+     "tool": "query_metrics",
+     "args": {
+      "service_key": "catalog-api",
+      "metric": "http_5xx_per_min",
+      "start": "2026-10-10T12:00:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 63656.3,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-10T13:00:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 63671.9,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-1400"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 63688.1,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-09T14:10:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 63712.8,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "media-api",
+      "start": "2026-10-09T14:10:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 63725.6,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-09T14:10:00+00:00",
+      "end": "2026-10-10T14:10:00+00:00"
+     },
+     "status": 200
+    }
+   ],
+   "answer": {
+    "kind": "traffic",
+    "subject": "requests_per_sec"
+   }
+  },
+  {
+   "case": "investigations-v2-S18",
+   "opened_at": "2026-10-29T15:09:07.751958+00:00",
+   "seconds": 56.5,
+   "tool_calls": 4,
+   "calls": [
+    {
+     "at_s": 12.9,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-03T13:00:00+00:00",
+      "end": "2026-10-03T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 24.3,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-1234"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 35.5,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-02T14:10:00+00:00",
+      "end": "2026-10-03T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 45.0,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "media-api",
+      "start": "2026-10-02T14:10:00+00:00",
+      "end": "2026-10-03T14:10:00+00:00"
+     },
+     "status": 200
+    }
+   ],
+   "answer": {
+    "kind": "traffic",
+    "subject": "requests_per_sec"
+   }
+  },
+  {
+   "case": "investigations-v1-S03",
+   "opened_at": "2026-10-29T15:10:21.985375+00:00",
+   "seconds": 173.9,
+   "tool_calls": 4,
+   "calls": [
+    {
+     "at_s": 28.4,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-08T13:00:00+00:00",
+      "end": "2026-10-08T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 80.7,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-1234"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 92.1,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "catalog-api",
+      "start": "2026-10-07T14:10:00+00:00",
+      "end": "2026-10-08T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 110.3,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "media-api",
+      "start": "2026-10-07T14:10:00+00:00",
+      "end": "2026-10-08T14:10:00+00:00"
+     },
+     "status": 200
+    }
+   ],
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   }
+  },
+  {
+   "case": "investigations-v2-S20",
+   "opened_at": "2026-10-29T15:13:26.751521+00:00",
+   "seconds": 153.4,
+   "tool_calls": 6,
+   "calls": [
+    {
+     "at_s": 56.8,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "invoicing-api",
+      "start": "2026-10-04T13:00:00+00:00",
+      "end": "2026-10-04T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 70.4,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-1234"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 80.1,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "invoicing-api",
+      "start": "2026-10-03T14:10:00+00:00",
+      "end": "2026-10-04T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 109.6,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-9330"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 128.1,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "invoicing-api",
+      "start": "2026-10-04T13:00:00+00:00",
+      "end": "2026-10-04T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 140.0,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "media-api",
+      "start": "2026-10-03T14:10:00+00:00",
+      "end": "2026-10-04T14:10:00+00:00"
+     },
+     "status": 200
+    }
+   ],
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   }
+  },
+  {
+   "case": "investigations-v1-S07",
+   "opened_at": "2026-10-29T15:16:11.186845+00:00",
+   "seconds": 142.0,
+   "tool_calls": 6,
+   "calls": [
+    {
+     "at_s": 30.2,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "pricing-api",
+      "start": "2026-10-12T13:00:00+00:00",
+      "end": "2026-10-12T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 89.3,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-9330"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 102.4,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "pricing-api",
+      "start": "2026-10-11T14:10:00+00:00",
+      "end": "2026-10-12T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 114.9,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-9330"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 122.8,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "pricing-api",
+      "start": "2026-10-12T13:00:00+00:00",
+      "end": "2026-10-12T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 132.3,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "media-api",
+      "start": "2026-10-11T14:10:00+00:00",
+      "end": "2026-10-12T14:10:00+00:00"
+     },
+     "status": 200
+    }
+   ],
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   }
+  },
+  {
+   "case": "investigations-v1-S04",
+   "opened_at": "2026-10-29T15:18:42.014522+00:00",
+   "seconds": 123.6,
+   "tool_calls": 5,
+   "calls": [
+    {
+     "at_s": 31.8,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "cart-api",
+      "start": "2026-10-09T13:00:00+00:00",
+      "end": "2026-10-09T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    },
+    {
+     "at_s": 48.9,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-9330"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 59.0,
+     "tool": "get_deployment",
+     "args": {
+      "service_key": "cart-api",
+      "start": "2026-10-08T14:10:00+00:00",
+      "end": "2026-10-09T14:10:00+00:00"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 87.5,
+     "tool": "get_config_diff",
+     "args": {
+      "deploy_key": "DEPLOY-9130"
+     },
+     "status": 200
+    },
+    {
+     "at_s": 112.9,
+     "tool": "search_logs",
+     "args": {
+      "service_key": "cart-api",
+      "start": "2026-10-09T13:00:00+00:00",
+      "end": "2026-10-09T14:10:00+00:00",
+      "order": "asc",
+      "limit": 50
+     },
+     "status": 200
+    }
+   ],
+   "answer": {
+    "kind": "saturation",
+    "subject": "cpu_util"
+   }
+  }
+ ],
+ "current": null
+}

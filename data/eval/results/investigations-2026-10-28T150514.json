@@ -1,0 +1,409 @@
+{
+ "run_id": "01a1830b-3fd8-79f8-89d9-cac204ddaeae",
+ "started_at": "2026-10-28T15:05:14+00:00",
+ "config": {
+  "dataset": "investigations",
+  "version": 2,
+  "paid_models": [
+   "claude-haiku-4-5-20251001",
+   "claude-sonnet-5-5"
+  ],
+  "cases": "all",
+  "api": "http://localhost:8000"
+ },
+ "summary": {
+  "cases": 6,
+  "detectable": 6,
+  "top1": "5/6",
+  "in_top3": "6/6",
+  "confident_wrong": "0/6",
+  "undetectable_abstained": "0/0",
+  "decoy_above": "1/6",
+  "rule_out_ok": "0/0",
+  "passed": "5/6",
+  "outcomes": {
+   "COMPLETE": 6
+  },
+  "latency_s": {
+   "p50": 35.7,
+   "max": 45.6
+  },
+  "cost_usd": 0.379711,
+  "invalid": [],
+  "validated_wrong": "1/6",
+  "wrong_high": "1/6",
+  "proposals": {
+   "correct": 2,
+   "wrong": 0,
+   "missed": 0
+  }
+ },
+ "cases": [
+  {
+   "case": "investigations-v2-S17",
+   "incident": "INC-10293",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 36.1,
+   "cost_usd": 0.055364,
+   "expected": {
+    "decoys": [
+     "cpu_util"
+    ],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9300"
+    },
+    "category": "cpu_saturation",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "change",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "LOW",
+      "status": "PROPOSED",
+      "kind": "saturation",
+      "critic": "weakened",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 0,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": "DEPLOY-9300",
+    "proposal_correct": true,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9300 on analytics-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v2-S18",
+   "incident": "INC-10294",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 39.4,
+   "cost_usd": 0.065651,
+   "expected": {
+    "decoys": [
+     "thread_pool_utilization"
+    ],
+    "culprit": {
+     "kind": "change",
+     "subject": "DEPLOY-9310"
+    },
+    "category": "thread_pool_saturation",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "change",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "MEDIUM",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 0,
+    "validated_wrong": true,
+    "wrong_high": false,
+    "proposal": "DEPLOY-9310",
+    "proposal_correct": true,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "Deploy DEPLOY-9310 on chat-api may have caused the regression: it started 6 min before the first symptom (p95_latency_ms).",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 2,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v2-S19",
+   "incident": "INC-10295",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 31.1,
+   "cost_usd": 0.053263,
+   "expected": {
+    "decoys": [
+     "db_pool_utilization"
+    ],
+    "culprit": {
+     "kind": "traffic",
+     "subject": "requests_per_sec"
+    },
+    "category": "traffic_surge",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "PROPOSED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "MEDIUM",
+      "status": "PROPOSED",
+      "kind": "saturation",
+      "critic": "weakened",
+      "correct": false
+     },
+     {
+      "rank": 2,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "traffic",
+      "critic": "supported",
+      "correct": true
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "DB connection pool saturation on geo-api may have driven the symptoms: db_pool_utilization rose from 2026-10-04 01:45:00Z; it rose 5 min after requests_per_sec: possibly that cause's mechanism, not a separate cause.",
+    "top_band": "MEDIUM",
+    "ranked_by": "llm",
+    "culprit_rank": 2,
+    "top1": false,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": true,
+    "rule_out_ok": true,
+    "hypotheses": 3,
+    "passed": false
+   }
+  },
+  {
+   "case": "investigations-v2-S20",
+   "incident": "INC-10296",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 35.2,
+   "cost_usd": 0.059832,
+   "expected": {
+    "decoys": [
+     "DEPLOY-9330"
+    ],
+    "culprit": {
+     "kind": "saturation",
+     "subject": "db_pool_utilization"
+    },
+    "category": "connection_pool_exhaustion",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "MEDIUM",
+      "status": "PROPOSED",
+      "kind": "change",
+      "critic": "weakened",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "DB connection pool saturation on invoicing-api may have driven the symptoms: db_pool_utilization rose from 2026-10-04 13:42:00Z.",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 3,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v2-S21",
+   "incident": "INC-10297",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 45.6,
+   "cost_usd": 0.098538,
+   "expected": {
+    "decoys": [
+     "DEPLOY-9340"
+    ],
+    "culprit": {
+     "kind": "saturation",
+     "subject": "db_pool_utilization"
+    },
+    "category": "connection_pool_exhaustion",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "LOW",
+      "status": "PROPOSED",
+      "kind": "change",
+      "critic": "weakened",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": false,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "DB connection pool saturation on loyalty-api may have driven the symptoms: db_pool_utilization rose from 2026-10-05 01:42:00Z.",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 3,
+    "passed": true
+   }
+  },
+  {
+   "case": "investigations-v2-S22",
+   "incident": "INC-10298",
+   "outcome": "COMPLETE",
+   "invalid": false,
+   "error": null,
+   "validation_passed": true,
+   "latency_s": 32.3,
+   "cost_usd": 0.047063,
+   "expected": {
+    "decoys": [
+     "DEPLOY-9350"
+    ],
+    "culprit": {
+     "kind": "saturation",
+     "subject": "db_pool_utilization"
+    },
+    "category": "connection_pool_exhaustion",
+    "rule_out": [],
+    "detectable": true
+   },
+   "score": {
+    "top_status": "VALIDATED",
+    "claims": [
+     {
+      "rank": 1,
+      "band": "HIGH",
+      "status": "VALIDATED",
+      "kind": "saturation",
+      "critic": "supported",
+      "correct": true
+     },
+     {
+      "rank": 2,
+      "band": "HIGH",
+      "status": "PROPOSED",
+      "kind": "change",
+      "critic": "weakened",
+      "correct": false
+     }
+    ],
+    "critic_alternatives": 1,
+    "validated_wrong": false,
+    "wrong_high": true,
+    "proposal": null,
+    "proposal_correct": false,
+    "proposal_wrong": false,
+    "proposal_missed": false,
+    "top": "DB connection pool saturation on partner-api may have driven the symptoms: db_pool_utilization rose from 2026-10-05 13:35:00Z.",
+    "top_band": "HIGH",
+    "ranked_by": "llm",
+    "culprit_rank": 1,
+    "top1": true,
+    "in_top3": true,
+    "confident_wrong": false,
+    "decoy_above": false,
+    "rule_out_ok": true,
+    "hypotheses": 3,
+    "passed": true
+   }
+  }
+ ]
+}
