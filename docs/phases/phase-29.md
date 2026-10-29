@@ -193,8 +193,27 @@ counted as a failed case. The owner corrected that record openly (marked abandon
 answer kept in `corrected_from`). Practice judges the answer only (the right answer after an
 80-minute practice was shown as "not right" because the 30-minute cap was applied).
 
+**29e result (Mac, 2026-10-28/29): the AI side is measured; the manual side is NOT a valid
+baseline (owner decision 2026-10-29, ADR-047 amendment).**
+- AI, real models (v1 `investigations-2026-10-28T145524.json`, v2 `...150514.json`, 0 invalid):
+  **14 of 17 detectable planted cases identified (top cause = planted AND VALIDATED; Wilson 95%
+  59-94%), median 35.7 s (23.1-45.8 s)**; 2 more had the right top cause without validation.
+  Planted data: an upper bound.
+- Manual: 12 cases opened, 6 abandoned (each with its reason: idle clocks, pasted Returns, no
+  practice round), 6 answered, 0 identified. The answers were not investigations: the last 5
+  took 56-174 s with 4-6 tool calls and NO metrics call; two queried the previous case's services;
+  the answers repeated (traffic requests_per_sec x2, saturation cpu_util x4); one ran `diff` on the
+  culprit deploy and answered cpu_util. The first report (`mtti-2026-10-29T152516.json`) printed
+  "AI first 6, manual first 0, sign test p=0.031" - a true computation of a meaningless
+  comparison. It is kept as a record, never quoted.
+- My fault too: the demo check counted cases and would have PASSED on this; fixed (the report now
+  shows the work per case; an owner-declared invalid baseline makes the step AI-only).
+- What I learned about the protocol: a timed terminal investigation is a skill test, not a time
+  measurement, unless the person practises first and works in one sitting; and only a person who
+  never saw the data gives a fair baseline.
+
 ## 8. Next
-29e on the Mac: the paid AI run, the 6 timed cases, `make mtti`. Then the gate: `make
+Results PR (session, both reports, both AI runs). Then the gate: `make
 demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
 
 ## 9. Verify
@@ -203,5 +222,5 @@ demo-fresh && make demo && make demo-clean`, 3 real-model PASS in a row.
 - [x] 29b on the Mac: CI green (PR #47), `alert_intake` PASS with SEV1 + "tier 1", netpol 0 failed with incident-service -> service-catalog open, 0 restarts.
 - [x] 29c on the Mac: CI green (PR #48), `removed_shown` PASS ("0 removed" on fakes); real-postmortem rate measured (8/70).
 - [x] 29d on the Mac: CI green (PRs #49, #50), `evidence_graph` PASS, browser graph test passed (not skipped).
-- [ ] 29e on the Mac: the paid AI run (v1 + v2), 6 manual cases timed by the owner, `make mtti` report committed; `make demo` shows `mtti` PASS on real models.
+- [ ] 29e on the Mac: the paid AI run (v1 + v2, 0 invalid); manual session recorded and declared invalid by the owner (ADR-047 amendment); `make mtti INVALID=...` report committed; `make demo` shows `mtti` PASS as AI-only on real models (checked in the gate runs).
 - [ ] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`.

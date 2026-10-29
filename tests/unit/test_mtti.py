@@ -179,3 +179,22 @@ def test_the_answer_metrics_are_exactly_the_tools_metrics() -> None:
     from aeoi_tools.schemas import METRICS
 
     assert m.METRICS == METRICS
+
+
+def test_the_report_shows_the_work_done_and_keeps_an_invalid_baseline_unquotable() -> None:
+    calls = [{"tool": "search_logs", "args": {"service_key": "other-api"}},
+             {"tool": "query_metrics", "args": {"service_key": "orders-api"}}]  # fmt: skip
+    manual = [{"case": "a", "seconds": 90, "answer": CULPRIT, "culprit": CULPRIT,
+               "calls": calls, "services": ["orders-api"], "tool_calls": 2}]  # fmt: skip
+    r = m.report(manual, {"a": _ai("a", 40)})
+    row = r["cases"][0]
+    assert (row["metrics_calls"], row["off_alert_calls"]) == (1, 1)
+    assert r["manual_valid"] is True and r["quotable"] == {
+        "ai": True,
+        "manual": True,
+        "paired": True,
+    }
+    bad = m.report(manual, {"a": _ai("a", 40)}, manual_invalid="answered in 1-3 min, no metrics")
+    assert bad["manual_valid"] is False and bad["quotable"] == {"ai": True, "manual": False,
+                                                                "paired": False}  # fmt: skip
+    assert bad["manual"]["identified"] == 1  # still computed and kept, never hidden

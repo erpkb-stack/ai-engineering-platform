@@ -20,7 +20,7 @@ Status per step: `docs/phases/phase-29.md` section 1 (Phase 29 need check). Ever
 | 10:00 | Human approval | IC approves "roll back 2026.10.02.4" with a reason → controlled tool (simulated) | 16 |
 | 11:00 | Audit trail | who/when/what/evidence/args hash; ENGINEER tries to approve → 403 | 17 |
 | 11:30 | Security moment | poisoned runbook chunk tries injection → ignored, flagged | (bonus) |
-| 12:00 | Business value | measured MTTI from `make mtti` (ADR-047): per case, identified rates with Wilson intervals, medians, the paired result on 6 cases timed by the owner - said as a small, non-blind sample, never "X% faster"; cost/investigation; eval dashboard | 18 |
+| 12:00 | Business value | time to identify, AI side only (ADR-047 amendment): on 17 planted cases the AI identified 14 (Wilson 95% 59-94%), median 36 s (23-46 s), real models, upper bound (planted data). Said plainly: NO valid human baseline was measured - the attempt is recorded, not quoted. Cost/investigation; eval dashboard | 18 |
 | 13:00 | Architecture + what's prototype vs production | one slide, honest limits | — |
 
 Rules: `make demo-fresh && make demo && make demo-clean` 3 times in a row on real models before any interview (ADR-043). Have a recorded video as a fallback (live LLM calls can fail; say so if they do and show the recording).

@@ -175,3 +175,18 @@ def test_mtti_quotes_measured_numbers_or_nothing() -> None:
     assert d.mtti(None, False)[0] == d.NA and d.mtti(None, True)[0] == d.FAIL
     assert d.mtti({**rep, "manual": {**rep["manual"], "cases": 5}}, True)[0] == d.FAIL
     assert d.mtti({**rep, "ai_runs": [{"paid_models": []}]}, True)[0] == d.FAIL
+
+
+def test_mtti_with_the_manual_side_declared_invalid_quotes_the_ai_only() -> None:
+    """Owner decision 2026-10-29: the manual baseline was not a real investigation; the demo
+    says so and quotes no comparison (the paired 6-0 must never appear)."""
+    rep = {"manual_valid": False, "manual_invalid_reason": "5 cases answered in 1-3 min, no metrics",
+           "manual": {"cases": 6, "identified": 0, "seconds_when_identified": {"median": None}},
+           "ai_all": {"cases": 17, "identified": 14, "seconds_when_identified": {"median": 35.7}},
+           "paired": {"ai_first": 6, "manual_first": 0},
+           "ai_runs": [{"paid_models": ["claude-sonnet-5-5"]}]}  # fmt: skip
+    status, detail = d.mtti(rep, True)
+    assert status == d.PASS and detail.startswith("AI ONLY - identified 14/17")
+    assert "NO valid human baseline" in detail and "6" not in detail.split("baseline")[0][-10:]
+    assert "first" not in detail  # no paired claim
+    assert d.mtti({**rep, "ai_runs": [{"paid_models": []}]}, True)[0] == d.FAIL

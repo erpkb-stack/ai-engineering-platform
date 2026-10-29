@@ -479,9 +479,9 @@ demo: ## Phase 29: the demo script end to end on the DEPLOYED system, every step
 manual: ## Phase 29e (ADR-047): time YOURSELF on 6 planted incidents with the agents' read tools (docs/demo/mtti-protocol.md); the clock never pauses. PRACTICE=1 = one untimed case first
 	uv run python tests/mtti/manual.py $(if $(PRACTICE),--practice,)
 
-mtti: ## Phase 29e: MTTI report - make mtti FILES="<v1 result> <v2 result>" (real-model eval runs of the CURRENT code); reveals the planted answers
+mtti: ## Phase 29e: MTTI report - make mtti FILES="<v1 result> <v2 result>" [INVALID="<why the manual side is not a valid baseline>"] (real-model eval runs of the CURRENT code); reveals the planted answers
 	@[ -n "$(FILES)" ] || { echo 'usage: make mtti FILES="data/eval/results/<v1>.json data/eval/results/<v2>.json"'; exit 1; }
-	uv run python tests/mtti/report.py $(FILES)
+	uv run python tests/mtti/report.py $(FILES) $(if $(INVALID),--manual-invalid "$(INVALID)",)
 
 demo-fresh: ## Phase 29: the "clean make up" before a counted pass: fresh infra containers + fresh app pods, DATA KEPT (no db-seed: it truncates rag + history). [LLM_ROUTING=routing.load.yaml to rehearse]
 	@set -eu -o pipefail; $(MAKE) --no-print-directory down; $(MAKE) --no-print-directory up PROFILE=kafka; \

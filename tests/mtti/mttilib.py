@@ -170,9 +170,27 @@ def sign_test(wins: int, losses: int) -> float:
     return round(min(1.0, 2 * tail), 4)
 
 
-def report(manual: list[dict[str, Any]], ai: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """manual: finished manual cases {case, seconds, answer, culprit, abandoned?};
-    ai: eval result cases by case key (current code, real models)."""
+def work_evidence(m: dict[str, Any]) -> dict[str, int]:
+    """What the manual investigation actually did - shown per case so a reader can judge it
+    (29e: the first full session answered 5 cases in 1-3 minutes with no metrics call, two of
+    them querying the PREVIOUS case's services). Facts only: no rule decides validity here."""
+    calls = m.get("calls") or []
+    services = set(m.get("services") or [])
+    return {
+        "metrics_calls": sum(1 for c in calls if c.get("tool") == "query_metrics"),
+        "off_alert_calls": sum(1 for c in calls if (c.get("args") or {}).get("service_key")
+                               and c["args"]["service_key"] not in services),
+    }  # fmt: skip
+
+
+def report(
+    manual: list[dict[str, Any]], ai: dict[str, dict[str, Any]], manual_invalid: str | None = None
+) -> dict[str, Any]:
+    """manual: finished manual cases {case, seconds, answer, culprit, calls, services, abandoned?};
+    ai: eval result cases by case key (current code, real models).
+    manual_invalid: the OWNER's declaration that the manual side is not a valid baseline, with
+    the reason (ADR-047 amendment, 2026-10-29). Everything is still computed and kept; only the
+    AI side is then quotable."""
     rows, pairs = [], []
     for m in manual:
         if m.get("abandoned"):
@@ -182,7 +200,8 @@ def report(manual: list[dict[str, Any]], ai: dict[str, dict[str, Any]]) -> dict[
         a = ai.get(m["case"])
         ai_ok, ai_unvalidated = identified_ai(a) if a else (False, False)
         row = {"case": m["case"], "manual_s": round(m["seconds"], 1), "manual_identified": man_ok,
-               "tool_calls": m.get("tool_calls", 0), "ai_s": a["latency_s"] if a else None,
+               "tool_calls": m.get("tool_calls", 0), **work_evidence(m),
+               "ai_s": a["latency_s"] if a else None,
                "ai_identified": ai_ok, "ai_correct_not_validated": ai_unvalidated}  # fmt: skip
         rows.append(row)
         if a is not None:
@@ -200,6 +219,10 @@ def report(manual: list[dict[str, Any]], ai: dict[str, dict[str, Any]]) -> dict[
             losses += 1
     both = [r for r in pairs if r["ai_identified"] and r["manual_identified"]]
     return {
+        "manual_valid": manual_invalid is None,
+        "manual_invalid_reason": manual_invalid,
+        "quotable": {"ai": True, "manual": manual_invalid is None,
+                     "paired": manual_invalid is None},
         "rules": {"cap_s": CAP_S, "seed": SEED, "sample": SAMPLE,
                   "ai_identified": "top = planted cause AND VALIDATED",
                   "manual_identified": "answer = planted (kind, subject) within the cap"},

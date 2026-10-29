@@ -1,6 +1,6 @@
 # ADR-047: MTTI is measured on the same planted cases, paired, with the rules fixed before timing
 
-Status: Proposed (29e built 2026-10-28; sandbox only)
+Status: Proposed (29e built 2026-10-28; amended 2026-10-29: manual baseline declared invalid, AI-only)
 Date: 2026-10-28
 Refines: ADR-043 (demo minute 12:00), ADR-037 (planted cases, exact scoring)
 
@@ -35,6 +35,22 @@ Refines: ADR-043 (demo minute 12:00), ADR-037 (planted cases, exact scoring)
   a case opens only on the typed word `start`; a resumed case says CLOCK RUNNING; an untimed
   `make manual PRACTICE=1` on v1-S01 (never in the sample); an abandoned case is replaced from
   its own pack, so the 4 + 2 mix holds.
+
+## Amendment 2026-10-29 - the manual baseline was not valid; the demo quotes the AI only
+- What happened: after 6 recorded abandons (tool and protocol faults, fixed in fix1/fix2), the
+  6 scored manual cases were 0 identified - and NOT investigations: the last 5 took 56-174 s
+  with 4-6 tool calls and no metrics call, two queried the PREVIOUS case's services, and the
+  answers repeated (traffic requests_per_sec x2, saturation cpu_util x4); one ran `diff` on the
+  culprit deploy and answered cpu_util. Quoting "AI first 6 of 6, sign test p=0.031" would claim
+  that AI beats a human engineer on data where no one investigated.
+- Also a fault in MY rule: the demo check counted 6 scored cases and would have PASSED on this.
+- Owner decision: keep every file; `make mtti INVALID="<reason>"` marks the manual side invalid
+  (`manual_valid: false`, `quotable: {ai: true, manual: false, paired: false}`); the report shows
+  per case the work done (tool calls, metrics calls, calls to services outside the alert) so a
+  reader can judge it; the demo step quotes the AI side ONLY and says that no valid human
+  baseline exists. No rule in code decides validity: the evidence is shown, the owner declares.
+- What a valid baseline would need (not done): a person who never saw the data (blind), a
+  practice round first, one focused sitting per case.
 
 ## Tradeoffs
 - n = 6, one person, not blind: the comparison shows a direction and a size on THESE cases, not a
