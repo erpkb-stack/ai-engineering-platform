@@ -39,7 +39,7 @@ _INSERT = text("""
 INSERT INTO audit.audit_events (id, occurred_at, actor, actor_role, action, resource_type,
                                 resource_id, incident_id, correlation_id, outcome, details)
 VALUES (:id, :occurred_at, :actor, NULL, :action, 'incident', :resource_id, :incident_id,
-        :correlation_id, 'SUCCESS', CAST(:details AS jsonb))
+        :correlation_id, :outcome, CAST(:details AS jsonb))
 ON CONFLICT (id, occurred_at) DO NOTHING
 """)
 
@@ -89,12 +89,23 @@ def to_row(msg: Message, *, now: datetime | None = None) -> dict[str, Any]:
         "action": f"event.{event_type}", "resource_id": str(incident_id) if incident_id else None,
         "incident_id": incident_id,
         "correlation_id": _str(doc, "correlation_id", 80, required=False),
+        "outcome": outcome_of(event_type or "", payload),
         "details": json.dumps({
             "event_type": event_type, "schema_version": doc.get("schema_version"),
             "payload": payload, "_ingested_by": f"kafka:{msg.topic}",
             "_source": f"{msg.topic}[{msg.partition}]@{msg.offset}",
         }),
     }  # fmt: skip
+
+
+def outcome_of(event_type: str, payload: dict[str, Any]) -> str:
+    """Phase 30 (architecture review): every Kafka row was stored as SUCCESS, so an action
+    that RAN AND FAILED (ActionExecuted with status FAILED) answered an outcome=FAILURE query
+    with nothing. A rejection or an expiry is a decision that happened: SUCCESS. DENIED stays
+    the tool gateway's word for a refused call; no lifecycle event means that."""
+    if event_type == "ActionExecuted" and payload.get("status") == "FAILED":
+        return "FAILURE"
+    return "SUCCESS"
 
 
 def handler(sessions: async_sessionmaker[AsyncSession]) -> Handler:

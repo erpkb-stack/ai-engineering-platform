@@ -475,9 +475,9 @@ async def hypotheses(
     """Latest investigation's hypotheses by default. CODE-written statements are conclusions
     and are shown to every incident reader; the EVIDENCE edges are filtered by kind like GET
     evidence. MODEL-written text (the ranker's explanation, the critic's 'missing', a critic
-    alternative's statement) can quote evidence, so a reader who lacks a permission for ANY
-    of the hypothesis' evidence kinds gets it redacted (review finding: the trace endpoint
-    already hid exactly this text)."""
+    alternative's statement) can quote ANY observation the models were shown, so it needs a
+    reader of EVERY evidence kind of the incident (Phase 30, the ADR-045 rule; before, only
+    this hypothesis' own kinds were checked, and a hypothesis with no edges was never hidden)."""
     incident = await load(session, ref)
     if investigation_id is None:
         investigation_id = await session.scalar(
@@ -515,7 +515,11 @@ async def hypotheses(
         shown = [e for e in mine if e.kind in readable]
         detail = dict(h.detail or {})
         statement = h.statement
-        redacted = len(shown) < len(mine)
+        # Phase 30 (security review #3): the ranker and the critic saw EVERY observation, so their
+        # prose can quote any kind - hiding it only when THIS hypothesis' own edges are hidden
+        # showed a log-quoting explanation to a reader without logs (and a zero-edge hypothesis
+        # to everyone). Model text needs every evidence kind of the incident (the ADR-045 rule).
+        redacted = len(shown) < len(mine) or not see_removed
         if redacted:
             for k in MODEL_TEXT:
                 if detail.get(k):

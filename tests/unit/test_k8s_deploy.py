@@ -180,7 +180,8 @@ def _preflight_runner(**over: tuple[int, str]) -> FakeRunner:
         "kind get clusters": (0, "aeoi\n"),
         "NetworkSettings": (0, json.dumps({"kind": {}, "aeoi_default": {}})),
         "ps --format json postgres": (0, json.dumps({"Service": "postgres", "Health": "healthy"})),
-        "--status running": (0, "postgres\n"),
+        # Phase 30: compose defaults to Kafka + the audit consumer, so a good state runs kafka
+        "--status running": (0, "postgres\nkafka\n"),
     }
     answers.update(over)
     return FakeRunner(answers)
@@ -202,7 +203,8 @@ def test_preflight_passes_on_a_good_state() -> None:
     ({"NetworkSettings": (0, json.dumps({"kind": {}}))}, "kind-up"),
     ({"ps --format json postgres": (0, json.dumps({"Health": "starting"}))}, "make up"),
     ({"ps --format json postgres": (0, "")}, "make up"),
-    ({"--status running": (0, "postgres\napi\n")}, "apps-down"),
+    ({"--status running": (0, "postgres\nkafka\napi\n")}, "apps-down"),
+    ({"--status running": (0, "postgres\n")}, "PROFILE=kafka"),  # the Phase 30 default
 ])  # fmt: skip
 def test_preflight_refuses_known_bad_states(over: dict[str, tuple[int, str]], match: str) -> None:
     with pytest.raises(kd.DeployError, match=match):
@@ -214,8 +216,8 @@ def test_preflight_needs_kafka_running_when_env_turns_it_on() -> None:
     cfg = _config()
     cfg["services"]["incident-service"]["environment"]["AEOI_INCIDENT_EVENT_TRANSPORT"] = "kafka"
     with pytest.raises(kd.DeployError, match="PROFILE=kafka"):
-        kd.preflight(_preflight_runner(), cfg)
-    kd.preflight(_preflight_runner(**{"--status running": (0, "postgres\nkafka\n")}), cfg)
+        kd.preflight(_preflight_runner(**{"--status running": (0, "postgres\n")}), cfg)
+    kd.preflight(_preflight_runner(), cfg)
 
 
 def test_preflight_reads_old_compose_ps_arrays_too() -> None:
@@ -407,8 +409,9 @@ def test_compose_config_adds_the_profiles_the_switches_need() -> None:
     on["services"]["tool-gateway"]["environment"]["AEOI_TOOLS_CATALOG_URL"] = "http://x:8010"
     r = FakeRunner({"config --format json": (0, json.dumps(on))})
     kd.compose_config(r)
+    # Phase 30: kafka is in by default (the audit consumer + the kafka transport)
     assert r.log[-1] == ["docker", "compose", "--profile", "apps", "--profile", "apps-catalog",
-                         "config", "--format", "json"]  # fmt: skip
+                         "--profile", "kafka", "config", "--format", "json"]  # fmt: skip
 
 
 def test_an_unreachable_answer_counts_as_closed_for_a_target_that_is_up() -> None:

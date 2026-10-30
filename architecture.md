@@ -4,6 +4,12 @@
 > This document does not describe any real company's internal systems.
 > Every design statement is labelled **[P]** Prototype (this repo on a Mac), **[Prod]** Production (one company, one region), or **[Ent]** Enterprise-scale (thousands of services, multi-region).
 
+> **As built (Phase 30 review, 2026-10-30, ADR-048):** sections 7, 8, 9, 11, 17 and 18 now show what RUNS:
+> 9 services, agents on HTTP (ADR-030), Kafka for ONE flow (incident.lifecycle -> audit), no Redis user, no
+> knowledge-service and no evaluation service (never built; evaluation is the offline `make eval-*` job).
+> The rest of this document is the Phase 1 design and its reasoning, kept as written; where it differs from the
+> code, the code and the ADRs win.
+
 ---
 
 ## 0. Review of the original spec (read this first)
@@ -14,7 +20,7 @@ You asked me to challenge the design. These are the changes I made to the spec, 
 |---|---|---|---|
 | C1 | 11 microservices from day one | One developer, one laptop (Intel, CPU-only). 11 services means 11 Dockerfiles, 11 health models, and distributed debugging before there is any business logic. Interviewers **will** ask "why not a modular monolith?" | **Kept, at your request.** Mitigations: shared `libs/`, one service template (`/new-service` skill), compose profiles, and services built only in the phase that needs them. ADR-011 records the cost and the answer you give in interviews. |
 | C2 | Separate API Gateway service | Writing your own gateway duplicates Envoy/Traefik/AWS API Gateway. | `services/api` is a **BFF + auth edge** (JWT, RBAC, rate limit, routing). TLS and load balancing stay in infrastructure (ingress). |
-| C3 | Knowledge Service and RAG Service and Service Catalog | Three services overlap on "engineering knowledge". | Service Catalog (Java) = source of truth for entities and edges. Knowledge Service = derived graph and impact traversal only. RAG = unstructured text. Flagged as the **first candidate to merge** in Phase 30. |
+| C3 | Knowledge Service and RAG Service and Service Catalog | Three services overlap on "engineering knowledge". | Service Catalog (Java) = source of truth for entities and edges. Knowledge Service = derived graph and impact traversal only. RAG = unstructured text. Flagged as the **first candidate to merge** in Phase 30. **Phase 30 result (ADR-048): the Knowledge Service was never built; impact traversal lives in the tools over the catalog and rag.** |
 | C4 | 12 agents | Three of them are not LLM agents. **Security Agent**: security must be deterministic and must not be skippable, so it is policy code in the Tool Gateway and retrieval layer. A prompt can be talked out of a rule; a policy check cannot. **Incident Agent**: overlaps with the Orchestrator planner. **Timeline**: merging timestamps is code. | **9 LLM agents + 3 deterministic components.** Security → `PolicyEngine`. Incident Agent → kept as a small triage node (severity and services) because it uses the catalog. Timeline → `TimelineBuilder` function node. Validation is split: deterministic citation and schema checks first, then an LLM judge only for "is the claim supported by the evidence". |
 | C5 | "Confidence: 86%" | An LLM-written percentage is not calibrated. If you show 86% in an interview, the next question is "86% of what? How did you measure it?" | Confidence is an **evidence-rubric band** (HIGH/MEDIUM/LOW) computed from evidence count, independence, temporal fit and whether there is contradicting evidence. A percentage is shown only after calibration against labelled incidents (Phase 25). |
 | C6 | "Search millions of historical records" | True for [Ent]. On a laptop with 500 incidents it is just a claim. | pgvector HNSW is good to roughly 5–10M vectors on one node with enough RAM. The design shows where it breaks (§17) and what replaces it. |
@@ -114,78 +120,77 @@ Every KPI has a defined measurement source. Numbers are measured, never assumed.
 | Reproducibility | prompt, model, retrieval config and dataset versions recorded per run | same |
 | Portability | runs on Intel macOS + Docker Desktop | EKS (reference), maps to AKS/GKE |
 
-## 7. Complete system architecture
+## 7. Complete system architecture (as built, Phase 30)
 
 ```
-                       ┌──────────────────────────────────────────────────────────────────┐
-  Browser (React) ───► │ api (BFF/edge): JWT, RBAC, rate-limit, idempotency, routing      │
-                       └──────┬───────────────┬───────────────────┬───────────────────────┘
-                              │REST           │REST               │REST
-                 ┌────────────▼───┐   ┌───────▼────────┐   ┌──────▼──────────┐
-                 │incident-service│   │ rag (search)   │   │ evaluation      │
-                 │ incidents,     │   │ hybrid + perms │   │ datasets, runs  │
-                 │ timeline,      │   └───────▲────────┘   └──────▲──────────┘
-                 │ approvals      │           │                   │
-                 └──────┬─────────┘           │                   │
-          outbox→Kafka  │ IncidentCreated     │                   │
-   ═════════════════════▼═════════════════════╪═══════════════════╪═════════ Kafka ════════
-                 ┌──────────────┐  AgentTask  │ ┌─────────────────┴─┐   all events
-                 │ orchestrator │ ──────────► │ │ agents (workers)  │ ────────────► audit
-                 │ LangGraph +  │ ◄────────── │ │ log/metrics/code/ │               (append-only)
-                 │ checkpoints  │ AgentDone   │ │ deploy/rag/hist/  │
-                 └──────┬───────┘             │ │ critic/valid/rep  │
-                        │                     │ └───┬──────────┬────┘
-                        │ LLM calls           │     │tools     │LLM calls
-                 ┌──────▼──────────────────────────▼──┐  ┌────▼─────────────┐
-                 │ llm-gateway: Claude | Ollama |      │  │ tool-gateway:    │
-                 │ OpenAI-compat | Gemini; routing,    │  │ authz, policy,   │
-                 │ cache, budgets, cost accounting     │  │ timeout, audit   │
-                 └─────────────────────────────────────┘  └──┬──────────┬────┘
-                                                             │          │
-                     ┌───────────────────────┐   ┌───────────▼──┐  ┌────▼───────────────────┐
-                     │ service-catalog (Java)│◄──┤ knowledge-svc│  │ "external" systems      │
-                     │ services/owners/deps  │   │ graph/impact │  │ (simulated): logs,      │
-                     └───────────────────────┘   └──────────────┘  │ metrics, git, deploys   │
-                                                                   └─────────────────────────┘
-   Shared: PostgreSQL 16 + pgvector (schema per service) · Redis · OTel Collector → Prometheus/Tempo → Grafana
+ Browser (React console)            Alertmanager (signed webhook, HMAC)
+            └──────────────┬──────────────┘
+                           ▼
+ ┌────────────────────────────────────────────────────────────────────────────┐
+ │ api - the only public edge: JWT (Keycloak / dev issuer), RBAC, rate limit,  │
+ │ routing, token exchange (STS)                                               │
+ └────────────────────────────────────────────────────────────────────────────┘
+      │              │               │               │               │
+      ▼              ▼               ▼               ▼               ▼
+ incident-service  orchestrator   tool-gateway    audit (reads)    rag (search)
+      │              │               │               ▲               │
+      │              ▼  HTTP tasks   │               │               ▼
+      │           agents ──tools────►│               │          llm-gateway ◄── agents
+      │                              │               │          (Claude | Ollama)
+      ├─► service-catalog (Java)  ◄──┤ (alert triage / tools)
+      │                              ├─► rag, incident-service, simulated sources
+      │                              └─► audit (HTTP relay of every tool call)
+      └─► outbox ─► Kafka `incident.lifecycle` ─► audit consumer
 ```
+
+Who calls whom (exact, from the services' settings):
+
+| caller | calls |
+|---|---|
+| api | incident-service, orchestrator, tool-gateway, audit, rag |
+| orchestrator | agents (tasks, delegated token), incident-service, api (token exchange) |
+| agents | tool-gateway, llm-gateway |
+| tool-gateway | rag, service-catalog (Java switch; the JSON file is the default), incident-service (approval consume), audit (relay) |
+| incident-service | service-catalog (alert triage, optional); Kafka (outbox relay) |
+| rag | llm-gateway (rerank) |
+| audit | Kafka `incident.lifecycle` (the ONLY consumer) |
+
+Shared: PostgreSQL 16 + pgvector (schema per service) · Keycloak · OTel Collector -> Prometheus/Tempo/Loki -> Grafana.
+Not used by any service: Redis (profile only, ADR-031). Never built: knowledge-service, evaluation (ADR-048).
 
 **External systems are simulated [P]:** logs, metrics, traces, Git and deploy history are synthetic datasets served by tool adapters behind the Tool Gateway (Postgres tables + JSONL files). Swapping in Loki/Prometheus/GitHub APIs is an adapter change. This is the right interview framing: "the gateway contract is real; the backends are simulated".
 
-## 8. Architecture diagram (C4 container view, Mermaid)
+## 8. Architecture diagram (C4 container view, Mermaid) - as built
 
 ```mermaid
 flowchart LR
-  U[Engineer / SRE / IC] --> FE[React console]
-  FE --> API[api BFF\nJWT·RBAC·rate limit]
+  U[Engineer / SRE / IC / Manager] --> FE[React console]
+  AM[Alertmanager] -- signed webhook --> API
+  FE --> API[api edge\nJWT·RBAC·rate limit·STS]
   API --> INC[incident-service]
+  API --> ORCH[orchestrator LangGraph]
   API --> RAG[rag]
-  API --> EVAL[evaluation]
+  API --> TG[tool-gateway]
   API --> AUD[audit query]
-  API --> CAT[service-catalog Java]
-  INC -- IncidentCreated --> K[(Kafka)]
-  K --> ORCH[orchestrator LangGraph]
-  ORCH -- AgentTask --> K
-  K --> AG[agent workers xN]
-  AG -- AgentCompleted/Evidence --> K
-  K --> ORCH
-  ORCH -- HumanReviewRequired --> K --> INC
-  AG --> TG[tool-gateway]
+  INC -- catalog lookup, alert triage --> CAT[service-catalog Java]
+  INC -- outbox: incident.lifecycle --> K[(Kafka)] --> AUD
+  ORCH -- HTTP tasks + delegated token --> AG[agents]
+  ORCH --> INC
+  ORCH -- token exchange --> API
+  AG --> TG
   AG --> LLM[llm-gateway]
-  ORCH --> LLM
-  TG --> CAT
-  TG --> KS[knowledge-service]
+  RAG -- rerank --> LLM
   TG --> RAG
+  TG --> CAT
+  TG --> INC
+  TG -- audit relay --> AUD
   TG --> SIM[(simulated logs/metrics/git/deploys)]
   LLM --> P1[Claude API]
   LLM --> P2[Ollama local]
-  K --> AUD
   subgraph Data
     PG[(PostgreSQL + pgvector)]
-    R[(Redis)]
   end
-  INC & RAG & ORCH & AUD & EVAL & TG & LLM --> PG
-  API & LLM & TG --> R
+  INC & RAG & ORCH & AUD & TG & LLM --> PG
 ```
 
 ---
@@ -194,21 +199,19 @@ flowchart LR
 
 **Pattern: planner + parallel specialists + adversarial review + deterministic gates**, as a LangGraph `StateGraph` with a Postgres checkpointer.
 
+As built (orchestrator `graph.py`; HTTP tasks, ADR-030; the human step is a separate approval request, ADR-026 - no `interrupt()`; validation is CODE, no LLM judge):
+
 ```mermaid
 flowchart TD
-  S([IncidentCreated]) --> T[triage node\nIncident Agent: severity, services]
-  T --> P[plan node\nOrchestrator: choose agents + tool budget]
-  P -->|Send fan-out| L[Log agent] & M[Metrics agent] & D[Deployment agent] & C[Code agent] & R[RAG agent] & H[Historical agent]
-  L & M & D & C & R & H --> TL[TimelineBuilder\nfunction]
-  TL --> HY[hypothesize node\nOrchestrator LLM: rank hypotheses]
-  HY --> CR[Critic agent]
-  CR -->|needs more evidence & budget left| P
-  CR --> VD[Validation: deterministic checks]
-  VD --> VJ[Validation: LLM judge]
-  VJ -->|unsupported claims| HY
-  VJ --> RP[Report agent]
-  RP --> HI{{interrupt: human review}}
-  HI -->|approve / reject / more info| END([record + audit])
+  S([POST /investigate]) --> P[plan]
+  P -->|Send fan-out| L[log_analysis] & M[metrics] & D[deployment] & K[knowledge]
+  L & M & D & K --> CE[collect_evidence]
+  CE --> HI[history] --> CO[code] --> HY[hypothesize\nranker model]
+  HY --> CR[critique\ncritic model, blind to the ranker's prose]
+  CR --> VD[validate: code checks]
+  VD --> RP[report: postmortem writer + code checks]
+  RP --> PR[propose: code rule -> approval request]
+  PR --> F([finalize: COMPLETE / PARTIAL / FAILED])
 ```
 
 **Why multi-agent here (and not one agent):** (1) the evidence sources are independent, so running them in parallel cuts wall-clock time; (2) each agent gets a narrow tool allow-list (least privilege); (3) small, focused contexts are cheaper and less prone to distraction than one 150k-token context; (4) the Critic needs **independence** from the author of the hypothesis; (5) per-agent evaluation and versioning.
@@ -237,13 +240,15 @@ flowchart TD
 
 ## 11. Data flow
 
-1. **Write path:** `POST /api/v1/incidents` → api (auth, idempotency) → incident-service writes `incidents` + `outbox` row in **one transaction** → relay publishes `IncidentCreated`.
-2. **Investigation:** orchestrator consumes, creates `investigation` + checkpoint, emits `AgentTask` events (key = `incident_id` → ordering per incident).
-3. **Evidence:** agents call tool-gateway (authz as the requesting user) → results get `evidence_id`s and are stored in `evidence` (incident-service) → `EvidenceRetrieved`.
-4. **Reasoning:** orchestrator aggregates via reducers, then hypothesize → critic → validate → report. Each step is checkpointed.
-5. **Human:** `HumanReviewRequired` → UI → `POST /api/v1/approvals` → `HumanApproved/Rejected` → graph resumes from the interrupt.
-6. **Audit:** every event is also consumed by audit (append-only).
-7. **Telemetry:** OTel context is propagated in HTTP headers and Kafka headers → one trace per investigation.
+As built (Phase 30):
+
+1. **Write path:** a typed `POST /api/v1/incidents` or a signed Alertmanager webhook (`POST /api/v1/alerts`, ADR-044) -> api -> incident-service writes the incident + `incident_events` + an `outbox` row in **one transaction**; the relay publishes `IncidentCreated` to `incident.lifecycle`.
+2. **Investigation:** `POST /api/v1/incidents/{id}/investigate` -> api -> orchestrator (202), which exchanges the user's token for a delegated one (api STS, ADR-019) and runs the graph; agent tasks are **HTTP** calls to `agents` (ADR-030), not Kafka.
+3. **Evidence:** agents call tool-gateway (authz as the requesting user, delegated token in `X-On-Behalf-Of`) -> results are stored as `evidence` in incident-service -> `EvidenceRetrieved`.
+4. **Reasoning:** hypothesize -> critique -> validate (code) -> report -> propose; every node checkpointed in Postgres.
+5. **Human:** the propose node files an approval request; an IC decides via `POST /api/v1/approvals/{id}/decision`, and the action runs in that request as the IC (ADR-026).
+6. **Audit:** tool calls reach `audit` over the tool-gateway's HTTP relay; incident lifecycle events (incl. approvals) over Kafka `incident.lifecycle` -> the audit consumer (on by default since Phase 30).
+7. **Telemetry:** OTel context in HTTP headers and Kafka headers -> one trace per investigation (ADR-035).
 
 ## 12. Incident investigation flow (sequence)
 
@@ -356,11 +361,10 @@ Approvals expire (e.g. 30 min) and are single-use. A stale approval cannot be re
 
 | Topic | Events | Producers → Consumers | Partitions [P]/[Prod] |
 |---|---|---|---|
-| `incident.lifecycle` | IncidentCreated, IncidentResolved, HumanReviewRequired, HumanApproved, HumanRejected | incident-service → orchestrator, audit, eval | 3 / 24 |
-| `investigation.tasks` | AgentTask - **not used** (ADR-030: agent tasks stay on HTTP) | orchestrator → agents | 6 / 48–96 (≥ max worker replicas) |
-| `investigation.results` | AgentStarted, AgentCompleted, AgentFailed, EvidenceRetrieved, HypothesisCreated, HypothesisChallenged, ValidationCompleted - **not used** (ADR-030) | agents/orchestrator → orchestrator, audit, incident | 6 / 48 |
-| `catalog.changes` (key = service_id) | CatalogChanged | service-catalog → knowledge, tool-gateway cache | 3 / 12 |
-| `*.dlq` | poison messages + error metadata | consumers → ops replay tool | 1 / 6 |
+| `incident.lifecycle` | IncidentCreated, IncidentUpdated, InvestigationRequested, EvidenceRetrieved, HypothesisCreated, PostmortemGenerated, HumanReviewRequired, HumanApproved, HumanRejected, HumanMoreInfoRequested, ActionExecuted, ActionExpired | incident-service -> audit (the only consumer) | 3 / 24 |
+| `incident.lifecycle.dlq` | poison messages + error metadata | consumer -> ops replay tool | 1 / 6 |
+
+Phase 30 (ADR-048): `investigation.tasks`, `investigation.results` (agent tasks stay on HTTP, ADR-030) and `catalog.changes` (the catalog has no Kafka, ADR-032) had no producer and no consumer; they are no longer created.
 
 **Event envelope** (`libs/models`): `event_id (UUIDv7)`, `event_type`, `schema_version`, `occurred_at`, `correlation_id`, `causation_id`, `incident_id`, `actor`, `traceparent`, `payload`.
 
@@ -369,11 +373,11 @@ Approvals expire (e.g. 30 min) and are single-use. A stale approval cannot be re
 | Pattern | Implementation |
 |---|---|
 | Atomic publish | transactional outbox table + relay (poll [P]; Debezium CDC [Ent]) |
-| Idempotency | consumer `processed_events(event_id PK)` insert in the same tx as the side effect; HTTP `Idempotency-Key` |
+| Idempotency | the audit consumer's insert is `ON CONFLICT (id, occurred_at) DO NOTHING` (ADR-029; `processed_events` was never used and was dropped in 0030); HTTP `Idempotency-Key` in the DB |
 | Retries | in-consumer retry 3× exp backoff + jitter → DLQ; poison → DLQ at once; a dependency outage waits (never DLQ). No retry topic yet (ADR-029: it reorders a partition) |
 | Timeouts | every HTTP/LLM/tool call; agent task deadline in the event |
 | Circuit breakers | per downstream (LLM provider, tool backend); open → fallback (other provider / partial result) |
-| Backpressure | consumers pull (Kafka's natural backpressure); bounded in-flight per worker; LLM gateway concurrency semaphore + 429 to callers; HPA/KEDA on lag |
+| Backpressure | consumers pull (Kafka's natural backpressure); bounded in-flight per worker; LLM gateway concurrency semaphore + 429 to callers; [Prod] HPA/KEDA on lag (not built: 1 replica each, ADR-034) |
 | Correlation | `correlation_id` = investigation id, in logs, spans, events, audit |
 | Checkpointing | LangGraph PostgresSaver after every node; resume on redelivery |
 
@@ -393,7 +397,7 @@ One Postgres instance [P], **schema per owning service**. Tables (spec list) map
 |---|---|
 | `identity` (api) | users, roles, permissions, user_roles, role_permissions |
 | `catalog` (service-catalog, Flyway) | services, repositories, service_dependencies, apis, teams |
-| `incident` | incidents, incident_events, evidence, hypotheses, hypothesis_evidence, approvals, feedback, outbox, processed_events |
+| `incident` | incidents, incident_events, evidence, hypotheses, hypothesis_evidence, approvals, feedback, outbox, idempotency_keys, postmortems |
 | `orchestrator` | investigations, tasks, agent_executions, messages (+ LangGraph checkpoint tables, Phase 9) |
 | `rag` | documents, document_chunks, runbooks (steps as JSONB), historical_incidents (+ embedding) |
 | `devdata` (tool-gateway simulated sources) | deployments, commits, pull_requests, log_events, metric_points |
@@ -402,7 +406,7 @@ One Postgres instance [P], **schema per owning service**. Tables (spec list) map
 
 > Phase 3 implementation notes: full table/column/index reference in [`docs/data-model.md`](docs/data-model.md). `services`/`repositories` live in `catalog` (Java, Phase 20); until then `data/generated/catalog.json`.
 | `audit` | audit_events (append-only, monthly partitions) |
-| `eval` | datasets, eval_cases, eval_runs, evaluations |
+| `eval` (the offline `make eval-*` job; no service) | datasets, eval_cases, eval_runs, evaluations |
 
 **Important indexes (each justified):**
 
@@ -418,9 +422,8 @@ One Postgres instance [P], **schema per owning service**. Tables (spec list) map
 | `deployments (service_id, deployed_at DESC)` | "recent deploys for service X before T" |
 | `log_events (service_id, ts) ` BRIN on ts | big time-ordered table; BRIN is tiny and fits append-only data |
 | `tool_calls (incident_id, created_at)` | agent trace view |
-| `audit_events (actor_id, occurred_at)` + partition by month | audit queries + cheap retention (drop partition) |
+| `audit_events (actor, occurred_at DESC)` + partition by month (kept 3 months ahead by the audit service, Phase 30) | audit queries + cheap retention (drop partition) |
 | `outbox (published_at) WHERE published_at IS NULL` partial | relay polling only scans unpublished rows |
-| `processed_events (event_id)` PK | consumer dedupe |
 | `approvals (incident_id, created_at)` + unique `(approval_id)` single-use | approval lookup + replay protection |
 
 **Graph question (Feature 9):** `catalog.service_dependencies(src, dst, kind)` + recursive CTE answers "what depends on X within 3 hops" in milliseconds for 100–10k services. A graph DB (Neo4j/Neptune) earns its place when you need variable-depth path queries over 10⁶+ edges, graph algorithms (centrality, community), or many edge types that change often. Neither applies here [P/Prod]. → ADR-012.
@@ -523,7 +526,8 @@ ai-engineering-platform/
 ├── AGENTS.md  CLAUDE.md  CLAUDE.local.md.example  README.md  architecture.md  Makefile  .mcp.json
 ├── .claude/ {settings.json, hooks/, rules/, skills/, agents/, commands/, output-styles/}
 ├── services/ {api, incident-service, orchestrator, agents, rag, llm-gateway, tool-gateway,
-│              knowledge-service, audit, evaluation, service-catalog(Java)}   ← each has CLAUDE.md
+│              audit, service-catalog(Java)}   ← each has CLAUDE.md (9 run; knowledge-service and
+│              evaluation were never built and were removed in Phase 30, ADR-048)
 ├── libs/ {common, models, security, observability}
 ├── prompts/            # versioned prompts + registry.yaml
 ├── frontend/
@@ -535,7 +539,7 @@ ai-engineering-platform/
 ├── .github/workflows/ {claude.yml, (ci.yml, cd.yml in Phase 24)}
 └── docker-compose.yml (Phase 2/21)
 ```
-Change vs spec: added `prompts/` (prompt versioning needs a home) and `knowledge-service` (in the spec's service list but missing from its tree).
+Change vs spec: added `prompts/` (prompt versioning needs a home). `knowledge-service` was added here in Phase 1 and never built (ADR-048).
 
 ## 25. Technology selection
 

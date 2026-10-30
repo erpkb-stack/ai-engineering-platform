@@ -12,13 +12,10 @@ create() { # name partitions retention_ms
 
 WEEK=604800000
 MONTH=2592000000
+# Phase 30: only the topic something produces AND consumes. investigation.tasks/results (agent
+# tasks stay on HTTP, ADR-030) and catalog.changes (the catalog has no Kafka, ADR-032) had
+# neither - they are no longer created (an old broker volume may still list them: harmless).
 create incident.lifecycle        3 "$WEEK"
-create investigation.tasks       6 "$WEEK"
-create investigation.results     6 "$WEEK"
-create catalog.changes           3 "$WEEK"
 create incident.lifecycle.dlq    1 "$MONTH"
-create investigation.tasks.dlq   1 "$MONTH"
-create investigation.results.dlq 1 "$MONTH"
-create catalog.changes.dlq       1 "$MONTH"
 "$KT" --bootstrap-server "$BS" --list
 echo "AEOI topics ready."

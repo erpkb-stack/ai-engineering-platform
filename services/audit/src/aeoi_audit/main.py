@@ -6,9 +6,10 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
+import structlog
 from fastapi import FastAPI
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
 
 from aeoi_audit import __version__
 from aeoi_audit.api import router
@@ -16,6 +17,28 @@ from aeoi_audit.config import Settings
 from aeoi_audit.consumer import classify, handler
 from aeoi_messaging import Consumer, KafkaTransport, Transport
 from aeoi_web import Authenticator, create_app, oidc_verifier
+
+log = structlog.get_logger("aeoi.audit.partitions")
+ENSURE = text("SELECT audit.ensure_partitions(:months)")
+
+
+async def ensure_partitions(engine: AsyncEngine, months: int) -> int | None:
+    """Create the missing monthly partitions; None = it failed (logged, never raised: the
+    service keeps serving, and the next check tries again). Returns how many were created."""
+    try:
+        async with engine.begin() as conn:
+            created = int((await conn.execute(ENSURE, {"months": months})).scalar_one())
+    except Exception as exc:  # the TYPE only: DB errors can carry rows (ADR-035)
+        log.warning("audit_partitions_failed", error=type(exc).__name__)
+        return None
+    log.info("audit_partitions_ensured", created=created, months_ahead=months)
+    return created
+
+
+async def keep_partitions(engine: AsyncEngine, months: int, every_s: float) -> None:
+    while True:
+        await ensure_partitions(engine, months)
+        await asyncio.sleep(every_s)
 
 
 class ConsumerStoppedError(RuntimeError):
@@ -55,9 +78,16 @@ def build_app(settings: Settings | None = None, transport: Transport | None = No
             asyncio.create_task(consumer.run_forever(), name="audit-consumer") if consumer else None
         )
         app.state.consumer_task = task
+        keeper = asyncio.create_task(
+            keep_partitions(engine, settings.partition_months_ahead, settings.partition_check_s),
+            name="audit-partitions",
+        )
         try:
             yield
         finally:
+            keeper.cancel()
+            with suppress(asyncio.CancelledError):
+                await keeper
             if consumer and task:
                 consumer.stop()  # finish the message in hand; anything uncommitted comes again
                 with suppress(asyncio.CancelledError, TimeoutError):

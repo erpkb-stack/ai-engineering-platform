@@ -87,7 +87,7 @@ Cross-schema links are **soft** (plain ids/keys): `investigations.incident_id`, 
 | `postmortems` | Phase 12 (0021): generated parts of a postmortem per (incident, investigation): model sections + action items (each with evidence keys), negative evidence, that run's timeline points, trigger ref, root-cause state. Assembled at read time (ADR-022); Phase 29c: `content.removed` = the model sentences code removed, with the reason (ADR-045) | 1 per run |
 | `incidents` | System of record for incidents; `number` gives the human key INC-n; optimistic locking via `version` | 13 |
 | `outbox` | Transactional outbox: written in the SAME transaction as the state change (ADR-003). | 10 |
-| `processed_events` | Consumer-side dedupe: insert in the same tx as the side effect; conflict = duplicate. | 3 |
+| ~~`processed_events`~~ | Dropped in 0030 (Phase 30): never written or read. Consumer dedupe = the audit insert's ON CONFLICT (id, occurred_at) (ADR-029). | 3 |
 
 ### `orchestrator`
 | Table | Purpose | Columns |
@@ -225,7 +225,7 @@ Plus indexes created by PRIMARY KEY / UNIQUE constraints (each `UniqueConstraint
 | `rag.chunk_acl_from_document()` (BEFORE INSERT/UPDATE on chunks) | a chunk's `allowed_groups` is ALWAYS its document's; a forged value is overwritten |
 | `rag.propagate_document_acl()` (AFTER UPDATE of document ACL) | revoking access on a document revokes it on all its chunks in the same transaction |
 | `audit.reject_modification()` | UPDATE/DELETE on audit rows fail, even for the table owner |
-| `audit.ensure_partitions(n)` | monthly partitions; run monthly. Retention = `DROP TABLE audit.audit_events_yYYYYmMM` |
+| `audit.ensure_partitions(n)` | monthly partitions, last month to n ahead; SECURITY DEFINER, EXECUTE only svc_audit; a month already in the default partition is skipped with a WARNING (0030). The AUDIT SERVICE runs it at start + every 6 h (3 ahead) - before Phase 30 nothing did. Retention = `DROP TABLE audit.audit_events_yYYYYmMM` |
 
 ## Postgres relationships vs a graph database (Feature 9)
 Service dependencies (`catalog`, Phase 20) and the evidence graph (`hypothesis_evidence`) are adjacency tables.
