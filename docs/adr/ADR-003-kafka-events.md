@@ -30,3 +30,6 @@ Implementation (Phase 4): `incident.outbox` + `OutboxRelay` (FOR UPDATE SKIP LOC
 
 ## When we would revisit
 If the only consumers are agent workers and audit moves to a log store, a managed queue (SQS) may be simpler.
+
+## Amendment 2026-10-30 (Phase 30, ADR-048)
+As built: ONE topic in use (`incident.lifecycle` -> the audit consumer), ON by default in compose/kind. Consumer dedupe is the audit insert's ON CONFLICT (id, occurred_at) (ADR-029); `processed_events` was never used and was dropped (migration 0030). Agent tasks stay on HTTP (ADR-030); `investigation.*` and `catalog.changes` are no longer created.

@@ -257,12 +257,16 @@ def _first_symptom(points: list[TimelinePoint]) -> datetime | None:
     return min((p.at for p in pool), default=None)
 
 
-def _redact(items: list[Any], kinds: dict[str, str], readable: list[str]) -> tuple[list[Any], int]:
-    """Shown only if the reader may read EVERY piece of evidence it cites. A redacted item
-    keeps no refs and no evidence ids either (review: the ids leaked)."""
+def _redact(items: list[Any], kinds: dict[str, str], readable: list[str],
+            see_all: bool = True) -> tuple[list[Any], int]:  # fmt: skip
+    """Shown only if the reader may read EVERY piece of evidence it cites - and, for MODEL text
+    (`see_all` = the reader reads every evidence kind of the incident), only then: the writer
+    saw all observations, so a sentence may say more than what it cites (Phase 30, security
+    review #3; the ADR-045 rule). Code text (negative evidence) keeps the per-citation rule.
+    A redacted item keeps no refs and no evidence ids either (review: the ids leaked)."""
     out, n = [], 0
     for it in items:
-        if it.evidence_keys and all(kinds.get(k) in readable for k in it.evidence_keys):
+        if see_all and it.evidence_keys and all(kinds.get(k) in readable for k in it.evidence_keys):
             out.append(it)
         else:
             upd: dict[str, Any] = {"text": REDACTED_TEXT, "evidence_keys": []}
@@ -289,19 +293,19 @@ async def postmortem_doc(
         "written_by": row.written_by, "model": row.model, "prompt_version": row.prompt_version,
     })  # fmt: skip
     kinds = await _kinds(session, incident.id, _cited(stored))
+    # Phase 29c (ADR-045): removed text cited nothing valid -> every evidence kind, or redacted
+    # (the detail too: it quotes the model's numbers / refs). Phase 30: kept model text too.
+    see_removed = may_read_removed(await incident_kinds(session, incident.id), readable)
     sections: list[PmSection] = []
     redacted = 0
     for sec in stored.sections:
-        sentences, n = _redact(sec.sentences, kinds, readable)
+        sentences, n = _redact(sec.sentences, kinds, readable, see_removed)
         redacted += n
         sections.append(PmSection(name=sec.name, sentences=sentences))
-    actions, n = _redact(stored.action_items, kinds, readable)
+    actions, n = _redact(stored.action_items, kinds, readable, see_removed)
     redacted += n
-    no_change, n = _redact(stored.no_change, kinds, readable)
+    no_change, n = _redact(stored.no_change, kinds, readable)  # code text: per citation
     redacted += n
-    # Phase 29c (ADR-045): removed text cited nothing valid -> every evidence kind, or redacted
-    # (the detail too: it quotes the model's numbers / refs)
-    see_removed = may_read_removed(await incident_kinds(session, incident.id), readable)
     removed = [r if see_removed else r.model_copy(update={"text": REMOVED_REDACTED, "detail": ""})
                for r in stored.removed]  # fmt: skip
     removed_kept = "removed" in row.content or not (stored.sentences_dropped
@@ -437,7 +441,9 @@ def render_markdown(doc: PostmortemDoc) -> str:
     """Plain code template. Model text is marked; every number above the line is code's."""
     rc = doc.root_cause
     lines = [
-        f"# Postmortem {doc.incident_key}: {doc.title}",
+        # Phase 30 (security review #1): the title comes from a typed form OR an alert's summary
+        # annotation (often built from a label an outsider influences) - data, escaped
+        f"# Postmortem {doc.incident_key}: {_md(doc.title)}",
         "",
         f"Severity {doc.severity} · status {doc.status} · services {', '.join(doc.services)}",
         f"Generated {_t(doc.generated_at)} from investigation {doc.investigation_id} · "
@@ -458,7 +464,7 @@ def render_markdown(doc: PostmortemDoc) -> str:
         lines.append(ROOT_STATE_TEXT.get(doc.root_cause_state, ROOT_STATE_TEXT["none_survived"]))
     else:
         lines += [
-            rc.statement,
+            _md(rc.statement),  # a critic's alternative is model text (clipped, not filtered)
             "",
             f"Confidence {rc.confidence} (evidence rubric) · status {rc.status} · "
             + ("confirmed by a human." if rc.confirmed_by_human
@@ -472,7 +478,7 @@ def render_markdown(doc: PostmortemDoc) -> str:
                 f"History (a base rate, not evidence for this incident): {rc.history_prior}",
             ]
     if doc.ruled_out:
-        lines += ["", "Ruled out by code:"] + [f"- {s}" for s in doc.ruled_out]
+        lines += ["", "Ruled out by code:"] + [f"- {_md(s)}" for s in doc.ruled_out]
     if doc.no_change:
         lines += ["", "Did not change (negative evidence):"] + [
             f"- {_sentence(x)}" for x in doc.no_change
@@ -501,7 +507,8 @@ def render_markdown(doc: PostmortemDoc) -> str:
         lines += ["", "## Proposed action items (model text; no owner, nothing executes them)"]
         lines += [f"- [{a.category}] {_sentence(a)}" for a in doc.action_items]
     lines += ["", "## Timeline", "", "| time (UTC) | source | what | by |", "|---|---|---|---|"]
-    lines += [f"| {_t(r.at)} | {r.source} | {r.summary.replace('|', '/')} | {r.actor} |"
+    # summaries hold typed reasons and model statements (HypothesisCreated): escaped as data
+    lines += [f"| {_t(r.at)} | {r.source} | {_md(r.summary).replace('|', '/')} | {_md(r.actor)} |"
               for r in doc.timeline]  # fmt: skip
     if doc.hidden_timeline_rows:
         lines.append(f"\n{doc.hidden_timeline_rows} timeline row(s) hidden: you lack the permission"

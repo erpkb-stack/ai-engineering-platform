@@ -14,7 +14,7 @@ Every question from the spec, mapped to where in AEOI you will have **evidence**
 | How do you secure tools? | tool-gateway, ADR-008 | 7 | user ∩ agent permissions; side-effect classes; approval binding |
 | How do you scale agent workers? | K8s HPA/KEDA, partitions | 18, 22 | scale on lag; replicas ≤ partitions; LLM TPM is the real limit |
 | How do you handle LLM failures? | llm-gateway breakers/fallback | 5, 28 | timeout, retry with jitter, provider failover, degrade to partial report |
-| How do you guarantee idempotency? | outbox + processed_events + Idempotency-Key | 4, 18 | at-least-once + dedupe; never claim exactly-once |
+| How do you guarantee idempotency? | outbox + an idempotent consumer insert (ON CONFLICT on the event's id + time; `processed_events` was dropped unused in Phase 30) + Idempotency-Key | 4, 18, 30 | at-least-once + dedupe; never claim exactly-once |
 | How do you handle Kafka failures? | DLQ, retry topics, outbox | 18, 28 | outbox buffers when broker down; replay from DLQ |
 | How do you handle database failures? | readiness probes, retries, Multi-AZ | 22, 28 | fail fast, don't restart-loop; RPO/RTO |
 | How do you reduce LLM cost? | routing, caching, budgets | 5, 25 | small models for triage; cache; context compression; measured $/investigation |

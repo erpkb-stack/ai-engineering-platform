@@ -12,7 +12,7 @@ expose a route that isn't implemented (OpenAPI must not lie).
 ## Code map
 - `routes.py` typed `/api/v1` routes (OpenAPI contract for the frontend) → `guard(Perm)` → `Upstream.forward`
 - `proxy.py` header allow-list, Location rewrite, GET-only retry, timeouts → 503 problem
-- `ratelimit.py` token bucket per user (in-memory now; Redis in Phase 19)
+- `ratelimit.py` token bucket per user (in-memory; Redis deferred with replicas, ADR-031/ADR-048)
 - `devtoken.py` DEV ONLY token minting (`make token ROLE=SRE`); refuses in production
 - `directory.py` Phase 17a (ADR-027): every Keycloak token must match an ACTIVE directory user (uid + aeoi_sub) with token roles ⊆ directory roles; 60 s cache; no directory = 503. Called from `guard()` and `authenticated()`
 - `GET /api/v1/approvals?status=PENDING` (Phase 17b): the console's inbox - PENDING only, max 100; no "list every approval" route. List filters and `Idempotency-Key` are DECLARED (the console's types are generated from this OpenAPI: `make openapi`)

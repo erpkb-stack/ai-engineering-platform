@@ -418,16 +418,6 @@ class Outbox(Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
 
 
-class ProcessedEvent(Base):
-    """Consumer-side dedupe: insert in the same tx as the side effect; conflict = duplicate."""
-
-    __tablename__ = "processed_events"
-    __table_args__ = {"schema": SCHEMA}
-    consumer: Mapped[str] = mapped_column(String(80), primary_key=True)
-    event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    processed_at: Mapped[datetime] = created_at_col()
-
-
 class IdempotencyKey(Base):
     """Stored result of a POST that carried an Idempotency-Key (ADR-003 / API rules).
 

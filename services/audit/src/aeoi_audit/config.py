@@ -38,6 +38,13 @@ class Settings(BaseServiceSettings):
     consumer_group: str = "audit"
     consumer_topics: str = "incident.lifecycle"  # comma list
 
+    # Phase 30 (architecture review): monthly partitions were created ONCE, by migration 0011
+    # (2026-09..2026-12 on the Mac); from 2027-01 every row would land in the default partition
+    # and the next creation would FAIL. The service now keeps N months ahead itself: at start
+    # and every `partition_check_s` (audit.ensure_partitions, SECURITY DEFINER, migration 0030).
+    partition_months_ahead: int = Field(default=3, ge=2, le=12)
+    partition_check_s: float = Field(default=6 * 3600, gt=0)
+
     def sqlalchemy_url(self) -> str:
         if self.db_url_override is not None:
             return self.db_url_override.get_secret_value()

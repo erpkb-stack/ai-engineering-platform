@@ -39,12 +39,12 @@ fi
 echo "== kafka (only with PROFILE=kafka) =="
 if running kafka; then
   topics="$($C exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list 2>&1)"
-  for t in incident.lifecycle investigation.tasks investigation.results catalog.changes investigation.tasks.dlq; do
+  for t in incident.lifecycle incident.lifecycle.dlq; do  # Phase 30: the only topics in use
     echo "$topics" | grep -qx "$t" && ok "topic $t" || bad "topic $t missing (make kafka-init)"
   done
   parts="$($C exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 \
-           --describe --topic investigation.tasks 2>&1 | grep -c 'Partition:')"
-  [ "$parts" = "6" ] && ok "investigation.tasks has 6 partitions" || bad "investigation.tasks partitions: $parts"
+           --describe --topic incident.lifecycle 2>&1 | grep -c 'Partition:')"
+  [ "$parts" = "3" ] && ok "incident.lifecycle has 3 partitions" || bad "incident.lifecycle partitions: $parts"
   msg="verify-$$-$(date +%s)"
   echo "$msg" | $C exec -T kafka /opt/kafka/bin/kafka-console-producer.sh \
       --bootstrap-server localhost:19092 --topic incident.lifecycle.dlq >/dev/null 2>&1

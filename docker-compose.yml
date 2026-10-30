@@ -238,8 +238,9 @@ services:
     environment:
       <<: *app-env
       AEOI_SERVICE_PORT: "8001"
-      # Phase 18a switch, read from .env exactly like a host run (log | kafka)
-      AEOI_INCIDENT_EVENT_TRANSPORT: ${AEOI_INCIDENT_EVENT_TRANSPORT:-log}
+      # Phase 18a switch (log | kafka). Phase 30: kafka by DEFAULT for every deployed system - the
+      # audit trail of approvals arrives only through incident.lifecycle; `log` = no audit rows
+      AEOI_INCIDENT_EVENT_TRANSPORT: ${AEOI_INCIDENT_EVENT_TRANSPORT:-kafka}
       # Phase 29b (ADR-044): alert triage reads tier + dependents from the catalog - the SAME
       # switch as the tool-gateway (empty = no catalog: triage uses the label severity only)
       AEOI_INCIDENT_CATALOG_URL: ${AEOI_TOOLS_CATALOG_URL:+http://service-catalog:8010}
@@ -365,7 +366,8 @@ services:
     environment:
       <<: *app-env
       AEOI_SERVICE_PORT: "8008"
-      AEOI_AUDIT_CONSUMER_ENABLED: ${AEOI_AUDIT_CONSUMER_ENABLED:-false}
+      # Phase 30: on by default (see incident-service's transport); false = approvals unaudited
+      AEOI_AUDIT_CONSUMER_ENABLED: ${AEOI_AUDIT_CONSUMER_ENABLED:-true}
     secrets:
       - { source: jwt_public, target: /app/secrets/jwt_public.pem }
       - { source: audit_svc_password, target: /app/secrets/audit_svc_password.txt }
