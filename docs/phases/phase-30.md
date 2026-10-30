@@ -1,6 +1,6 @@
 # Phase 30 - Architecture review (ADR-048)
 
-Status: **30a BUILT 2026-10-30 (sandbox; needs the Mac run)** - the review, the owner's decisions,
+Status: **CLOSED 2026-10-30: 30a verified on the Mac** (Phase 29 close PR #58, 30a PR; demo `demo-2026-10-30T191941.json` PASS + COUNTS on the new images; the audit keeper ran). The review, the owner's decisions,
 the fixes for the two leaks + the audit/Kafka defects, the docs that showed components that do
 not run. Owner (2026-10-30): "Start Phase 30"; scope = **lean review** (what runs, cited against
 the measurements of Phases 25-29; no new features); reviews = **independent subagents**;
@@ -94,10 +94,10 @@ storage; an alert on "next month's partition missing" and on outbox age; verify-
 rate limiting for a public webhook; a resume lease before any replica > 1.
 
 ## 8. Verify
-- [ ] 30a on the Mac: `make db-upgrade` + `make db-check` clean; partitions to 2027-01; the keeper's log line in the audit pod.
-- [ ] CI green on the PR (incl. the 4 new integration tests).
-- [ ] `make demo` PASS on the new images (one run is enough here: the gate was Phase 29).
-- [ ] The stubs removed (`git rm -r services/knowledge-service services/evaluation`).
+- [x] 30a on the Mac: `make db-upgrade` + `make db-check` clean; the keeper's line in the audit pod: `audit_partitions_ensured created=0 months_ahead=3` - 0 because migration 0030 had just created the missing month itself (`SELECT audit.ensure_partitions(3)` in the upgrade); the keeper found nothing left to do.
+- [x] CI green on the PR (incl. the 4 new integration tests), merged with the head check.
+- [x] `make demo` PASS on the new images: `demo-2026-10-30T191941.json`, GATE COUNTS (one run here: the gate was Phase 29); SEV1 by the tier-1 rule, critic supported, rollback EXECUTED.
+- [x] The stubs removed: `services/` lists 9.
 
 ## 9. Interview questions (30-second answers in `docs/interview/phase-30-review.md`)
 1. You reviewed your own architecture - how do you avoid grading your own homework?
