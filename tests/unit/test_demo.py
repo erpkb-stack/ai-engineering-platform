@@ -73,6 +73,12 @@ def test_proposal_approval_and_record() -> None:
     ok = ({"executed": True}, {"status": "EXECUTED"}, "MITIGATED")
     assert d.approval(403, *ok)[0] == d.PASS
     assert d.approval(200, *ok)[0] == d.FAIL  # an ENGINEER must never decide
+    # Phase 29 close: a refused execution says WHY (it was cut to 160 chars of the record)
+    refused = {"approval": {"id": "x" * 40, "incident_key": "INC-10342"}, "executed": False,
+               "execution_error": "execution_failed: DEPLOY-4821 is not the running deploy of"
+                                  " checkout-api (DEPLOY-9044 is newer)"}  # fmt: skip
+    st, why = d.approval(403, refused, {"status": "APPROVED"}, "INVESTIGATING")
+    assert st == d.FAIL and "DEPLOY-9044 is newer" in why and "incident_key" not in why
     rec = {"decided_by": "u", "decided_at": "t", "reason": "r", "args_sha256": "ab" * 32,
            "tool_call_id": "c", "decider_role": "INCIDENT_COMMANDER"}  # fmt: skip
     assert d.decision_record(rec)[0] == d.PASS

@@ -246,7 +246,9 @@ def approval(engineer_code: int, decision: dict[str, Any] | None, approval_after
     if engineer_code != 403:
         return FAIL, f"ENGINEER decision answered {engineer_code} (must be 403)"
     if not decision or decision.get("executed") is not True:
-        return FAIL, f"IC decision did not execute: {str(decision)[:160]}"
+        # the reason, not 160 characters of the approval record (Phase 29 close)
+        why = (decision or {}).get("execution_error") or str(decision)[:160]
+        return FAIL, f"IC decision did not execute: {str(why)[:300]}"
     status = (approval_after or {}).get("status")
     if status != "EXECUTED" or incident_status != "MITIGATED":
         return FAIL, f"approval {status}, incident {incident_status}"
