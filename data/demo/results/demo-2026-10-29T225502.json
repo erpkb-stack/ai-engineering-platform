@@ -1,0 +1,246 @@
+{
+ "started_at": "2026-10-29T22:53:19+00:00",
+ "finished_at": "2026-10-29T22:55:02+00:00",
+ "models": "real",
+ "verdict": "PASS",
+ "seconds": 104,
+ "incident": "INC-10339",
+ "investigation": "01a189de-3bc5-7be2-bfe7-59a812c31609",
+ "investigation_status": "COMPLETE",
+ "steps": {
+  "services_ready": {
+   "status": "PASS",
+   "detail": "9 ready"
+  },
+  "alert_intake": {
+   "status": "PASS",
+   "detail": "INC-10339 SEV1 by rule 'label severity=error -> SEV2; tier 1 -> raised to SEV1'; re-sent = duplicate"
+  },
+  "investigation": {
+   "status": "PASS",
+   "detail": "COMPLETE in 81 s"
+  },
+  "parallel_agents": {
+   "status": "PASS",
+   "detail": "all 4 overlap for 1.5 s"
+  },
+  "evidence": {
+   "status": "PASS",
+   "detail": "COMMIT CONFIG DEPLOY DOC INCIDENT LOG METRIC RUNBOOK"
+  },
+  "top_hypothesis": {
+   "status": "PASS",
+   "detail": "#1 [HIGH] Deploy DEPLOY-4821 on checkout-api may have caused the regression: it started 7 min before the first symptom (p95_latenc"
+  },
+  "decoy_rejected": {
+   "status": "PASS",
+   "detail": "the decoy never became a candidate cause (code saw no support for it)"
+  },
+  "evidence_graph": {
+   "status": "PASS",
+   "detail": "5 hypotheses, 11 evidence nodes, 22 links (9 contradicting); top supported by COMMIT CONFIG DEPLOY LOG METRIC"
+  },
+  "critic_challenge": {
+   "status": "PASS",
+   "detail": "#1 VALIDATED, critic supported"
+  },
+  "report": {
+   "status": "PASS",
+   "detail": "root cause cites DEPLOY-4821; sections ok=True"
+  },
+  "removed_shown": {
+   "status": "PASS",
+   "detail": "0 removed from the postmortem this run; 0 ranker explanation(s) removed"
+  },
+  "proposal": {
+   "status": "PASS",
+   "detail": "PENDING rollback of DEPLOY-4821 for user:019907b9-2c00-7ef1-9431-1f66a04a3b01"
+  },
+  "approval": {
+   "status": "PASS",
+   "detail": "ENGINEER 403; IC approved -> EXECUTED; incident MITIGATED"
+  },
+  "decision_record": {
+   "status": "PASS",
+   "detail": "by INCIDENT_COMMANDER, args da044499748d"
+  },
+  "mtti": {
+   "status": "PASS",
+   "detail": "AI ONLY - identified 14/17 (median 35.7 s); NO valid human baseline: 6 scored cases were not investigations: last 5 took 56-174 s with no metrics cal"
+  },
+  "injection_ignored": {
+   "status": "PASS",
+   "detail": "0 quarantined documents returned"
+  }
+ },
+ "machine": {
+  "before": {
+   "at": "2026-10-29T22:53:19+00:00",
+   "cpu_speed_limit": 65,
+   "node_cpu_pressure": 3.43,
+   "node_load1": 2.58,
+   "restarts": {
+    "kube-system": {
+     "coredns-559f6c778d-8kvrp": [
+      "coredns-559f6c778d-8kvrp",
+      8
+     ],
+     "coredns-559f6c778d-cqrhm": [
+      "coredns-559f6c778d-cqrhm",
+      8
+     ],
+     "etcd-aeoi-control-plane": [
+      "etcd-aeoi-control-plane",
+      0
+     ],
+     "kindnet-ltldq": [
+      "kindnet-ltldq",
+      8
+     ],
+     "kube-apiserver-aeoi-control-plane": [
+      "kube-apiserver-aeoi-control-plane",
+      1
+     ],
+     "kube-controller-manager-aeoi-control-plane": [
+      "kube-controller-manager-aeoi-control-plane",
+      103
+     ],
+     "kube-proxy-hz4k4": [
+      "kube-proxy-hz4k4",
+      8
+     ],
+     "kube-scheduler-aeoi-control-plane": [
+      "kube-scheduler-aeoi-control-plane",
+      104
+     ]
+    },
+    "app": {
+     "agents": [
+      "agents-b7f57788b-qtftl",
+      0
+     ],
+     "api": [
+      "api-5d7f889749-kgnm7",
+      0
+     ],
+     "audit": [
+      "audit-85f9f46879-9wx87",
+      0
+     ],
+     "incident-service": [
+      "incident-service-784cd8c7c4-mxnhq",
+      0
+     ],
+     "llm-gateway": [
+      "llm-gateway-6cf957467c-bfzmp",
+      0
+     ],
+     "orchestrator": [
+      "orchestrator-64f55c5899-rdvrh",
+      0
+     ],
+     "rag": [
+      "rag-5d56f9dbc6-5kb8f",
+      0
+     ],
+     "service-catalog": [
+      "service-catalog-67dd46ddf6-brfpr",
+      0
+     ],
+     "tool-gateway": [
+      "tool-gateway-67b84cf977-r8h2w",
+      0
+     ]
+    }
+   }
+  },
+  "after": {
+   "at": "2026-10-29T22:55:02+00:00",
+   "cpu_speed_limit": 34,
+   "node_cpu_pressure": 40.01,
+   "node_load1": 14.21,
+   "restarts": {
+    "kube-system": {
+     "coredns-559f6c778d-8kvrp": [
+      "coredns-559f6c778d-8kvrp",
+      8
+     ],
+     "coredns-559f6c778d-cqrhm": [
+      "coredns-559f6c778d-cqrhm",
+      8
+     ],
+     "etcd-aeoi-control-plane": [
+      "etcd-aeoi-control-plane",
+      0
+     ],
+     "kindnet-ltldq": [
+      "kindnet-ltldq",
+      8
+     ],
+     "kube-apiserver-aeoi-control-plane": [
+      "kube-apiserver-aeoi-control-plane",
+      1
+     ],
+     "kube-controller-manager-aeoi-control-plane": [
+      "kube-controller-manager-aeoi-control-plane",
+      103
+     ],
+     "kube-proxy-hz4k4": [
+      "kube-proxy-hz4k4",
+      8
+     ],
+     "kube-scheduler-aeoi-control-plane": [
+      "kube-scheduler-aeoi-control-plane",
+      104
+     ]
+    },
+    "app": {
+     "agents": [
+      "agents-b7f57788b-qtftl",
+      0
+     ],
+     "api": [
+      "api-5d7f889749-kgnm7",
+      0
+     ],
+     "audit": [
+      "audit-85f9f46879-9wx87",
+      0
+     ],
+     "incident-service": [
+      "incident-service-784cd8c7c4-mxnhq",
+      0
+     ],
+     "llm-gateway": [
+      "llm-gateway-6cf957467c-bfzmp",
+      0
+     ],
+     "orchestrator": [
+      "orchestrator-64f55c5899-rdvrh",
+      0
+     ],
+     "rag": [
+      "rag-5d56f9dbc6-5kb8f",
+      0
+     ],
+     "service-catalog": [
+      "service-catalog-67dd46ddf6-brfpr",
+      0
+     ],
+     "tool-gateway": [
+      "tool-gateway-67b84cf977-r8h2w",
+      0
+     ]
+    }
+   }
+  },
+  "warnings": [
+   "Mac CPU power-limited: CPU_Speed_Limit 34 (100 = full speed)",
+   "node CPU pressure 40.01% (tasks waiting for a CPU)"
+  ]
+ },
+ "gate": {
+  "counts": true,
+  "why": "real-model PASS, no pod restarted or replaced during the run"
+ }
+}

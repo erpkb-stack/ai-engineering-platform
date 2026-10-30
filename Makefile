@@ -473,7 +473,7 @@ load: ## Phase 27: load the DEPLOYED api as the seeded team: make load PLAN=smok
 	AEOI_LOAD_PLAN=$(PLAN) uv run --group load locust -f tests/load/locustfile.py --headless \
 	  --host $(or $(API),http://localhost:8000) --only-summary --loglevel WARNING --exit-code-on-error 0
 
-demo: ## Phase 29: the demo script end to end on the DEPLOYED system, every step checked (fake models = rehearsal, real = a counted pass); then: make demo-clean
+demo: ## Phase 29: the demo script end to end on the DEPLOYED system, every step checked (fake models = rehearsal, real = a counted pass); removes a leftover demo rollback row FIRST; then: make demo-clean
 	uv run python tests/demo/run.py
 
 manual: ## Phase 29e (ADR-047): time YOURSELF on 6 planted incidents with the agents' read tools (docs/demo/mtti-protocol.md); the clock never pauses. PRACTICE=1 = one untimed case first

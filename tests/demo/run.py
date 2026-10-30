@@ -120,6 +120,12 @@ def call(method: str, url: str, token: str | None = None, body: Any = None,
 def run() -> int:
     steps: dict[str, d.Step] = {}
     t0, env0 = time.monotonic(), machine()
+    # Phase 29 close: a run sets up its own start. Three gate runs FAILED at `approval` because
+    # the run before them failed, `make demo && make demo-clean` skipped the clean, and the
+    # rollback tool rightly refused to undo the leftover "newer" deploy (409).
+    env0["leftover_rollback_rows"] = _remove_rollback_rows()
+    if env0["leftover_rollback_rows"]:
+        print(f"  start: removed {env0['leftover_rollback_rows']} leftover demo rollback row(s)")
     ready = {n: "/actuator/health/readiness" if n == "service-catalog" else "/health/ready"
              for n in PORTS}  # fmt: skip
     down = [n for n, p in PORTS.items()
@@ -238,17 +244,21 @@ def finish(steps: dict[str, d.Step], real: bool, t0: float, env0: dict[str, Any]
     return 0 if v in ("PASS", "REHEARSAL-OK") else 1
 
 
-def clean() -> int:
+def _remove_rollback_rows() -> int:
     import psycopg
 
     from aeoi_db.config import libpq_dsn
 
     with psycopg.connect(libpq_dsn(), autocommit=True) as c:
-        n = c.execute(
+        return c.execute(
             "DELETE FROM devdata.deployments WHERE service_key = 'checkout-api'"
             " AND version = %s AND deployed_by LIKE 'approval:%%'",
             (f"rollback-of-{d.DEMO_DEPLOY}",),
         ).rowcount
+
+
+def clean() -> int:
+    n = _remove_rollback_rows()
     print(f"removed {n} demo rollback deploy row(s); DEPLOY-4821 is the running release again")
     return 0
 

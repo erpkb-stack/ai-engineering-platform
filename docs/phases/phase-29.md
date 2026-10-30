@@ -1,6 +1,6 @@
 # Phase 29 - End-to-end demonstration (ADR-043)
 
-Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d VERIFIED on the Mac 2026-10-28 (ADR-046, PRs #49 + #50, main 86b26ba).** **29e VERIFIED on the Mac 2026-10-29 (ADR-047 + amendment, PR #55, main f471ac2): AI-only, manual baseline declared invalid.** **Gate: 0 of 3** (7 runs: 4 PASS, 3 FAIL; fix5 = new code, count restarts; see section 8). Owner (2026-10-27): "Phase 29";
+Status: **29a RUN on the Mac 2026-10-27**: rehearsal OK, one real-model run PASS 13/13 (not counted - 29b-29e missing). **29b VERIFIED on the Mac 2026-10-28 (ADR-044, PR #47, main 2569212).** **29c VERIFIED on the Mac 2026-10-28 (ADR-045, PR #48, main 33a3ee5).** **29d VERIFIED on the Mac 2026-10-28 (ADR-046, PRs #49 + #50, main 86b26ba).** **29e VERIFIED on the Mac 2026-10-29 (ADR-047 + amendment, PR #55, main f471ac2): AI-only, manual baseline declared invalid.** **Gate PASSED 2026-10-30 (main 089dc61 + fix5 images): 4 counted real-model passes in a row (041438, 042936, 165011, 170026); every run recorded, FAILs too (section 8).** **Phase 29 CLOSED.** Owner (2026-10-27): "Phase 29";
 clean = **fresh containers, keep data**; models = **fake to rehearse, real for the 3 passes**;
 the 4 missing steps = **build all four**.
 
@@ -278,8 +278,43 @@ by the tier-1 rule. New code: **the gate restarts at 0 of 3.**
 Open: the 3 OPEN SEV2 incidents on checkout-api from the FAILs stay as the record; the history
 agent may see them (the later runs passed with the same evidence picture - watched).
 
-## 8b. Next
-Apply fix5, `make catalog-build` on the Mac, then 3 in a row by the rule above.
+### After fix5 (main 089dc61) - the gate PASSED
+The first two runs after the merge (214550, 225502 on 2026-10-29, and 012229) PASSED on the OLD
+images: `make images` had not run, and the catalog log had no `catalog_warmup` line. Kept, not
+counted. After `make images`: `catalog_warmup done in 5092 ms (self-call 401 as expected)`.
+
+| file (2026-10-30) | verdict | counts | why |
+|---|---|---|---|
+| 031813 | FAIL | - | `alert_intake` SEV2: `catalog too slow (no answer in 1.5 s)`; speed limit 39, CPU pressure 42% |
+| 033213 | FAIL | - | `approval`: 409 "DEPLOY-4821 is not the running deploy" - the leftover rollback row of 031813 |
+| 034358 | FAIL | - | the same leftover |
+| 035222 | PASS | no | no `demo-fresh` before it (same api pod as 034358) |
+| 040438 | FAIL | - | the leftover of 035222 (no `demo-clean` after it) |
+| **041438** | **PASS** | **yes** | fresh pods, no restart |
+| **042936** | **PASS** | **yes** | fresh pods, no restart |
+| **165011** | **PASS** | **yes** | fresh pods; full CPU speed, no machine warning |
+| **170026** | **PASS** | **yes** | fresh pods; full CPU speed, no machine warning |
+
+**Gate: 4 counted passes in a row (3 needed)**, each after `make demo-fresh` (a new api pod name
+per run, read from the files), no pod restarted during any of them. Two `demo-fresh` attempts
+stopped before the demo (Kafka not healthy in 3 min, CPU_Speed_Limit 39): not runs.
+
+What fix5 measured (Tempo): the first alert after a fresh start 1.7-2.0 s (before fix5:
+4.8-23.7 s), the re-sent alert 0.17-0.28 s, the catalog warm-up 0.9-1.8 s; no 503 since fix5.
+**Open (watch, not a blocker):** run 031813's alert took 4.8 s with the 1.5 s cap holding: ~3.3 s
+went outside the catalog on a starved node, more than the 1.5 s `test_alert_budget` assumes. At
+speed limit 39 the api's 5 s can still be reached; the traces are the evidence.
+
+**Harness fix (Phase 29 close, no product code):** three FAILs were my harness, not the product:
+`make demo && make demo-clean` skips the clean after a FAIL, and the next run's rollback was
+(correctly) refused over the leftover deploy. `make demo` now removes a leftover rollback row
+FIRST (recorded as `machine.before.leftover_rollback_rows`), and an approval FAIL shows the
+`execution_error`, not 160 characters of the record. Gate command used:
+`make demo-fresh && { make demo; make demo-clean; }`.
+
+Lessons: read the result files, not the pasted tail (a run between two passes was missed once;
+the images were stale once); a gate needs the code under test proven (the warm-up log line),
+not assumed; the machine is recorded in every result, so a laptop FAIL reads as one.
 
 ## 9. Verify
 - [x] 29a rehearsal on the Mac (fake): REHEARSAL-OK, `make demo-clean` removed 0 rows.
@@ -288,4 +323,4 @@ Apply fix5, `make catalog-build` on the Mac, then 3 in a row by the rule above.
 - [x] 29c on the Mac: CI green (PR #48), `removed_shown` PASS ("0 removed" on fakes); real-postmortem rate measured (8/70).
 - [x] 29d on the Mac: CI green (PRs #49, #50), `evidence_graph` PASS, browser graph test passed (not skipped).
 - [x] 29e on the Mac (PR #55, main f471ac2; `mtti` PASS AI-only in demo 161620 + 164933): the paid AI run (v1 + v2, 0 invalid); manual session recorded and declared invalid by the owner (ADR-047 amendment); `make mtti INVALID=...` report committed; `make demo` shows `mtti` PASS as AI-only on real models (checked in the gate runs).
-- [ ] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`.
+- [x] 3 real-model PASS in a row, each after `make demo-fresh`, files in `data/demo/results/`: 041438, 042936, 165011, 170026 (4 in a row, fix5 images; section 8).
