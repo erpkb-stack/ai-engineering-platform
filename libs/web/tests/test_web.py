@@ -233,3 +233,22 @@ def test_verify_obo_accepts_user_and_delegated_but_primary_does_not() -> None:
     no_sts = Authenticator(user_keys.public_pem, "aeoi-dev-issuer", "aeoi-api", static_users=True)
     with pytest.raises(AuthError):
         no_sts.verify_obo(delegated)  # a service without the key refuses delegated tokens
+
+
+async def test_a_5xx_access_line_is_a_warning_and_a_4xx_stays_info(
+    client: httpx.AsyncClient,
+) -> None:
+    """Phase 32a: the real check found every 500 logged at INFO, so a WARN+ reader (the log
+    agent on real Loki data, an alert) saw nothing during an outage. 4xx stay INFO (noise)."""
+    from structlog.testing import capture_logs
+
+    with capture_logs() as logs:
+        for path in ("/boom", "/db-down", "/missing", "/health/live"):
+            await client.get(path)
+    access = {
+        e["path"]: (e["status"], e["log_level"]) for e in logs if e["event"] == "http_request"
+    }
+    assert access["/boom"] == (500, "warning")
+    assert access["/db-down"] == (503, "warning")
+    assert access["/missing"] == (404, "info")
+    assert access["/health/live"] == (200, "info")

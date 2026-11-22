@@ -82,7 +82,11 @@ class CorrelationIdMiddleware:
                 raise
             await _send_problem(cid, scope.get("path", ""), tracking_send, 500)
         finally:
-            log.info(
+            # Phase 32a (owner): a 5xx is logged at WARNING - at INFO a real outage left no
+            # line a WARN+ reader (the log agent, an alert) could see. 4xx stay INFO: a client's
+            # mistake is not the service's problem, and would be noise.
+            emit = log.warning if status >= 500 else log.info
+            emit(
                 "http_request",
                 method=scope.get("method"),
                 path=scope.get("path"),

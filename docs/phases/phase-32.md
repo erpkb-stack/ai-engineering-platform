@@ -93,6 +93,10 @@ scratchpad, not committed).
   INFO for every status, 500 included (`libs/web/src/aeoi_web/middleware.py:85`); the log agent
   asks WARN+ (`log_analysis/agent.py:149`); no warning was found on the api's overload path.
   So in F1 the real log evidence is probably EMPTY. Owner decision (below, 6c).
+- **6c (owner, 2026-11-22): fix the code, not the adapter.** `http_request` is logged at
+  WARNING for a 5xx, INFO otherwise (4xx = a client's mistake, noise at WARN).
+  `libs/web/tests/test_web.py::test_a_5xx_access_line_is_a_warning_and_a_4xx_stays_info`
+  (failed on the old code). Needs `make images` before a kind run uses it.
 - Not proven yet: a real non-zero 5xx count (no 5xx traffic was made).
 
 ## 7. Not in 32a
