@@ -402,7 +402,7 @@ def expected_edges(state: str) -> set[tuple[str, str, int]]:
         if app == "tool-gateway":
             for item in json.loads(env["AEOI_TOOLS_EGRESS_ALLOWLIST"]):
                 host, port = item.split(":")
-                if host not in km.INFRA:  # compose infra (prometheus, 32a) = an ipBlock rule
+                if host not in km.INFRA:  # compose infra (prometheus, loki: 32a) = an ipBlock rule
                     out.add((app, host, int(port)))
             if env.get("AEOI_TOOLS_CATALOG_URL"):
                 out.add((app, "service-catalog", 8010))
@@ -474,10 +474,12 @@ def test_the_host_and_the_internet_only_for_the_llm_gateway(state: str) -> None:
         ips = egress_ip(objs, app)
         assert (("192.168.65.254/32", 11434) in ips) == (app == "llm-gateway")
         assert (("0.0.0.0/0", 443) in ips) == (app == "llm-gateway")
-        assert {port for _, port in ips} <= {5432, 19092, 8080, 11434, 443, 4318, 9090}
-        # Phase 32a: Prometheus only for the tool-gateway, only while the metrics switch is on
-        metrics_on = bool(cc.env_of("tool-gateway", cc.ENV_STATES[state])["AEOI_TOOLS_METRICS_URL"])
-        assert any(port == 9090 for _, port in ips) == (app == "tool-gateway" and metrics_on)
+        assert {port for _, port in ips} <= {5432, 19092, 8080, 11434, 443, 4318, 9090, 3100}
+        # Phase 32a: Prometheus / Loki only for the tool-gateway, only while their switch is on
+        gw = cc.env_of("tool-gateway", cc.ENV_STATES[state])
+        for port, var in ((9090, "AEOI_TOOLS_METRICS_URL"), (3100, "AEOI_TOOLS_LOGS_URL")):
+            on = bool(gw[var])
+            assert any(p == port for _, p in ips) == (app == "tool-gateway" and on), (app, port)
     rule = next(r for r in policy(objs, "llm-gateway")["egress"]
                 if r["to"][0].get("ipBlock", {}).get("cidr") == "0.0.0.0/0")  # fmt: skip
     excepted = rule["to"][0]["ipBlock"]["except"]

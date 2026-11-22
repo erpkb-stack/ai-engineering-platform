@@ -49,8 +49,11 @@ class Settings(BaseServiceSettings):
     # contract): AEOI_TOOLS_METRICS_URL=http://localhost:9090. Its host must be in the
     # allow-list. Only 3 metrics have a real source; the others answer "no series".
     metrics_url: str = ""
+    # Phase 32a: the same for search_logs from a real Loki: AEOI_TOOLS_LOGS_URL=http://localhost:3100
+    # (lines are event names only - logs carry no message text, ADR-035)
+    logs_url: str = ""
     # catalog service_key -> OTel service.name, where they differ (unmapped = the same name)
-    metrics_service_names: dict[str, str] = {}
+    otel_service_names: dict[str, str] = {}
     rag_url: str = "http://localhost:8004"
     # ADR-020: the gateway's identity towards rag (scope rag:obo), always WITH the user's token
     rag_token_file: Path = Field(default_factory=lambda: _secret("tools_rag_token.txt"))
@@ -72,7 +75,7 @@ class Settings(BaseServiceSettings):
     rate_limit_burst: int = 20
     # per dependency: bounded concurrency + breaker
     bulkhead: dict[str, int] = {"devdata": 8, "rag": 4, "catalog": 16, "deployer": 1,
-                                "prometheus": 4}  # fmt: skip
+                                "prometheus": 4, "loki": 4}  # fmt: skip
     breaker_threshold: int = 5
     breaker_cooldown_s: float = 30.0
     max_request_bytes: int = 64 * 1024

@@ -60,8 +60,8 @@ IMAGES: dict[str, dict[str, Any]] = {
 # compose services outside the cluster (ADR-034: infra stays in compose = "managed services")
 # (redis has its own profile since Phase 28; no app calls it until 22b, ADR-031: no rule)
 # otel-collector (Phase 23a, ADR-035): every app exports OTLP there when .env switches it on
-# prometheus (Phase 32a): the tool-gateway reads metrics there when .env switches it on
-INFRA = {"postgres", "kafka", "keycloak", "redis", "otel-collector", "prometheus"}
+# prometheus, loki (Phase 32a): the tool-gateway reads metrics / logs there when .env switches it on
+INFRA = {"postgres", "kafka", "keycloak", "redis", "otel-collector", "prometheus", "loki"}
 HOST_NAMES = {"host.docker.internal"}  # Docker Desktop's name for the Mac (native Ollama)
 # Kafka clients cannot be read from the environment (every app gets the bootstrap address from
 # one anchor): the services whose code imports aiokafka or aeoi_messaging (a test checks)

@@ -31,6 +31,12 @@ class MetricsSource(Protocol):
     async def query_metrics(self, q: s.MetricsIn) -> s.MetricsOut: ...
 
 
+class LogsSource(Protocol):
+    """devdata (`adapters/devdata.py`) or a real Loki (`adapters/loki.py`, 32a)."""
+
+    async def search_logs(self, q: s.LogsIn) -> s.LogsOut: ...
+
+
 def build_registry(
     catalog: CatalogSource,
     devdata: DevDataAdapter,
@@ -39,14 +45,17 @@ def build_registry(
     *,
     metrics: MetricsSource | None = None,
     metrics_dependency: str = "devdata",
+    logs: LogsSource | None = None,
+    logs_dependency: str = "devdata",
 ) -> Registry:
     metrics_source: MetricsSource = metrics or devdata
+    logs_source: LogsSource = logs or devdata
 
     async def query_service_catalog(q: s.CatalogIn, _: ToolContext) -> s.CatalogOut:
         return await catalog.query(q)
 
     async def search_logs(q: s.LogsIn, _: ToolContext) -> s.LogsOut:
-        return await devdata.search_logs(q)
+        return await logs_source.search_logs(q)
 
     async def query_metrics(q: s.MetricsIn, _: ToolContext) -> s.MetricsOut:
         return await metrics_source.query_metrics(q)
@@ -120,7 +129,7 @@ def build_registry(
             permissions=frozenset({Perm.LOGS_READ}),
             side_effect=SideEffect.READ,
             handler=search_logs,
-            dependency="devdata",
+            dependency=logs_dependency,
             evidence_kind="LOG",
             timeout_s=5.0,
             audit_fields=("service_key", "start", "end", "min_level", "error_code"),

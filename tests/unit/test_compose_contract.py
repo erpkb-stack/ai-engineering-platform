@@ -47,12 +47,14 @@ NOT_SERVICE_CALLS = {
     "oidc_jwks_url",  # Keycloak, checked on its own below
     "catalog_url",  # the Java switch, checked with the allow-list below
     "metrics_url",  # the Prometheus switch (compose infra, Phase 32a), checked the same way
+    "logs_url",  # the Loki switch (compose infra, Phase 32a), checked the same way
 }
 ENV_STATES = {
     "switches off": {},
     "switches on": {
         "AEOI_TOOLS_CATALOG_URL": "http://localhost:8010",
         "AEOI_TOOLS_METRICS_URL": "http://localhost:9090",  # Phase 32a
+        "AEOI_TOOLS_LOGS_URL": "http://localhost:3100",  # Phase 32a
         "AEOI_OIDC_ISSUER": "http://localhost:8090/realms/aeoi",
         "AEOI_INCIDENT_EVENT_TRANSPORT": "kafka",
         "AEOI_AUDIT_CONSUMER_ENABLED": "true",
@@ -181,12 +183,16 @@ def test_the_egress_allow_list_is_exactly_the_hosts_of_the_http_tools() -> None:
     off = env_of("tool-gateway", ENV_STATES["switches off"])
     allowed = set(json.loads(on["AEOI_TOOLS_EGRESS_ALLOWLIST"]))
     assert allowed == {hostport(on["AEOI_TOOLS_RAG_URL"]), hostport(on["AEOI_TOOLS_CATALOG_URL"]),
-                       hostport(on["AEOI_TOOLS_METRICS_URL"])}  # fmt: skip
+                       hostport(on["AEOI_TOOLS_METRICS_URL"]),
+                       hostport(on["AEOI_TOOLS_LOGS_URL"])}  # fmt: skip
     assert hostport(on["AEOI_TOOLS_METRICS_URL"]) == "prometheus:9090"
+    assert hostport(on["AEOI_TOOLS_LOGS_URL"]) == "loki:3100"
     assert off["AEOI_TOOLS_CATALOG_URL"] == ""  # switch off -> the JSON file, like a host run
     assert off["AEOI_TOOLS_METRICS_URL"] == ""  # switch off -> devdata (the planted demo)
     # the catalog stays listed in both states; prometheus only while its switch is on (32a)
-    assert set(json.loads(off["AEOI_TOOLS_EGRESS_ALLOWLIST"])) == allowed - {"prometheus:9090"}
+    off_list = set(json.loads(off["AEOI_TOOLS_EGRESS_ALLOWLIST"]))
+    assert off_list == allowed - {"prometheus:9090", "loki:3100"}
+    assert off["AEOI_TOOLS_LOGS_URL"] == ""
     # the name the gateway is told matches the field it reads
     cls = settings_class("tool-gateway")
     assert env_name(cls, "egress_allowlist") == "AEOI_TOOLS_EGRESS_ALLOWLIST"

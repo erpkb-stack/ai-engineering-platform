@@ -20,6 +20,7 @@ from aeoi_tools.adapters.catalog_http import CatalogHttpAdapter
 from aeoi_tools.adapters.deployer import Deployer
 from aeoi_tools.adapters.devdata import DevDataAdapter
 from aeoi_tools.adapters.http import make_client, origin_of
+from aeoi_tools.adapters.loki import LokiLogsAdapter
 from aeoi_tools.adapters.prometheus import PrometheusMetricsAdapter
 from aeoi_tools.adapters.rag import RagAdapter
 from aeoi_tools.api import router
@@ -66,14 +67,18 @@ def build_app(
         if settings.catalog_url
         else CatalogAdapter(settings.catalog_file)
     )
-    if settings.metrics_url and origin_of(settings.metrics_url) not in allowed:
-        log.warning("metrics_url_not_in_egress_allowlist", metrics=origin_of(settings.metrics_url))
+    for name, url in (("metrics", settings.metrics_url), ("logs", settings.logs_url)):
+        if url and origin_of(url) not in allowed:
+            log.warning(f"{name}_url_not_in_egress_allowlist", origin=origin_of(url))
+    names = settings.otel_service_names
     metrics = (
-        PrometheusMetricsAdapter(tool_http, settings.metrics_url, settings.metrics_service_names)
+        PrometheusMetricsAdapter(tool_http, settings.metrics_url, names)
         if settings.metrics_url
         else None
     )
-    log.info("metrics_source", source="prometheus" if metrics else "devdata")
+    logs = LokiLogsAdapter(tool_http, settings.logs_url, names) if settings.logs_url else None
+    log.info("observation_sources", metrics="prometheus" if metrics else "devdata",
+             logs="loki" if logs else "devdata")  # fmt: skip
     registry = build_registry(
         catalog,
         DevDataAdapter(sessions),
@@ -83,6 +88,8 @@ def build_app(
         ),
         metrics=metrics,
         metrics_dependency="prometheus" if metrics else "devdata",
+        logs=logs,
+        logs_dependency="loki" if logs else "devdata",
     )
     # control plane, not tool egress: the approval record lives in incident-service
     incident_http = httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=1.0),
