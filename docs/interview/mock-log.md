@@ -12,7 +12,7 @@ resume-driven design. What would you have built at a real company?"
 
 | Q | C | K | T | D | H | flagged numbers | note |
 |---|---|---|---|---|---|---|---|
-| 1 | | | | | | | not asked yet |
+| 1 (2026-11-21, try 1) | 2 | 1 | 1 | 1 | 1 | "Redis" (no service uses it, ADR-031) | did not answer: listed tech, no decision, no real-company design; previous-company claim unprovable here |
 
 ## Round 2 - AI quality and trust (panel: principal engineer)
 | Q | C | K | T | D | H | flagged numbers | note |
