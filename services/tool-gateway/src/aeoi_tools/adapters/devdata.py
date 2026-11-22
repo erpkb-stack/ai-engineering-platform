@@ -8,7 +8,6 @@ LIMIT), runs as the least-privilege tools_svc login, and is parameterised (no st
 
 from __future__ import annotations
 
-import math
 from datetime import timedelta
 from typing import Any
 
@@ -19,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from aeoi_security.redaction import REDACTED, is_sensitive_key
 from aeoi_tools import schemas as s
+from aeoi_tools.adapters.metric_stats import bucket_seconds, series_stats
 from aeoi_tools.contracts import ToolExecutionError, ToolUnavailableError
 from aeoi_tools.sanitize import MAX_STRING_CHARS
 
@@ -92,9 +92,7 @@ class DevDataAdapter:
 
     # ------------------------------------------------------------ metrics
     async def query_metrics(self, q: s.MetricsIn) -> s.MetricsOut:
-        seconds = (q.end - q.start).total_seconds()
-        # whole minutes, so buckets line up with the 1-minute source resolution
-        bucket = max(60, math.ceil(seconds / q.max_points / 60) * 60)
+        bucket = bucket_seconds(q.start, q.end, q.max_points)
         rows = await self._rows(
             text("""
                 SELECT date_bin(CAST(:bucket AS interval), ts, CAST(:start AS timestamptz)) AS ts,
@@ -111,16 +109,7 @@ class DevDataAdapter:
                 "end": q.end,
             },
         )
-        values = sorted(float(r["value"]) for r in rows)
-        stats: dict[str, float | None] = {"min": None, "max": None, "mean": None, "p95": None}
-        if values:
-            stats = {
-                "min": round(values[0], 4),
-                "max": round(values[-1], 4),
-                "mean": round(sum(values) / len(values), 4),
-                # nearest-rank p95 over BUCKET means (stated in the description)
-                "p95": round(values[min(len(values) - 1, math.ceil(0.95 * len(values)) - 1)], 4),
-            }
+        stats = series_stats([float(r["value"]) for r in rows])
         if not rows:
             return s.MetricsOut(items=[])
         return s.MetricsOut(

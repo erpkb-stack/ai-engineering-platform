@@ -337,9 +337,13 @@ services:
       AEOI_TOOLS_AUDIT_URL: http://audit:8008
       # Phase 20 switch from .env: set -> the Java catalog by its compose name; unset -> JSON
       AEOI_TOOLS_CATALOG_URL: ${AEOI_TOOLS_CATALOG_URL:+http://service-catalog:8010}
+      # Phase 32a switch from .env: set -> query_metrics from the real Prometheus (profile
+      # observability); unset -> devdata (the planted demo)
+      AEOI_TOOLS_METRICS_URL: ${AEOI_TOOLS_METRICS_URL:+http://prometheus:9090}
       # EXACTLY the hosts of the HTTP-backed tools above, nothing else (the contract test checks
       # both directions: a missing host breaks a tool, an extra one widens egress)
-      AEOI_TOOLS_EGRESS_ALLOWLIST: '["rag:8004", "service-catalog:8010"]'
+      # prometheus only while its switch is on: off = no egress rule to it at all (32a)
+      AEOI_TOOLS_EGRESS_ALLOWLIST: '["rag:8004", "service-catalog:8010"${AEOI_TOOLS_METRICS_URL:+, "prometheus:9090"}]'
     volumes:
       # catalog.json (the default catalog source). Long form: a missing folder is an ERROR, not
       # a silently created empty one (the catalog loads lazily: healthy, then the tool fails)

@@ -402,7 +402,8 @@ def expected_edges(state: str) -> set[tuple[str, str, int]]:
         if app == "tool-gateway":
             for item in json.loads(env["AEOI_TOOLS_EGRESS_ALLOWLIST"]):
                 host, port = item.split(":")
-                out.add((app, host, int(port)))
+                if host not in km.INFRA:  # compose infra (prometheus, 32a) = an ipBlock rule
+                    out.add((app, host, int(port)))
             if env.get("AEOI_TOOLS_CATALOG_URL"):
                 out.add((app, "service-catalog", 8010))
         if app == "incident-service" and env.get("AEOI_INCIDENT_CATALOG_URL"):
@@ -473,7 +474,10 @@ def test_the_host_and_the_internet_only_for_the_llm_gateway(state: str) -> None:
         ips = egress_ip(objs, app)
         assert (("192.168.65.254/32", 11434) in ips) == (app == "llm-gateway")
         assert (("0.0.0.0/0", 443) in ips) == (app == "llm-gateway")
-        assert {port for _, port in ips} <= {5432, 19092, 8080, 11434, 443, 4318}
+        assert {port for _, port in ips} <= {5432, 19092, 8080, 11434, 443, 4318, 9090}
+        # Phase 32a: Prometheus only for the tool-gateway, only while the metrics switch is on
+        metrics_on = bool(cc.env_of("tool-gateway", cc.ENV_STATES[state])["AEOI_TOOLS_METRICS_URL"])
+        assert any(port == 9090 for _, port in ips) == (app == "tool-gateway" and metrics_on)
     rule = next(r for r in policy(objs, "llm-gateway")["egress"]
                 if r["to"][0].get("ipBlock", {}).get("cidr") == "0.0.0.0/0")  # fmt: skip
     excepted = rule["to"][0]["ipBlock"]["except"]

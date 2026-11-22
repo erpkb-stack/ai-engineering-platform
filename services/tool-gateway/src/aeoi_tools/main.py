@@ -20,6 +20,7 @@ from aeoi_tools.adapters.catalog_http import CatalogHttpAdapter
 from aeoi_tools.adapters.deployer import Deployer
 from aeoi_tools.adapters.devdata import DevDataAdapter
 from aeoi_tools.adapters.http import make_client, origin_of
+from aeoi_tools.adapters.prometheus import PrometheusMetricsAdapter
 from aeoi_tools.adapters.rag import RagAdapter
 from aeoi_tools.api import router
 from aeoi_tools.config import Settings
@@ -65,6 +66,14 @@ def build_app(
         if settings.catalog_url
         else CatalogAdapter(settings.catalog_file)
     )
+    if settings.metrics_url and origin_of(settings.metrics_url) not in allowed:
+        log.warning("metrics_url_not_in_egress_allowlist", metrics=origin_of(settings.metrics_url))
+    metrics = (
+        PrometheusMetricsAdapter(tool_http, settings.metrics_url, settings.metrics_service_names)
+        if settings.metrics_url
+        else None
+    )
+    log.info("metrics_source", source="prometheus" if metrics else "devdata")
     registry = build_registry(
         catalog,
         DevDataAdapter(sessions),
@@ -72,6 +81,8 @@ def build_app(
         Deployer(
             sessions, async_sessionmaker(cd_engine, expire_on_commit=False) if cd_engine else None
         ),
+        metrics=metrics,
+        metrics_dependency="prometheus" if metrics else "devdata",
     )
     # control plane, not tool egress: the approval record lives in incident-service
     incident_http = httpx.AsyncClient(timeout=httpx.Timeout(5.0, connect=1.0),

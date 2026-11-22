@@ -25,12 +25,23 @@ class CatalogSource(Protocol):
     async def query(self, q: s.CatalogIn) -> s.CatalogOut: ...
 
 
+class MetricsSource(Protocol):
+    """devdata (`adapters/devdata.py`) or a real Prometheus (`adapters/prometheus.py`, 32a)."""
+
+    async def query_metrics(self, q: s.MetricsIn) -> s.MetricsOut: ...
+
+
 def build_registry(
     catalog: CatalogSource,
     devdata: DevDataAdapter,
     rag: RagAdapter,
     deployer: Deployer | None = None,
+    *,
+    metrics: MetricsSource | None = None,
+    metrics_dependency: str = "devdata",
 ) -> Registry:
+    metrics_source: MetricsSource = metrics or devdata
+
     async def query_service_catalog(q: s.CatalogIn, _: ToolContext) -> s.CatalogOut:
         return await catalog.query(q)
 
@@ -38,7 +49,7 @@ def build_registry(
         return await devdata.search_logs(q)
 
     async def query_metrics(q: s.MetricsIn, _: ToolContext) -> s.MetricsOut:
-        return await devdata.query_metrics(q)
+        return await metrics_source.query_metrics(q)
 
     async def get_deployment(q: s.DeploymentsIn, _: ToolContext) -> s.DeploymentsOut:
         return await devdata.get_deployments(q)
@@ -128,7 +139,7 @@ def build_registry(
             permissions=frozenset({Perm.METRICS_READ}),
             side_effect=SideEffect.READ,
             handler=query_metrics,
-            dependency="devdata",
+            dependency=metrics_dependency,
             evidence_kind="METRIC",
             timeout_s=5.0,
             audit_fields=("service_key", "metric", "start", "end"),
