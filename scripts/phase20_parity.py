@@ -11,7 +11,6 @@ Needs: make db-seed, make catalog-import, make run-catalog, make tools-tokens.
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -19,13 +18,15 @@ from typing import Any
 import httpx
 
 from aeoi_tools import schemas as s
-from aeoi_tools.adapters.catalog import CatalogAdapter
+from aeoi_tools.adapters.catalog import CatalogAdapter, load_services
 from aeoi_tools.adapters.catalog_http import CatalogHttpAdapter
 from aeoi_tools.registry import CatalogSource
 from aeoi_tools.relay import FileToken
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "data" / "generated" / "catalog.json"
+# Phase 32a: AEOI's own services, read on top by the JSON adapter and merged by catalog-import
+AEOI = ROOT / "services" / "tool-gateway" / "config" / "catalog-aeoi.json"
 TOKEN = ROOT / "secrets" / "tools_catalog_token.txt"
 NEEDLES = ("api", "db", "-w", "pay", "check", "zz-none", "Web")
 
@@ -63,10 +64,10 @@ async def compare(
 
 
 async def main(base: str) -> int:
-    services = json.loads(CATALOG.read_text())["services"]
+    services = list(load_services(CATALOG, AEOI).values())
     async with httpx.AsyncClient(timeout=10.0, trust_env=False) as client:
         lines, failed = await compare(
-            CatalogAdapter(CATALOG), CatalogHttpAdapter(client, base, FileToken(TOKEN)),
+            CatalogAdapter(CATALOG, (AEOI,)), CatalogHttpAdapter(client, base, FileToken(TOKEN)),
             queries_for(services),
         )  # fmt: skip
     print("\n".join(lines))

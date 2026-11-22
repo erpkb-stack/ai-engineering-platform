@@ -99,6 +99,18 @@ scratchpad, not committed).
   (failed on the old code). Needs `make images` before a kind run uses it.
 - Not proven yet: a real non-zero 5xx count (no 5xx traffic was made).
 
+## 6d. Built: catalog entries + evidence provenance (2026-11-22)
+- `services/tool-gateway/config/catalog-aeoi.json`: AEOI's 9 apps + aeoi-postgres/kafka/keycloak
+  (12), `depends_on` = the compose call graph (telemetry backends left out), tier 1 = api,
+  incident-service, aeoi-postgres. Read ON TOP of the generated Northwind file (no re-seed, the
+  planted demo data unchanged); a key in two files is refused. `make catalog-import` merges both
+  (`scripts/catalog_merge.py`: the Java import deletes and replaces); the parity smoke reads both.
+  `tests/unit/test_catalog_aeoi.py` keeps the file equal to the graph.
+- `ToolResult.source` (api contract + console types regenerated): the dependency that answered.
+  The metrics and log agents label evidence with it; devdata keeps its table name
+  (`devdata.metric_points`). The new real-backend tests failed on the old agent code.
+- For kind: `make images`, `make catalog-import`, then deploy (owner).
+
 ## 7. Not in 32a
 Real deploys and diffs (32b: GitHub), slides + backup video (32c), any buyer's data (pilot,
 after 32a), replicas, Kafka ACLs.

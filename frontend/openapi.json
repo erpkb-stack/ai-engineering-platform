@@ -3312,6 +3312,12 @@
           "security": {
             "$ref": "#/components/schemas/ToolSecurity"
           },
+          "source": {
+            "default": "",
+            "description": "the backend that answered (Phase 32a): devdata (seeded), prometheus, loki, catalog, rag, deployer; empty = an older gateway",
+            "title": "Source",
+            "type": "string"
+          },
           "status": {
             "const": "OK",
             "default": "OK",

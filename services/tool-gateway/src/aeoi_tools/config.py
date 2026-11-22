@@ -41,6 +41,10 @@ class Settings(BaseServiceSettings):
         default_factory=lambda: _here("services", "tool-gateway", "config", "agents.yaml")
     )
     catalog_file: Path = Field(default_factory=lambda: _here("data", "generated", "catalog.json"))
+    # Phase 32a: AEOI's own services, read on top (in the image: config/ ships with the service)
+    catalog_extra_files: list[Path] = Field(
+        default_factory=lambda: [_here("services", "tool-gateway", "config", "catalog-aeoi.json")]
+    )
     # Phase 20 (ADR-032): "" = the JSON file above; set = the Java service-catalog (same tool
     # contract): AEOI_TOOLS_CATALOG_URL=http://localhost:8010. Its host must be in the allow-list.
     catalog_url: str = ""

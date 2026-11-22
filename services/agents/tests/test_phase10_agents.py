@@ -364,3 +364,22 @@ def test_a_bucket_straddling_the_window_start_is_not_baseline() -> None:
     v = analyse(points, T0, bucket=timedelta(minutes=5))
     assert v.baseline is not None and v.baseline.n == 12  # bucket 12 is not in the baseline
     assert v.baseline.median < 200
+
+
+@pytest.mark.parametrize(("answered_by", "label"),
+                         [("", "devdata.metric_points"), ("devdata", "devdata.metric_points"),
+                          ("prometheus", "prometheus")])  # fmt: skip
+async def test_metric_evidence_names_the_backend_that_answered(
+    answered_by: str, label: str
+) -> None:
+    """Phase 32a: on real data the evidence must not claim to come from the seeded table."""
+    latency = series(lambda off: 420.0 if off >= 49 else 180.0)
+    script: dict[str, Any] = {"query_metrics": []}
+    for m in METRIC_ORDER:
+        reply = metrics_reply(latency, m) if m == "p95_latency_ms" else {"_kind": "METRIC",
+                                                                         "items": []}  # fmt: skip
+        script["query_metrics"].append({**reply, "_source": answered_by})
+    tools = FakeToolClient(script=script)
+    r = await MetricsAgent(MDeps(tools=tools, budget=MetricsBudget())).run(task(), "tok", None)
+    assert r.evidence and {e.source_system for e in r.evidence} == {label}
+    assert {ref.source_system for f in r.facts for ref in f.evidence} == {label}

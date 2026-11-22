@@ -1,0 +1,168 @@
+{
+ "_about": "Phase 32a: AEOI's OWN running services, so an incident on the real system has a tier and a blast radius. depends_on = the compose call graph (app calls + postgres/kafka/keycloak; telemetry backends left out: their outage does not break the product). Kept equal to the graph by tests/unit/test_catalog_aeoi.py. Tier 1: the user edge (api), alert intake (incident-service), the database.",
+ "services": [
+  {
+   "key": "agents",
+   "name": "AEOI Agents",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "llm-gateway",
+    "tool-gateway",
+    "aeoi-keycloak"
+   ]
+  },
+  {
+   "key": "api",
+   "name": "AEOI Api",
+   "type": "api",
+   "tier": 1,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "audit",
+    "incident-service",
+    "orchestrator",
+    "rag",
+    "tool-gateway",
+    "aeoi-keycloak",
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "audit",
+   "name": "AEOI Audit",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "aeoi-kafka",
+    "aeoi-keycloak",
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "incident-service",
+   "name": "AEOI Incident Service",
+   "type": "api",
+   "tier": 1,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "service-catalog",
+    "aeoi-kafka",
+    "aeoi-keycloak",
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "llm-gateway",
+   "name": "AEOI Llm Gateway",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "aeoi-keycloak",
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "orchestrator",
+   "name": "AEOI Orchestrator",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "agents",
+    "api",
+    "incident-service",
+    "aeoi-keycloak",
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "rag",
+   "name": "AEOI Rag",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "llm-gateway",
+    "aeoi-keycloak",
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "service-catalog",
+   "name": "AEOI Service Catalog",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "java",
+   "repository": null,
+   "depends_on": [
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "tool-gateway",
+   "name": "AEOI Tool Gateway",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "python",
+   "repository": null,
+   "depends_on": [
+    "audit",
+    "incident-service",
+    "rag",
+    "service-catalog",
+    "aeoi-keycloak",
+    "aeoi-postgres"
+   ]
+  },
+  {
+   "key": "aeoi-postgres",
+   "name": "AEOI Postgres",
+   "type": "db",
+   "tier": 1,
+   "team": "team-aeoi",
+   "language": "n/a",
+   "repository": null,
+   "depends_on": []
+  },
+  {
+   "key": "aeoi-kafka",
+   "name": "AEOI Kafka",
+   "type": "stream",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "n/a",
+   "repository": null,
+   "depends_on": []
+  },
+  {
+   "key": "aeoi-keycloak",
+   "name": "AEOI Keycloak",
+   "type": "api",
+   "tier": 2,
+   "team": "team-aeoi",
+   "language": "n/a",
+   "repository": null,
+   "depends_on": []
+  }
+ ]
+}

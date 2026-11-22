@@ -19,7 +19,17 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-from aeoi_agents.common import Failure, call, context, flagged_ids, hhmm, metric_value, ts
+from aeoi_agents.common import (
+    Failure,
+    call,
+    context,
+    flagged_ids,
+    hhmm,
+    metric_value,
+    relabel_sources,
+    source_of,
+    ts,
+)
 from aeoi_agents.config import MetricsBudget
 from aeoi_agents.metrics.anomaly import Baseline, Run, SeriesVerdict, analyse
 from aeoi_agents.trace import Tracer
@@ -84,6 +94,7 @@ class MetricsAgent:
         notes: list[str] = []
         anomalies: list[MetricAnomaly] = []
         evidence: list[EvidenceItem] = []
+        sources: dict[str, str] = {}  # evidence id -> the backend that answered (32a)
         missing: dict[str, list[str]] = {}
         denied: Failure | None = None
         failed: list[str] = []
@@ -136,6 +147,7 @@ class MetricsAgent:
                     notes.append(f"{svc} {metric}: not judged - {verdict.reason}.")
                     continue
                 ev_id = str(item["evidence_id"])
+                sources[ev_id] = source_of(res, SOURCE)
                 evidence.append(
                     _evidence(ev_id, svc, metric, int(item["bucket_seconds"]), points, verdict,
                               base, res.tool_call_id, ev_id in flagged_ids(res))
@@ -175,6 +187,7 @@ class MetricsAgent:
             )
         )
         cited = {r.evidence_id for f in facts for r in f.evidence}
+        facts, evidence = relabel_sources(facts, evidence, sources, SOURCE)
         return AgentRunResult(
             status="SUCCEEDED",
             degraded=degraded or None,

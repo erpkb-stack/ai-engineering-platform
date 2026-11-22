@@ -1858,6 +1858,12 @@ export interface components {
             latency_ms: number;
             security: components["schemas"]["ToolSecurity"];
             /**
+             * Source
+             * @description the backend that answered (Phase 32a): devdata (seeded), prometheus, loki, catalog, rag, deployer; empty = an older gateway
+             * @default
+             */
+            source: string;
+            /**
              * Status
              * @default OK
              * @constant

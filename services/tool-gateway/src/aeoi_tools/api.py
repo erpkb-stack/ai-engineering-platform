@@ -172,6 +172,7 @@ def _respond(out: Outcome, path: str) -> JSONResponse:
             security=out.security,  # type: ignore[arg-type]
             latency_ms=out.latency_ms,
             attempts=out.attempts,
+            source=out.source,
         )
         return JSONResponse(result.model_dump(mode="json"))
     return _problem(

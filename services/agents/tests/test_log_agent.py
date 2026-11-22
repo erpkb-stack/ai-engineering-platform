@@ -312,3 +312,14 @@ async def test_cache_hit_is_marked_and_a_comparison_can_refuse_the_cache() -> No
     default = FakeLLMClient(data=[{"clusters": []}])
     await agent(tools(), default).run(task(), "t", None)
     assert default.calls[0]["use_cache"] is True
+
+
+@pytest.mark.parametrize(("answered_by", "label"),
+                         [("", "devdata.log_events"), ("loki", "loki")])  # fmt: skip
+async def test_log_evidence_names_the_backend_that_answered(answered_by: str, label: str) -> None:
+    """Phase 32a: on real data the evidence must not claim to come from the seeded table."""
+    tc = FakeToolClient(script={"search_logs": [{**logs("asc"), "_source": answered_by},
+                                                {**logs("desc"), "_source": answered_by}]})  # fmt: skip
+    res = await agent(tc, FakeLLMClient(data=[{"clusters": []}])).run(task(), "tok", None)
+    assert res.evidence and {e.source_system for e in res.evidence} == {label}
+    assert {ref.source_system for f in res.facts for ref in f.evidence} == {label}

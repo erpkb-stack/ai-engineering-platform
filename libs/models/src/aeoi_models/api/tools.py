@@ -47,6 +47,11 @@ class ToolResult(BaseModel):
     security: ToolSecurity
     latency_ms: int
     attempts: int
+    source: str = Field(
+        default="",
+        description="the backend that answered (Phase 32a): devdata (seeded), prometheus, loki, "
+        "catalog, rag, deployer; empty = an older gateway",
+    )
 
 
 class ToolInfo(BaseModel):

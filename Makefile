@@ -167,12 +167,15 @@ catalog-build: ## Build + test the Java service (mvn verify; tests use the compo
 	@JAVA_HOME="$(CATALOG_JAVA_HOME)"; export JAVA_HOME; echo "JDK for the build: $$JAVA_HOME"; \
 	AEOI_REPO_ROOT="$(CURDIR)" mvn -q -B -f $(CATALOG_DIR)/pom.xml verify
 
-catalog-import: ## Migrate (Flyway) + load data/generated/catalog.json, as the schema owner, then exit (dev only)
+catalog-import: ## Migrate (Flyway) + load data/generated/catalog.json + AEOI's own services (32a), as the schema owner, then exit (dev only)
 	@[ -f $(CATALOG_JAR) ] || { echo "no $(CATALOG_JAR): run make catalog-build"; exit 1; }
 	@[ -f data/generated/catalog.json ] || { echo "no data/generated/catalog.json: run make db-seed"; exit 1; }
-	@CATALOG_MIGRATE=true CATALOG_DB_USER=$${AEOI_PG_USER:-aeoi} CATALOG_DB_PASSWORD="$(PG_OWNER_PW)" \
+	@set -eu; merged="$$(mktemp -t aeoi-catalog)"; trap 'rm -f "$$merged"' EXIT; \
+	  uv run --quiet python scripts/catalog_merge.py "$$merged" data/generated/catalog.json \
+	    services/tool-gateway/config/catalog-aeoi.json; \
+	  CATALOG_MIGRATE=true CATALOG_DB_USER=$${AEOI_PG_USER:-aeoi} CATALOG_DB_PASSWORD="$(PG_OWNER_PW)" \
 	  AEOI_REPO_ROOT="$(CURDIR)" java -jar $(CATALOG_JAR) --spring.main.web-application-type=none \
-	  "--catalog.import-file=$(CURDIR)/data/generated/catalog.json"
+	  "--catalog.import-file=$$merged"
 	@echo "-> make db-users (creates the catalog_svc login the first time), then make run-catalog"
 
 run-catalog: ## Run the service catalog on :8010 as catalog_svc (SELECT only); needs catalog-import + db-users

@@ -83,6 +83,7 @@ class Outcome:
     detail: str = ""  # safe to show to the caller
     errors: list[dict[str, Any]] | None = None
     retry_after_s: float | None = None
+    source: str = ""  # Phase 32a: the dependency that answered (devdata | prometheus | loki ...)
 
 
 @dataclass
@@ -417,6 +418,7 @@ class ToolService:
                 )
                 out.status, out.http_status = "OK", 200
                 out.data, out.evidence_ids, out.security = data, evidence, report.as_dict()
+                out.source = spec.dependency
         out.attempts = attempts
         return out
 

@@ -24,6 +24,7 @@ from typing import Any
 
 import structlog
 
+from aeoi_agents.common import relabel_sources, source_of
 from aeoi_agents.config import LogAgentBudget
 from aeoi_agents.log_analysis.clustering import Cluster, cluster_lines
 from aeoi_agents.prompts import Prompt, load_prompt
@@ -182,6 +183,7 @@ class LogAnalysisAgent:
                 for item in res.data.get("items", []):
                     item["ts"] = _ts(item["ts"])
                     item["_tool_call_id"] = res.tool_call_id
+                    item["_source"] = source_of(res, SOURCE)  # Phase 32a: who answered
                     item["_order"] = order
                     lines_by_svc.setdefault(svc, []).append(item)
                 counts_by_svc[svc] = res.data.get("counts_by_error_code", {})
@@ -257,6 +259,8 @@ class LogAnalysisAgent:
             degraded = "; ".join(filter(None, [degraded, "no data: " + ", ".join(failed)]))
         notes = _cap_notes(notes)
         evidence = [self._evidence(by_id[e]) for e in sorted(cited) if e in by_id]
+        sources = {e: str(line.get("_source", SOURCE)) for e, line in by_id.items()}
+        facts, evidence = relabel_sources(facts, evidence, sources, SOURCE)
         return AgentRunResult(
             status="SUCCEEDED",
             degraded=degraded,

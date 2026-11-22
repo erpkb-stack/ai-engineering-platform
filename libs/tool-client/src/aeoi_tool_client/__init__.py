@@ -137,6 +137,7 @@ class FakeToolClient:
         for i, it in enumerate(items):
             it["evidence_id"] = f"{kind}-{call_id.hex}-{i}"
             ids.append(it["evidence_id"])
+        source = str(item.pop("_source", ""))  # Phase 32a: the backend that "answered"
         flags = item.pop("_flags", [])
         # "_flag_items": [i, ...] -> the real gateway's injection flag for item i
         flags += [
@@ -153,6 +154,7 @@ class FakeToolClient:
             security=ToolSecurity(injection_flags=flags),
             latency_ms=1,
             attempts=1,
+            source=source,
         )
 
 

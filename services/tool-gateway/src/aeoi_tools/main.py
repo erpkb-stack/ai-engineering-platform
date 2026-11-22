@@ -65,7 +65,7 @@ def build_app(
     catalog = (
         CatalogHttpAdapter(tool_http, settings.catalog_url, FileToken(settings.catalog_token_file))
         if settings.catalog_url
-        else CatalogAdapter(settings.catalog_file)
+        else CatalogAdapter(settings.catalog_file, tuple(settings.catalog_extra_files))
     )
     for name, url in (("metrics", settings.metrics_url), ("logs", settings.logs_url)):
         if url and origin_of(url) not in allowed:

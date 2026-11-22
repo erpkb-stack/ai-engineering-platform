@@ -122,3 +122,33 @@ def clip(text: object, n: int) -> str:
     if " " in cut[n // 2 :]:
         cut = cut[: cut.rfind(" ")]
     return cut.rstrip(" ,;:-") + "…"
+
+
+# ---------------------------------------------------------------- Phase 32a: provenance
+
+
+def source_of(res: ToolResult, devdata_source: str) -> str:
+    """The backend that answered a tool call. Seeded devdata keeps the agent's exact table name
+    (e.g. devdata.metric_points); a real backend is named as the gateway named it (prometheus,
+    loki). An older gateway that does not say = devdata."""
+    src = res.source or "devdata"
+    return devdata_source if src == "devdata" else src
+
+
+def relabel_sources(
+    facts: list[Any], evidence: list[Any], sources: dict[str, str], default: str
+) -> tuple[list[Any], list[Any]]:
+    """Every EvidenceRef / EvidenceItem gets the source its evidence id came from (frozen models:
+    copied, never mutated). Ids not in `sources` keep `default`."""
+
+    def ref(r: Any) -> Any:
+        src = sources.get(r.evidence_id, default)
+        return r if r.source_system == src else r.model_copy(update={"source_system": src})
+
+    new_facts = [f.model_copy(update={"evidence": [ref(r) for r in f.evidence]}) for f in facts]
+    new_evidence = [
+        e if (src := sources.get(e.evidence_key, default)) == e.source_system
+        else e.model_copy(update={"source_system": src})
+        for e in evidence
+    ]  # fmt: skip
+    return new_facts, new_evidence

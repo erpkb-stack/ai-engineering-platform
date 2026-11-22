@@ -2,7 +2,10 @@
 
 The default source (no JVM needed for every demo). Phase 20 (ADR-032): set
 AEOI_TOOLS_CATALOG_URL to use the Java service-catalog instead (`catalog_http.py`) - same tool
-contract, and an integration test proves both give the same answers."""
+contract, and an integration test proves both give the same answers.
+
+Phase 32a: `extra` files (default: AEOI's own services, `config/catalog-aeoi.json`) are read
+ON TOP of the generated file. A key in two files is an error, never a silent override."""
 
 from __future__ import annotations
 
@@ -14,24 +17,37 @@ from aeoi_tools import schemas as s
 from aeoi_tools.contracts import ToolUnavailableError
 
 
+def load_services(*paths: Path) -> dict[str, dict[str, Any]]:
+    """Every file's `services`, merged by key; a key in two files is refused (shared with the
+    Java import's merge, `scripts/catalog_merge.py`)."""
+    services: dict[str, dict[str, Any]] = {}
+    for path in paths:
+        for svc in json.loads(path.read_text())["services"]:
+            if svc["key"] in services:
+                raise ToolUnavailableError(f"catalog key {svc['key']!r} is in two files")
+            services[svc["key"]] = svc
+    return services
+
+
 class CatalogAdapter:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, extra: tuple[Path, ...] = ()) -> None:
         self._path = path
+        self._extra = extra
         self._services: dict[str, dict[str, Any]] | None = None
         self._dependents: dict[str, list[str]] = {}
-        self._mtime: float | None = None
+        self._mtime: tuple[float, ...] | None = None
 
     def _load(self) -> dict[str, dict[str, Any]]:
         try:
-            mtime = self._path.stat().st_mtime
+            mtime = tuple(p.stat().st_mtime for p in (self._path, *self._extra))
         except FileNotFoundError as exc:
             # 503 with the fix in the message (a retry is cheap and harmless here)
+            missing = Path(str(exc.filename)).name if exc.filename else self._path.name
             raise ToolUnavailableError(
-                f"catalog not found at {self._path.name}; run `make db-seed`"
+                f"catalog not found at {missing}; run `make db-seed`"
             ) from exc
         if self._services is None or mtime != self._mtime:  # reload after a re-seed
-            data = json.loads(self._path.read_text())
-            services = {svc["key"]: svc for svc in data["services"]}
+            services = load_services(self._path, *self._extra)
             dependents: dict[str, list[str]] = {k: [] for k in services}
             for svc in services.values():
                 for dep in svc.get("depends_on", []):
