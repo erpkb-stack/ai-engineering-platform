@@ -75,6 +75,26 @@ the planted 14/17: the code rules were built on synthetic data. A drop we measur
 4. **Paid runs:** 5 real-model runs, estimate from the 25b rate $0.04-0.10 each (~$0.50 total);
    cost per run recorded, not extrapolated.
 
+## 6b. Real check of both adapters (Mac, 2026-11-22, read-only; kind tool-gateway as the traffic source)
+`make obs-up`, 90 + 50 real requests to the kind tool-gateway (401s), then the COMMITTED
+adapters called against the real Prometheus :9090 and Loki :3100 (script in the session
+scratchpad, not committed).
+- Names match what the adapters assume: Prometheus `service_name`,
+  `http_response_status_code` (also `error_type`, `http_route`); Loki stream label
+  `service_name`, metadata `severity_text`, `trace_id`, `status`, `path`. OTel exports every 15 s.
+- Values: requests_per_sec peak 2.40 (raw instant rate 2.00 over a different window), p95 18.5 ms,
+  http_5xx_per_min 0 WITH traffic (the zero-not-empty rule works), cpu_util NO SERIES; logs INFO+
+  168 lines, exact counts.
+- **Finding 1 - a counter is born non-zero:** a series' first sample already holds every request
+  before it (the 401 series appeared at 40, so its rate was 0). Requests before a series' first
+  sample are invisible: the FIRST 5xx burst on a route after a pod start is undercounted at its
+  onset. Not fixed; F1 must be read with it in mind (the onset may look later than it was).
+- **Finding 2 - real 5xx leave no WARN log line:** the access line `http_request` is logged at
+  INFO for every status, 500 included (`libs/web/src/aeoi_web/middleware.py:85`); the log agent
+  asks WARN+ (`log_analysis/agent.py:149`); no warning was found on the api's overload path.
+  So in F1 the real log evidence is probably EMPTY. Owner decision (below, 6c).
+- Not proven yet: a real non-zero 5xx count (no 5xx traffic was made).
+
 ## 7. Not in 32a
 Real deploys and diffs (32b: GitHub), slides + backup video (32c), any buyer's data (pilot,
 after 32a), replicas, Kafka ACLs.
