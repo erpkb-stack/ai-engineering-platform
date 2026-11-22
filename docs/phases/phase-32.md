@@ -111,6 +111,35 @@ scratchpad, not committed).
   (`devdata.metric_points`). The new real-backend tests failed on the old agent code.
 - For kind: `make images`, `make catalog-import`, then deploy (owner).
 
+## 6e. Built: the run (2026-11-22) - rules fixed BEFORE the first run
+- Rules: `tests/realdata/realdatalib.py`, RULES_VERSION 1 (tests: `tests/unit/test_realdata.py`).
+  F1 PASS = top live hypothesis is a code-written `traffic` cause on the target, VALIDATED
+  (found-but-not-validated is a FAIL, said apart). F2 PASS = no live HIGH claim. Any run whose
+  METRIC/LOG evidence is not from prometheus/loki is INVALID.
+- Runner: `make realdata-run FAULT=f1|f2 [BASELINE_MIN=30]` (`tests/realdata/run.py`, reuses
+  the demo's signed alert, polling, machine snapshot). Baseline 1 req/s on the api's
+  `GET /api/v1/incidents` (no LLM behind it); F1 = 40 workers for 180 s on the same route.
+  Results: `data/realdata/results/realdata-<fault>-<UTC>.json` (cost from `llm.model_usage`).
+- **Change from section 3:** F2 is NOT `make chaos EXP=pg` - the chaos runner refuses real
+  models (ADR-040, correctly). The OWNER runs `docker stop aeoi-postgres-1; sleep 60;
+  docker start aeoi-postgres-1`; the script only watches the api's readiness body.
+
+### How to run on the Mac (owner)
+```
+# .env: AEOI_TOOLS_METRICS_URL=http://localhost:9090  AEOI_TOOLS_LOGS_URL=http://localhost:3100
+make obs-up && make images && make catalog-import && make k8s-apply
+make realdata-run FAULT=f1          # ~35 min: 30 baseline + 3 surge + the investigation
+make realdata-run FAULT=f2          # stop Postgres yourself when it says so
+```
+Verify (section 5): F1 x3, F2 x2, each file committed.
+
 ## 7. Not in 32a
 Real deploys and diffs (32b: GitHub), slides + backup video (32c), any buyer's data (pilot,
 after 32a), replicas, Kafka ACLs.
+
+**32c adds (owner, 2026-11-22): a buyer-facing Overview page in the console** - the 4-6 numbers
+a buyer asks about, so the demo stays in the product, not in Grafana: open incidents by
+severity, median time to identify, cost per investigation, approvals waiting / approved vs
+rejected, share of investigations with a VALIDATED cause. Data already in Postgres (incidents,
+approvals, `llm.model_usage`): a few read-only api endpoints + one page. NOT a Grafana rebuild
+(no charting/alerting engine). Built AFTER 32a, so its numbers come from real runs.

@@ -498,6 +498,10 @@ demo-fresh: ## Phase 29: the "clean make up" before a counted pass: fresh infra 
 demo-clean: ## Phase 29: remove the demo's rollback deploy row (DEPLOY-4821 running again); incidents + audit stay
 	uv run python tests/demo/run.py clean
 
+realdata-run: ## Phase 32a: ONE real fault on the deployed system from REAL telemetry: make realdata-run FAULT=f1|f2 [BASELINE_MIN=30] (needs the metrics + logs switches on, obs-up, new images, catalog-import)
+	@set -eu; test -n "$(FAULT)" || { echo "usage: make realdata-run FAULT=f1|f2 [BASELINE_MIN=30]"; exit 2; }; \
+	AEOI_REALDATA_BASELINE_MIN=$(or $(BASELINE_MIN),30) uv run python tests/realdata/run.py $(FAULT)
+
 chaos: ## Phase 28a: ONE failure experiment on the deployed system: make chaos EXP=pg|kafka|orchestrator|agents (stops a container / deletes a pod; fake LLM only)
 	@set -eu; test -n "$(EXP)" || { echo "usage: make chaos EXP=pg|kafka|orchestrator|agents"; exit 2; }; \
 	uv run python tests/chaos/run.py $(EXP)
